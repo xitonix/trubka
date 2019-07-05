@@ -7,11 +7,11 @@ import (
 	"strings"
 )
 
-type FileFinder struct {
+type fileFinder struct {
 	root string
 }
 
-func NewFileFinder(root string) (*FileFinder, error) {
+func newFileFinder(root string) (*fileFinder, error) {
 	dir, err := os.Stat(root)
 	if err != nil {
 		return nil, err
@@ -19,12 +19,12 @@ func NewFileFinder(root string) (*FileFinder, error) {
 	if !dir.IsDir() {
 		return nil, fmt.Errorf("%s is not a directory", root)
 	}
-	return &FileFinder{
+	return &fileFinder{
 		root: root,
 	}, nil
 }
 
-func (f *FileFinder) Ls(root string) ([]string, error) {
+func (f *fileFinder) ls(root string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(f.root, func(path string, f os.FileInfo, err error) error {
 		if err != nil {

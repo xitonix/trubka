@@ -1,5 +1,5 @@
 package proto
 
-type Finder interface {
-	Ls(root string) ([]string, error)
+type finder interface {
+	ls(root string) ([]string, error)
 }

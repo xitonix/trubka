@@ -17,11 +17,11 @@ type FileLoader struct {
 }
 
 func NewFileLoader(root string) (*FileLoader, error) {
-	finder, err := NewFileFinder(root)
+	finder, err := newFileFinder(root)
 	if err != nil {
 		return nil, err
 	}
-	files, err := finder.Ls(root)
+	files, err := finder.ls(root)
 	if err != nil {
 		return nil, err
 	}
