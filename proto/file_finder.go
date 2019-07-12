@@ -24,14 +24,14 @@ func newFileFinder(root string) (*fileFinder, error) {
 	}, nil
 }
 
-func (f *fileFinder) ls(root string) ([]string, error) {
+func (f *fileFinder) ls() ([]string, error) {
 	var files []string
 	err := filepath.Walk(f.root, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if !f.IsDir() && strings.HasSuffix(strings.ToLower(f.Name()), ".proto") {
-			files = append(files, f.Name())
+			files = append(files, path)
 		}
 		return nil
 	})
@@ -39,4 +39,21 @@ func (f *fileFinder) ls(root string) ([]string, error) {
 		return nil, err
 	}
 	return files, nil
+}
+
+func (f *fileFinder) dirs() ([]string, error) {
+	var dirs []string
+	err := filepath.Walk(f.root, func(path string, f os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if f.IsDir() {
+			dirs = append(dirs, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return dirs, nil
 }
