@@ -12,3 +12,4 @@
 *.out
 trubka
 .idea/
+.DS_Store
