@@ -17,6 +17,7 @@ type Consumer struct {
 	client          sarama.Consumer
 	topicPartitions map[string][]int32
 	wg              sync.WaitGroup
+	store           *inMemoryOffsetStore
 }
 
 func NewConsumer(brokers []string, printer internal.Printer, options ...Option) (*Consumer, error) {
@@ -36,6 +37,7 @@ func NewConsumer(brokers []string, printer internal.Printer, options ...Option) 
 		printer:         printer,
 		client:          client,
 		topicPartitions: make(map[string][]int32),
+		store:           newInMemoryStore(),
 	}, nil
 }
 
@@ -62,43 +64,55 @@ func (c *Consumer) consumeTopics(ctx context.Context, cb Callback) error {
 
 	cn, cancel := context.WithCancel(ctx)
 	defer cancel()
-	var err error
 	for topic, partitions := range c.topicPartitions {
-		if err != nil {
+		select {
+		case <-ctx.Done():
 			break
-		}
-		for _, partition := range partitions {
-			err = c.consumePartition(cn, cb, topic, partition, offset)
-			if err != nil {
-				cancel()
-				break
+		case <-cn.Done():
+			break
+		default:
+			for _, partition := range partitions {
+				err := c.consumePartition(cn, cb, topic, partition, offset)
+				if err != nil {
+					c.printer.Writef(internal.Quiet, "Failed to start consuming from offset %d partition %d of topic %s: %s", offset, partition, topic, err)
+					cancel()
+					break
+				}
 			}
 		}
 	}
 	c.wg.Wait()
-	return err
+	c.printer.Writeln(internal.SuperVerbose, "Closing Kafka consumer.")
+	err := c.client.Close()
+	if err != nil {
+		c.printer.Writef(internal.Quiet, "Failed to close Kafka client: %s.\n", err)
+	} else {
+		c.printer.Writeln(internal.Verbose, "The Kafka client has been closed successfully.")
+	}
+	c.printer.Writeln(internal.SuperVerbose, "Closing the offset store.")
+	return c.store.close()
 }
 
 func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic string, partition int32, offset int64) error {
+	c.printer.Writef(internal.SuperVerbose, "Start consuming from %s topic, partition %d, offset %d.\n", topic, partition, offset)
 	pc, err := c.client.ConsumePartition(topic, partition, offset)
 	if err != nil {
-		return errors.Wrapf(err, "failed to start consuming partition %d of topic %s", partition, topic)
+		return errors.Wrapf(err, "failed to start consuming partition %d of topic %s\n", partition, topic)
 	}
 
 	go func(pc sarama.PartitionConsumer) {
 		<-ctx.Done()
-		err := pc.Close()
-		if err != nil {
-			c.printer.Writef(internal.Quiet, "failed to close the message: %s")
-		}
-
+		pc.AsyncClose()
 	}(pc)
 
 	c.wg.Add(1)
 	go func(pc sarama.PartitionConsumer) {
 		defer c.wg.Done()
 		for m := range pc.Messages() {
-			cb(m.Topic, m.Partition, m.Offset, m.Timestamp, m.Key, m.Value)
+			err := cb(m.Topic, m.Partition, m.Offset, m.Timestamp, m.Key, m.Value)
+			if err == nil {
+				c.store.store(m.Topic, m.Partition, m.Offset)
+			}
 		}
 	}(pc)
 
@@ -106,7 +120,7 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 	go func(pc sarama.PartitionConsumer) {
 		defer c.wg.Done()
 		for err := range pc.Errors() {
-			c.printer.Writef(internal.Quiet, "failed to consume message: %s", err)
+			c.printer.Writef(internal.Quiet, "Failed to consume message: %s\n.", err)
 		}
 	}(pc)
 
