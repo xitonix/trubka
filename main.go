@@ -21,7 +21,9 @@ func main() {
 	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`).
 		WithShort("F").
 		WithTrimming()
-	topicsMap := flags.StringMap("topic-map", `The topic:message map (Example: -T {"topic-A":"namespace.MessageTypeA"})`).WithShort("T").Required()
+	topicsMap := flags.StringMap("topic-map", `The topic:message map. Example: -T '{"TopicA":"Namespace.MessageTypeA"}'.`).
+		WithShort("T").
+		Required()
 
 	brokers := flags.StringSlice("kafka-endpoints", "The comma separated list of Kafka endpoints in server:port format.").
 		WithShort("k").
@@ -32,10 +34,10 @@ func main() {
 	rewind := flags.Bool("rewind", "Read to beginning of the stream")
 
 	v := flags.Verbosity("The verbosity level of the tool.")
-	flags.Parse()
-	prn := internal.NewPrinter(internal.ToVerbosityLevel(v.Get()))
 
-	prn.Writef(internal.Verbose, "")
+	flags.Parse()
+
+	prn := internal.NewPrinter(internal.ToVerbosityLevel(v.Get()))
 
 	loader, err := proto.NewFileLoader(protoDir.Get(), protoFiles.Get()...)
 	if err != nil {
@@ -85,24 +87,6 @@ func main() {
 	if err != nil {
 		exit(err)
 	}
-
-	// md, err := loader.Load("cm.protobuf.AdministratorDefined")
-	// if err != nil {
-	// 	exit(err)
-	// }
-
-	// var originalBytes []byte
-	// err = msg.Unmarshal(originalBytes)
-	// if err != nil {
-	// 	exit(err)
-	// }
-	//
-	// j, err := msg.MarshalJSONIndent()
-	// if err != nil {
-	// 	exit(err)
-	// }
-	//
-	// fmt.Println(string(j))
 }
 
 func exit(err error) {
