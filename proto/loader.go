@@ -2,8 +2,8 @@ package proto
 
 import (
 	"path/filepath"
+	"strings"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
@@ -11,11 +11,15 @@ import (
 )
 
 type Loader interface {
-	Load(messageName string) (proto.Message, error)
+	Load(messageName string) (*dynamic.Message, error)
+	List() []string
 }
+
+const protoExtension = ".proto"
 
 type FileLoader struct {
 	files []*desc.FileDescriptor
+	cache map[string]*dynamic.Message
 }
 
 func NewFileLoader(root string, files ...string) (*FileLoader, error) {
@@ -32,6 +36,9 @@ func NewFileLoader(root string, files ...string) (*FileLoader, error) {
 		}
 	} else {
 		for i, f := range files {
+			if !strings.HasSuffix(strings.ToLower(f), protoExtension) {
+				f += protoExtension
+			}
 			if !filepath.IsAbs(f) {
 				files[i] = filepath.Join(root, f)
 			}
@@ -63,10 +70,15 @@ func NewFileLoader(root string, files ...string) (*FileLoader, error) {
 
 	return &FileLoader{
 		files: fileDescriptors,
+		cache: make(map[string]*dynamic.Message),
 	}, nil
 }
 
-func (f *FileLoader) Load(messageName string) (proto.Message, error) {
+func (f *FileLoader) Load(messageName string) (*dynamic.Message, error) {
+	if msg, ok := f.cache[messageName]; ok {
+		msg.Reset()
+		return msg, nil
+	}
 	for _, fd := range f.files {
 		md := fd.FindMessage(messageName)
 		if md != nil {
@@ -75,4 +87,15 @@ func (f *FileLoader) Load(messageName string) (proto.Message, error) {
 		}
 	}
 	return nil, errors.Errorf("%s not found. Make sure you use the fully qualified name of the message", messageName)
+}
+
+func (f *FileLoader) List() []string {
+	result := make([]string, 0)
+	for _, fd := range f.files {
+		messages := fd.GetMessageTypes()
+		for _, msg := range messages {
+			result = append(result, msg.GetFullyQualifiedName())
+		}
+	}
+	return result
 }

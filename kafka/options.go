@@ -3,7 +3,7 @@ package kafka
 import "go.xitonix.io/trubka/internal"
 
 const (
-	defaultClusterVersion = "2.1.1"
+	DefaultClusterVersion = "2.1.1"
 )
 
 // Options holds the configuration settings for kafka consumer.
@@ -20,7 +20,7 @@ type Options struct {
 func NewOptions() *Options {
 	return &Options{
 		DisableErrorReporting: false,
-		ClusterVersion:        defaultClusterVersion,
+		ClusterVersion:        DefaultClusterVersion,
 		Rewind:                false,
 	}
 }
@@ -28,18 +28,11 @@ func NewOptions() *Options {
 // Option represents a configuration function.
 type Option func(options *Options)
 
-// DisableErrorReporting disables publishing consumer errors on the Errors() channel.
-func DisableErrorReporting() Option {
-	return func(options *Options) {
-		options.DisableErrorReporting = true
-	}
-}
-
 // WithClusterVersion kafka cluster version.
 func WithClusterVersion(version string) Option {
 	return func(options *Options) {
 		if internal.IsEmpty(version) {
-			version = defaultClusterVersion
+			version = DefaultClusterVersion
 		}
 		options.ClusterVersion = version
 	}
