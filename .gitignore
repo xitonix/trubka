@@ -13,3 +13,4 @@
 trubka
 .idea/
 .DS_Store
+cmd/producer/producer
