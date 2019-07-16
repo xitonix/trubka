@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/xitonix/flags"
 
 	"go.xitonix.io/trubka/internal"
@@ -66,7 +67,11 @@ func main() {
 	}
 
 	err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, time time.Time, key, value []byte) error {
-		msg, err := loader.Load(tm[topic])
+		messageType, ok := tm[topic]
+		if !ok || internal.IsEmpty(messageType) {
+			return errors.New("the message type cannot be empty")
+		}
+		msg, err := loader.Load(messageType)
 		if err != nil {
 			return err
 		}
