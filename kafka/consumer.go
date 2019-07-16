@@ -2,9 +2,11 @@ package kafka
 
 import (
 	"context"
+	"path/filepath"
 	"sync"
 
 	"github.com/Shopify/sarama"
+	"github.com/kirsle/configdir"
 	"github.com/pkg/errors"
 
 	"go.xitonix.io/trubka/internal"
@@ -17,13 +19,24 @@ type Consumer struct {
 	client          sarama.Consumer
 	topicPartitions map[string][]int32
 	wg              sync.WaitGroup
-	store           *inMemoryOffsetStore
 }
 
 func NewConsumer(brokers []string, printer internal.Printer, options ...Option) (*Consumer, error) {
 	ops := NewOptions()
 	for _, option := range options {
 		option(ops)
+	}
+
+	if ops.OffsetStore == nil {
+		configPath := configdir.LocalConfig("trubka")
+		err := configdir.MakePath(configPath)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to create the application cache folder")
+		}
+		ops.OffsetStore, err = newLocalOffsetStore(printer, filepath.Join(configPath, "offsets.bin"))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	client, err := initClient(brokers, ops)
@@ -37,7 +50,6 @@ func NewConsumer(brokers []string, printer internal.Printer, options ...Option) 
 		printer:         printer,
 		client:          client,
 		topicPartitions: make(map[string][]int32),
-		store:           newInMemoryStore(),
 	}, nil
 }
 
@@ -90,7 +102,10 @@ func (c *Consumer) consumeTopics(ctx context.Context, cb Callback) error {
 		c.printer.Writeln(internal.Verbose, "The Kafka client has been closed successfully.")
 	}
 	c.printer.Writeln(internal.SuperVerbose, "Closing the offset store.")
-	return c.store.close()
+	if c.config.OffsetStore != nil {
+		return c.config.OffsetStore.Close()
+	}
+	return nil
 }
 
 func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic string, partition int32, offset int64) error {
@@ -110,8 +125,11 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 		defer c.wg.Done()
 		for m := range pc.Messages() {
 			err := cb(m.Topic, m.Partition, m.Offset, m.Timestamp, m.Key, m.Value)
-			if err == nil {
-				c.store.store(m.Topic, m.Partition, m.Offset)
+			if err == nil && c.config.OffsetStore != nil {
+				err := c.config.OffsetStore.Store(m.Topic, m.Partition, m.Offset)
+				if err != nil {
+					c.printer.Writef(internal.Quiet, "Failed to store the offset for topic %s, partition %d: %s\n.", m.Topic, m.Partition, err)
+				}
 			}
 		}
 	}(pc)

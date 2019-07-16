@@ -1,6 +1,8 @@
 package kafka
 
-import "go.xitonix.io/trubka/internal"
+import (
+	"go.xitonix.io/trubka/internal"
+)
 
 const (
 	DefaultClusterVersion = "2.1.1"
@@ -14,6 +16,8 @@ type Options struct {
 	ClusterVersion string
 	// Rewind if true, the consumer will start consuming from the beginning of the stream.
 	Rewind bool
+	// OffsetStore the type responsible to store consumer offsets
+	OffsetStore OffsetStore
 }
 
 // NewOptions creates a new Options object with default values.
@@ -42,5 +46,12 @@ func WithClusterVersion(version string) Option {
 func WithRewind(rewind bool) Option {
 	return func(options *Options) {
 		options.Rewind = rewind
+	}
+}
+
+// WithOffsetStore sets the consumer offset store.
+func WithOffsetStore(store OffsetStore) Option {
+	return func(options *Options) {
+		options.OffsetStore = store
 	}
 }
