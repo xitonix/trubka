@@ -18,6 +18,8 @@ type Options struct {
 	Rewind bool
 	// OffsetStore the type responsible to store consumer offsets
 	OffsetStore OffsetStore
+	// ResetOffsets if true, the stored offsets will be reset.
+	ResetOffsets bool
 }
 
 // NewOptions creates a new Options object with default values.
@@ -46,6 +48,13 @@ func WithClusterVersion(version string) Option {
 func WithRewind(rewind bool) Option {
 	return func(options *Options) {
 		options.Rewind = rewind
+	}
+}
+
+// WithOffsetReset resets the stored offset if any.
+func WithOffsetReset(reset bool) Option {
+	return func(options *Options) {
+		options.ResetOffsets = reset
 	}
 }
 

@@ -95,7 +95,7 @@ func (s *localOffsetStore) queryDB(topic string) (map[int32]int64, error) {
 		err = item.Value(func(val []byte) error {
 			buff := bytes.NewBuffer(val)
 			dec := gob.NewDecoder(buff)
-			err := dec.Decode(offsets)
+			err := dec.Decode(&offsets)
 			if err != nil {
 				return errors.Wrapf(err, "Failed to deserialize the value from local offset store for topic %s", topic)
 			}

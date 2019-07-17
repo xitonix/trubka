@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"sync"
 
@@ -13,12 +14,12 @@ import (
 )
 
 type Consumer struct {
-	brokers         []string
-	config          *Options
-	printer         internal.Printer
-	client          sarama.Consumer
-	topicPartitions map[string][]int32
-	wg              sync.WaitGroup
+	brokers               []string
+	config                *Options
+	printer               internal.Printer
+	client                sarama.Consumer
+	topicPartitionOffsets map[string]map[int32]int64
+	wg                    sync.WaitGroup
 }
 
 func NewConsumer(brokers []string, printer internal.Printer, options ...Option) (*Consumer, error) {
@@ -45,11 +46,11 @@ func NewConsumer(brokers []string, printer internal.Printer, options ...Option) 
 	}
 
 	return &Consumer{
-		config:          ops,
-		brokers:         brokers,
-		printer:         printer,
-		client:          client,
-		topicPartitions: make(map[string][]int32),
+		config:                ops,
+		brokers:               brokers,
+		printer:               printer,
+		client:                client,
+		topicPartitionOffsets: make(map[string]map[int32]int64),
 	}, nil
 }
 
@@ -65,25 +66,21 @@ func (c *Consumer) Start(ctx context.Context, topics []string, cb Callback) erro
 	if err != nil {
 		return err
 	}
+	fmt.Println(c.topicPartitionOffsets)
 	return c.consumeTopics(ctx, cb)
 }
 
 func (c *Consumer) consumeTopics(ctx context.Context, cb Callback) error {
-	offset := sarama.OffsetNewest
-	if c.config.Rewind {
-		offset = sarama.OffsetOldest
-	}
-
 	cn, cancel := context.WithCancel(ctx)
 	defer cancel()
-	for topic, partitions := range c.topicPartitions {
+	for topic, partitionOffsets := range c.topicPartitionOffsets {
 		select {
 		case <-ctx.Done():
 			break
 		case <-cn.Done():
 			break
 		default:
-			for _, partition := range partitions {
+			for partition, offset := range partitionOffsets {
 				err := c.consumePartition(cn, cb, topic, partition, offset)
 				if err != nil {
 					c.printer.Writef(internal.Quiet, "Failed to start consuming from offset %d partition %d of topic %s: %s", offset, partition, topic, err)
@@ -126,7 +123,7 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 		for m := range pc.Messages() {
 			err := cb(m.Topic, m.Partition, m.Offset, m.Timestamp, m.Key, m.Value)
 			if err == nil && c.config.OffsetStore != nil {
-				err := c.config.OffsetStore.Store(m.Topic, m.Partition, m.Offset)
+				err := c.config.OffsetStore.Store(m.Topic, m.Partition, m.Offset+1)
 				if err != nil {
 					c.printer.Writef(internal.Quiet, "Failed to store the offset for topic %s, partition %d: %s\n.", m.Topic, m.Partition, err)
 				}
@@ -146,12 +143,36 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 }
 
 func (c *Consumer) fetchTopicPartitions(topics []string) error {
+	offset := sarama.OffsetNewest
+	if c.config.Rewind {
+		offset = sarama.OffsetOldest
+	}
+
 	for _, topic := range topics {
+		var err error
+		offsets := make(map[int32]int64)
+		if c.config.OffsetStore != nil && !c.config.ResetOffsets {
+			offsets, err = c.config.OffsetStore.Query(topic)
+			if err != nil {
+				return err
+			}
+		}
 		partitions, err := c.client.Partitions(topic)
 		if err != nil {
-			return errors.Wrapf(err, "failed to fetch the topicPartitions for topic %s", topic)
+			return errors.Wrapf(err, "failed to fetch the partition offsets for topic %s", topic)
 		}
-		c.topicPartitions[topic] = partitions
+		for _, partition := range partitions {
+			if c.config.ResetOffsets {
+				offsets[partition] = offset
+				continue
+			}
+			if storedOffset, ok := offsets[partition]; ok {
+				offsets[partition] = storedOffset
+			} else {
+				offsets[partition] = offset
+			}
+		}
+		c.topicPartitionOffsets[topic] = offsets
 	}
 	return nil
 }
