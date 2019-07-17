@@ -33,7 +33,7 @@ func main() {
 
 	kafkaVersion := flags.String("kafka-version", "Kafka cluster version.").WithDefault(kafka.DefaultClusterVersion)
 	rewind := flags.Bool("rewind", "Read to beginning of the stream")
-
+	resetOffsets := flags.Bool("reset-offsets", "Resets the stored offsets").WithShort("r")
 	v := flags.Verbosity("The verbosity level of the tool.")
 
 	flags.Parse()
@@ -45,7 +45,13 @@ func main() {
 		exit(err)
 	}
 
-	consumer, err := kafka.NewConsumer(brokers.Get(), prn, kafka.WithClusterVersion(kafkaVersion.Get()), kafka.WithRewind(rewind.Get()))
+	consumer, err := kafka.NewConsumer(
+		brokers.Get(),
+		prn,
+		kafka.WithClusterVersion(kafkaVersion.Get()),
+		kafka.WithRewind(rewind.Get()),
+		kafka.WithOffsetReset(resetOffsets.Get()))
+
 	if err != nil {
 		exit(err)
 	}
