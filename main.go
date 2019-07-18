@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
+	"github.com/jhump/protoreflect/dynamic"
 	"github.com/pkg/errors"
 	"github.com/xitonix/flags"
 
@@ -31,6 +33,9 @@ func main() {
 		WithShort("k").
 		Required().
 		WithTrimming()
+
+	format := flags.String("format", "The format in which the Kafka messages will be written to the specified output.").
+		WithValidRange(true, "json", "json-indent", "text", "text-indent", "hex", "hex-indent").WithDefault("json-indent")
 
 	kafkaVersion := flags.String("kafka-version", "Kafka cluster version.").WithDefault(kafka.DefaultClusterVersion)
 	rewind := flags.Bool("rewind", "Read to beginning of the stream")
@@ -73,6 +78,10 @@ func main() {
 		topics = append(topics, topic)
 	}
 
+	var marshal func(msg *dynamic.Message) ([]byte, error)
+
+	marshal = getMarshaller(format.Get())
+
 	err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, time time.Time, key, value []byte) error {
 		messageType, ok := tm[topic]
 		if !ok || internal.IsEmpty(messageType) {
@@ -88,16 +97,50 @@ func main() {
 			return err
 		}
 
-		json, err := msg.MarshalJSONIndent()
+		output, err := marshal(msg)
 		if err != nil {
 			return err
 		}
-		prn.Writeln(internal.Quiet, string(json))
+		prn.Writeln(internal.Quiet, string(output))
 		return nil
 	})
 
 	if err != nil {
 		exit(err)
+	}
+}
+
+func getMarshaller(format string) func(msg *dynamic.Message) ([]byte, error) {
+	f := strings.TrimSpace(strings.ToLower(format))
+	switch f {
+	case "hex", "hex-indent":
+		return func(msg *dynamic.Message) ([]byte, error) {
+			output, err := msg.Marshal()
+			if err != nil {
+				return nil, err
+			}
+			fm := "%X"
+			if f == "hex-indent" {
+				fm = "% X"
+			}
+			return []byte(fmt.Sprintf(fm, output)), nil
+		}
+	case "text":
+		return func(msg *dynamic.Message) ([]byte, error) {
+			return msg.MarshalText()
+		}
+	case "text-indent":
+		return func(msg *dynamic.Message) ([]byte, error) {
+			return msg.MarshalTextIndent()
+		}
+	case "json":
+		return func(msg *dynamic.Message) ([]byte, error) {
+			return msg.MarshalJSON()
+		}
+	default:
+		return func(msg *dynamic.Message) ([]byte, error) {
+			return msg.MarshalJSONIndent()
+		}
 	}
 }
 
