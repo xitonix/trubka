@@ -22,8 +22,9 @@ func main() {
 	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`).
 		WithShort("F").
 		WithTrimming()
-	topicsMap := flags.StringMap("topic-map", `The topic:message map. Example: -T '{"TopicA":"Namespace.MessageTypeA"}'.`).
-		WithShort("T").
+	topicsMap := flags.StringMap("topic-map", `Specifies the mappings between topics and message types in '{"Topic_Name":"Fully_Qualified_Message_Type"}' format.
+						Example: --topic-map '{"CPU":"contracts.CPUStatusChanged", "RAM":"contracts.MemoryUsageChanged"}'.`).
+		WithShort("t").
 		Required()
 
 	brokers := flags.StringSlice("kafka-endpoints", "The comma separated list of Kafka endpoints in server:port format.").
