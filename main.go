@@ -22,7 +22,6 @@ func main() {
 	flags.SetKeyPrefix("TBK")
 	protoDir := flags.String("proto-root", "The path to the folder where your *.proto files live.").WithShort("p")
 	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`).
-		WithShort("F").
 		WithTrimming()
 	topicsMap := flags.StringMap("topic-map", `Specifies the mappings between topics and message types in '{"Topic_Name":"Fully_Qualified_Message_Type"}' format.
 						Example: --topic-map '{"CPU":"contracts.CPUStatusChanged", "RAM":"contracts.MemoryUsageChanged"}'.`).
@@ -34,8 +33,8 @@ func main() {
 		Required().
 		WithTrimming()
 
-	format := flags.String("format", "The format in which the Kafka messages will be written to the specified output.").
-		WithValidRange(true, "json", "json-indent", "text", "text-indent", "hex", "hex-indent").WithDefault("json-indent")
+	format := flags.String("format", "The format in which the Kafka messages will be written to the output.").
+		WithValidRange(true, "json", "json-indent", "text", "text-indent", "hex", "hex-indent", "raw").WithDefault("json-indent")
 
 	kafkaVersion := flags.String("kafka-version", "Kafka cluster version.").WithDefault(kafka.DefaultClusterVersion)
 	rewind := flags.Bool("rewind", "Read to beginning of the stream")
@@ -113,6 +112,10 @@ func main() {
 func getMarshaller(format string) func(msg *dynamic.Message) ([]byte, error) {
 	f := strings.TrimSpace(strings.ToLower(format))
 	switch f {
+	case "raw":
+		return func(msg *dynamic.Message) ([]byte, error) {
+			return msg.Marshal()
+		}
 	case "hex", "hex-indent":
 		return func(msg *dynamic.Message) ([]byte, error) {
 			output, err := msg.Marshal()
