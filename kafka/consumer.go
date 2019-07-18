@@ -2,8 +2,8 @@ package kafka
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/Shopify/sarama"
@@ -40,6 +40,7 @@ func NewConsumer(brokers []string, printer internal.Printer, options ...Option) 
 		}
 	}
 
+	printer.Writef(internal.Verbose, "Initialising the Kafka client.")
 	client, err := initClient(brokers, ops)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to initialise kafka client")
@@ -62,11 +63,12 @@ func (c *Consumer) Start(ctx context.Context, topics []string, cb Callback) erro
 		return errors.New("consumer callback function cannot be nil")
 	}
 
+	c.printer.Writef(internal.Verbose, "Starting Kafka consumers.")
+
 	err := c.fetchTopicPartitions(topics)
 	if err != nil {
 		return err
 	}
-	fmt.Println(c.topicPartitionOffsets)
 	return c.consumeTopics(ctx, cb)
 }
 
@@ -80,12 +82,22 @@ func (c *Consumer) consumeTopics(ctx context.Context, cb Callback) error {
 		case <-cn.Done():
 			break
 		default:
+			var cancelled bool
 			for partition, offset := range partitionOffsets {
-				err := c.consumePartition(cn, cb, topic, partition, offset)
-				if err != nil {
-					c.printer.Writef(internal.Quiet, "Failed to start consuming from offset %d partition %d of topic %s: %s", offset, partition, topic, err)
-					cancel()
+				if cancelled {
 					break
+				}
+				select {
+				case <-ctx.Done():
+					cancelled = true
+					break
+				default:
+					err := c.consumePartition(cn, cb, topic, partition, offset)
+					if err != nil {
+						c.printer.Writef(internal.Quiet, "Failed to start consuming from %s offset of topic %s, partition %d: %s", getOffset(offset), topic, partition, err)
+						cancel()
+						cancelled = true
+					}
 				}
 			}
 		}
@@ -98,15 +110,16 @@ func (c *Consumer) consumeTopics(ctx context.Context, cb Callback) error {
 	} else {
 		c.printer.Writeln(internal.Verbose, "The Kafka client has been closed successfully.")
 	}
-	c.printer.Writeln(internal.SuperVerbose, "Closing the offset store.")
+
 	if c.config.OffsetStore != nil {
+		c.printer.Writeln(internal.SuperVerbose, "Closing the offset store.")
 		return c.config.OffsetStore.Close()
 	}
 	return nil
 }
 
 func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic string, partition int32, offset int64) error {
-	c.printer.Writef(internal.SuperVerbose, "Start consuming from %s topic, partition %d, offset %d.\n", topic, partition, offset)
+	c.printer.Writef(internal.Verbose, "Start consuming from partition %d of topic %s (offset: %s).\n", partition, topic, getOffset(offset))
 	pc, err := c.client.ConsumePartition(topic, partition, offset)
 	if err != nil {
 		return errors.Wrapf(err, "failed to start consuming partition %d of topic %s\n", partition, topic)
@@ -147,8 +160,8 @@ func (c *Consumer) fetchTopicPartitions(topics []string) error {
 	if c.config.Rewind {
 		offset = sarama.OffsetOldest
 	}
-
 	for _, topic := range topics {
+		c.printer.Writef(internal.SuperVerbose, "Fetching partitions for topic %s.\n", topic)
 		var err error
 		offsets := make(map[int32]int64)
 		if c.config.OffsetStore != nil && !c.config.ResetOffsets {
@@ -167,14 +180,35 @@ func (c *Consumer) fetchTopicPartitions(topics []string) error {
 				continue
 			}
 			if storedOffset, ok := offsets[partition]; ok {
+				c.printer.Writef(internal.SuperVerbose,
+					"Setting the offset of partition %d to the stored value %d for topic %s.\n",
+					partition,
+					storedOffset,
+					topic)
 				offsets[partition] = storedOffset
 			} else {
+				c.printer.Writef(internal.SuperVerbose,
+					"Setting the offset of partition %d to the %s value for topic %s.\n",
+					partition,
+					getOffset(offset),
+					topic)
 				offsets[partition] = offset
 			}
 		}
 		c.topicPartitionOffsets[topic] = offsets
 	}
 	return nil
+}
+
+func getOffset(offset int64) string {
+	switch offset {
+	case sarama.OffsetOldest:
+		return "oldest"
+	case sarama.OffsetNewest:
+		return "newest"
+	default:
+		return strconv.FormatInt(offset, 10)
+	}
 }
 
 func initClient(brokers []string, ops *Options) (sarama.Consumer, error) {

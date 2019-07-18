@@ -3,6 +3,7 @@ package proto
 import (
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
@@ -19,7 +20,9 @@ const protoExtension = ".proto"
 
 type FileLoader struct {
 	files []*desc.FileDescriptor
-	cache map[string]*dynamic.Message
+
+	mux   sync.Mutex
+	cache map[string]*desc.MessageDescriptor
 }
 
 func NewFileLoader(root string, files ...string) (*FileLoader, error) {
@@ -70,20 +73,21 @@ func NewFileLoader(root string, files ...string) (*FileLoader, error) {
 
 	return &FileLoader{
 		files: fileDescriptors,
-		cache: make(map[string]*dynamic.Message),
+		cache: make(map[string]*desc.MessageDescriptor),
 	}, nil
 }
 
 func (f *FileLoader) Load(messageName string) (*dynamic.Message, error) {
-	if msg, ok := f.cache[messageName]; ok {
-		msg.Reset()
-		return msg, nil
+	if md, ok := f.cache[messageName]; ok {
+		return dynamic.NewMessage(md), nil
 	}
 	for _, fd := range f.files {
 		md := fd.FindMessage(messageName)
 		if md != nil {
-			msg := dynamic.NewMessage(md)
-			return msg, nil
+			f.mux.Lock()
+			f.cache[messageName] = md
+			f.mux.Unlock()
+			return dynamic.NewMessage(md), nil
 		}
 	}
 	return nil, errors.Errorf("%s not found. Make sure you use the fully qualified name of the message", messageName)

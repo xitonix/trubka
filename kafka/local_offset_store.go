@@ -46,7 +46,7 @@ func (s *localOffsetStore) Store(topic string, partition int32, offset int64) er
 		return errors.Wrapf(err, "Failed to serialise the offsets for topic %s", topic)
 	}
 	if buff.Len() > 0 {
-		s.printer.Writef(internal.SuperVerbose, "Storing partition %d offset %d for topic %s\n", partition, offset, topic)
+		s.printer.Writef(internal.SuperVerbose, "Storing offset %d for partition %d of topic %s \n", offset, partition, topic)
 		err := s.db.Update(func(txn *badger.Txn) error {
 			return txn.Set([]byte(topic), buff.Bytes())
 		})
