@@ -22,6 +22,8 @@ import (
 	"go.xitonix.io/trubka/proto"
 )
 
+var version string
+
 func main() {
 	flags.EnableAutoKeyGeneration()
 	flags.SetKeyPrefix("TBK")
@@ -49,7 +51,7 @@ func main() {
 	rewind := flags.Bool("rewind", "Read to beginning of the stream")
 	resetOffsets := flags.Bool("reset-offsets", "Resets the stored offsets").WithShort("r")
 	v := flags.Verbosity("The verbosity level of the tool.")
-
+	
 	flags.Parse()
 
 	if cpuProfile.IsSet() {
