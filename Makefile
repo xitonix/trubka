@@ -1,7 +1,7 @@
 EXECUTABLE=trubka
-WINDOWS=./bin/windows_amd64/$(EXECUTABLE).exe
-LINUX=./bin/linux_amd64/$(EXECUTABLE)
-DARWIN=./bin/darwin_amd64/$(EXECUTABLE)
+WINDOWS=./bin/$(EXECUTABLE)_windows_amd64.exe
+LINUX=./bin/$(EXECUTABLE)_linux_amd64
+DARWIN=./bin/$(EXECUTABLE)_darwin_amd64
 VERSION=$(shell git describe --tags --always --long)
 
 windows:
