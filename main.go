@@ -30,15 +30,11 @@ func main() {
 	cpuProfile := flags.String("cpu-profile", "Writes cpu profiles to `file`").Hide()
 	memProfile := flags.String("mem-profile", "Writes memory profiles to `file`").Hide()
 	protoDir := flags.String("proto-root", "The path to the folder where your *.proto files live.").WithShort("p")
-	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`).
-		WithTrimming()
-	topicsMap := flags.StringMap("topic-map", `Specifies the mappings between topics and message types in '{"Topic_Name":"Fully_Qualified_Message_Type"}' format.
-						Example: --topic-map '{"CPU":"contracts.CPUStatusChanged", "RAM":"contracts.MemoryUsageChanged"}'.`).WithShort("t").Required()
+	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`)
+	topicsMap := flags.StringMap("topic-map", `Specifies the mappings between topics and message types in "Topic_Name:Fully_Qualified_Message_Type" format.
+						Example: --topic-map "CPU:contracts.CPUStatusChanged, RAM:contracts.MemoryUsageChanged".`).WithShort("t").Required()
 
-	brokers := flags.StringSlice("kafka-endpoints", "The comma separated list of Kafka endpoints in server:port format.").
-		WithShort("k").
-		Required().
-		WithTrimming()
+	brokers := flags.StringSlice("kafka-endpoints", "The comma separated list of Kafka endpoints in server:port format.").WithShort("k").Required()
 
 	format := flags.String("format", "The format in which the Kafka messages will be written to the output.").
 		WithValidRange(true, "json", "json-indent", "text", "text-indent", "hex", "hex-indent").
@@ -51,7 +47,7 @@ func main() {
 	rewind := flags.Bool("rewind", "Read to beginning of the stream")
 	resetOffsets := flags.Bool("reset-offsets", "Resets the stored offsets").WithShort("r")
 	v := flags.Verbosity("The verbosity level of the tool.")
-	
+
 	flags.Parse()
 
 	if cpuProfile.IsSet() {
