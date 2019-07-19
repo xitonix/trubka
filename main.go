@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/pprof"
 	"strings"
 	"time"
 
@@ -20,13 +22,13 @@ import (
 func main() {
 	flags.EnableAutoKeyGeneration()
 	flags.SetKeyPrefix("TBK")
+	cpuProfile := flags.String("cpu-profile", "Writes cpu profiles to `file`").Hide()
+	memProfile := flags.String("mem-profile", "Writes memory profiles to `file`").Hide()
 	protoDir := flags.String("proto-root", "The path to the folder where your *.proto files live.").WithShort("p")
 	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`).
 		WithTrimming()
 	topicsMap := flags.StringMap("topic-map", `Specifies the mappings between topics and message types in '{"Topic_Name":"Fully_Qualified_Message_Type"}' format.
-						Example: --topic-map '{"CPU":"contracts.CPUStatusChanged", "RAM":"contracts.MemoryUsageChanged"}'.`).
-		WithShort("t").
-		Required()
+						Example: --topic-map '{"CPU":"contracts.CPUStatusChanged", "RAM":"contracts.MemoryUsageChanged"}'.`).WithShort("t").Required()
 
 	brokers := flags.StringSlice("kafka-endpoints", "The comma separated list of Kafka endpoints in server:port format.").
 		WithShort("k").
@@ -34,7 +36,8 @@ func main() {
 		WithTrimming()
 
 	format := flags.String("format", "The format in which the Kafka messages will be written to the output.").
-		WithValidRange(true, "json", "json-indent", "text", "text-indent", "hex", "hex-indent", "raw").WithDefault("json-indent")
+		WithValidRange(true, "json", "json-indent", "text", "text-indent", "hex", "hex-indent", "raw").
+		WithDefault("json-indent")
 
 	kafkaVersion := flags.String("kafka-version", "Kafka cluster version.").WithDefault(kafka.DefaultClusterVersion)
 	rewind := flags.Bool("rewind", "Read to beginning of the stream")
@@ -42,6 +45,29 @@ func main() {
 	v := flags.Verbosity("The verbosity level of the tool.")
 
 	flags.Parse()
+
+	if cpuProfile.IsSet() {
+		f, err := os.Create(cpuProfile.Get())
+		if err != nil {
+			exit(err)
+		}
+		err = pprof.StartCPUProfile(f)
+		if err != nil {
+			exit(err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
+	if memProfile.IsSet() {
+		f, err := os.Create(memProfile.Get())
+		if err != nil {
+			exit(err)
+		}
+		runtime.GC()
+		if err = pprof.WriteHeapProfile(f); err != nil {
+			exit(err)
+		}
+	}
 
 	prn := internal.NewPrinter(internal.ToVerbosityLevel(v.Get()))
 
