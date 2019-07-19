@@ -138,7 +138,7 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 			if err == nil && c.config.OffsetStore != nil {
 				err := c.config.OffsetStore.Store(m.Topic, m.Partition, m.Offset+1)
 				if err != nil {
-					c.printer.Writef(internal.Quiet, "Failed to store the offset for topic %s, partition %d: %s\n.", m.Topic, m.Partition, err)
+					c.printer.Writef(internal.Quiet, "Failed to store the offset: %s\n.", err)
 				}
 			}
 		}
