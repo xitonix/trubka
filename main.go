@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"runtime"
@@ -13,6 +15,7 @@ import (
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/pkg/errors"
 	"github.com/xitonix/flags"
+	"github.com/xitonix/flags/core"
 
 	"go.xitonix.io/trubka/internal"
 	"go.xitonix.io/trubka/kafka"
@@ -36,8 +39,11 @@ func main() {
 		WithTrimming()
 
 	format := flags.String("format", "The format in which the Kafka messages will be written to the output.").
-		WithValidRange(true, "json", "json-indent", "text", "text-indent", "hex", "hex-indent", "raw").
+		WithValidRange(true, "json", "json-indent", "text", "text-indent", "hex", "hex-indent").
 		WithDefault("json-indent")
+
+	logFilePath := flags.String("log-file", "The `file` to write the logs to. Set to '' to discard (Default: stdout).")
+	outFilePath := flags.String("output-file", "The `file` to write the Kafka messages to. Set to '' to discard (Default: Stdout).")
 
 	kafkaVersion := flags.String("kafka-version", "Kafka cluster version.").WithDefault(kafka.DefaultClusterVersion)
 	rewind := flags.Bool("rewind", "Read to beginning of the stream")
@@ -69,7 +75,17 @@ func main() {
 		}
 	}
 
-	prn := internal.NewPrinter(internal.ToVerbosityLevel(v.Get()))
+	logFile, closableLog, err := getFile(logFilePath)
+	if err != nil {
+		exit(err)
+	}
+
+	outFile, closableOutput, err := getFile(outFilePath)
+	if err != nil {
+		exit(err)
+	}
+
+	prn := internal.NewPrinter(internal.ToVerbosityLevel(v.Get()), logFile, outFile)
 
 	loader, err := proto.NewFileLoader(protoDir.Get(), protoFiles.Get()...)
 	if err != nil {
@@ -126,22 +142,57 @@ func main() {
 		if err != nil {
 			return err
 		}
-		prn.Writeln(internal.Quiet, string(output))
+		prn.WriteMessage(output)
 		return nil
 	})
 
 	if err != nil {
 		exit(err)
 	}
+	prn.Close()
+
+	if closableLog {
+		closeFile(logFile.(*os.File))
+	}
+
+	if closableOutput {
+		closeFile(outFile.(*os.File))
+	}
+}
+
+func exit(err error) {
+	fmt.Printf("FATAL: %s\n", err)
+	os.Exit(1)
+}
+
+func getFile(f *core.StringFlag) (io.Writer, bool, error) {
+	file := f.Get()
+	if internal.IsEmpty(file) {
+		if f.IsSet() {
+			return ioutil.Discard, false, nil
+		}
+		return os.Stdout, false, nil
+	}
+	lf, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return nil, false, errors.Wrapf(err, "Failed to create: %s", file)
+	}
+	return lf, true, nil
+}
+
+func closeFile(file *os.File) {
+	err := file.Sync()
+	if err != nil {
+		fmt.Printf("Failed to sync the file: %s\n", err)
+	}
+	if err := file.Close(); err != nil {
+		fmt.Printf("Failed to close the file: %s\n", err)
+	}
 }
 
 func getMarshaller(format string) func(msg *dynamic.Message) ([]byte, error) {
-	f := strings.TrimSpace(strings.ToLower(format))
-	switch f {
-	case "raw":
-		return func(msg *dynamic.Message) ([]byte, error) {
-			return msg.Marshal()
-		}
+	format = strings.TrimSpace(strings.ToLower(format))
+	switch format {
 	case "hex", "hex-indent":
 		return func(msg *dynamic.Message) ([]byte, error) {
 			output, err := msg.Marshal()
@@ -149,7 +200,7 @@ func getMarshaller(format string) func(msg *dynamic.Message) ([]byte, error) {
 				return nil, err
 			}
 			fm := "%X"
-			if f == "hex-indent" {
+			if format == "hex-indent" {
 				fm = "% X"
 			}
 			return []byte(fmt.Sprintf(fm, output)), nil
@@ -171,9 +222,4 @@ func getMarshaller(format string) func(msg *dynamic.Message) ([]byte, error) {
 			return msg.MarshalJSONIndent()
 		}
 	}
-}
-
-func exit(err error) {
-	fmt.Println(err)
-	os.Exit(1)
 }
