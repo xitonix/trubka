@@ -2,62 +2,109 @@ package internal
 
 import (
 	"fmt"
+	"io"
 	"sync"
 )
 
 // Printer represents a printer type
 type Printer interface {
-	Write(level VerbosityLevel, msg string)
-	Writef(level VerbosityLevel, format string, args ...interface{})
-	Writeln(level VerbosityLevel, msg string)
+	Logf(level VerbosityLevel, format string, args ...interface{})
+	Log(level VerbosityLevel, msg string)
+	WriteMessage(bytes []byte)
 	Level() VerbosityLevel
+	Close()
+}
+
+type entry struct {
+	writer io.Writer
+	value  interface{}
 }
 
 // SyncPrinter is an implementation of Printer interface to synchronously write to Stdout buffer.
 type SyncPrinter struct {
-	mux          sync.Mutex
-	currentLevel VerbosityLevel
+	currentLevel  VerbosityLevel
+	wg            sync.WaitGroup
+	mux           sync.Mutex
+	isClosed      bool
+	input         chan *entry
+	logOutput     io.Writer
+	messageOutput io.Writer
 }
 
-// NewPrinter creates a new synchronised Stdout writer.
-func NewPrinter(currentLevel VerbosityLevel) *SyncPrinter {
-	return &SyncPrinter{
-		currentLevel: currentLevel,
+// NewPrinter creates a new synchronised writer.
+func NewPrinter(currentLevel VerbosityLevel, logOutput, messageOutput io.Writer) *SyncPrinter {
+	p := &SyncPrinter{
+		currentLevel:  currentLevel,
+		logOutput:     logOutput,
+		messageOutput: messageOutput,
+		input:         make(chan *entry, 100),
 	}
+
+	p.wg.Add(1)
+	go p.writeEntities()
+	return p
 }
 
-// Write writes to standard output synchronously if the verbosity level is greater than or equal to the current level.
-func (p *SyncPrinter) Write(level VerbosityLevel, msg string) {
-	if p.currentLevel < level {
-		return
-	}
+func (p *SyncPrinter) Close() {
 	p.mux.Lock()
 	defer p.mux.Unlock()
-	fmt.Print(msg)
-}
-
-// Writeln writes a new line to standard output synchronously if the verbosity level is greater than or equal to the current level.
-func (p *SyncPrinter) Writeln(level VerbosityLevel, msg string) {
-	if p.currentLevel < level {
+	if p.isClosed {
 		return
 	}
-	p.mux.Lock()
-	defer p.mux.Unlock()
-	fmt.Println(msg)
+	p.isClosed = true
+	close(p.input)
+	p.wg.Wait()
 }
 
-// Writef formats according to a format specifier and writes to standard output synchronously,
+// Log writes a new line to standard output synchronously if the verbosity level is greater than or equal to the current level.
+func (p *SyncPrinter) Log(level VerbosityLevel, msg string) {
+	p.log(level, msg)
+}
+
+// Logf formats according to a format specifier and writes a new line to standard output synchronously,
 // if the verbosity level is greater than or equal to the current level.
-func (p *SyncPrinter) Writef(level VerbosityLevel, format string, a ...interface{}) {
-	if p.currentLevel < level {
-		return
-	}
-	p.mux.Lock()
-	defer p.mux.Unlock()
-	fmt.Printf(format, a...)
+func (p *SyncPrinter) Logf(level VerbosityLevel, format string, a ...interface{}) {
+	p.log(level, fmt.Sprintf(format, a...))
 }
 
 // Level returns the current verbosity level.
 func (p *SyncPrinter) Level() VerbosityLevel {
 	return p.currentLevel
+}
+
+func (p *SyncPrinter) WriteMessage(bytes []byte) {
+	p.mux.Lock()
+	defer p.mux.Unlock()
+	if p.isClosed {
+		return
+	}
+	p.input <- &entry{
+		writer: p.messageOutput,
+		value:  string(bytes) + "\n",
+	}
+}
+
+func (p *SyncPrinter) log(level VerbosityLevel, msg string) {
+	if p.currentLevel < level {
+		return
+	}
+	p.mux.Lock()
+	defer p.mux.Unlock()
+	if p.isClosed {
+		return
+	}
+	p.input <- &entry{
+		writer: p.logOutput,
+		value:  msg + "\n",
+	}
+}
+
+func (p *SyncPrinter) writeEntities() {
+	defer p.wg.Done()
+	for entry := range p.input {
+		_, err := fmt.Fprint(entry.writer, entry.value)
+		if err != nil {
+			fmt.Printf("Failed to write the entry: %s\n", err)
+		}
+	}
 }

@@ -46,7 +46,7 @@ func (s *localOffsetStore) Store(topic string, partition int32, offset int64) er
 		return errors.Wrapf(err, "Failed to serialise the offsets for topic %s", topic)
 	}
 	if buff.Len() > 0 {
-		s.printer.Writef(internal.SuperVerbose, "Storing offset %d for partition %d of topic %s \n", offset, partition, topic)
+		s.printer.Logf(internal.SuperVerbose, "Storing offset %d for partition %d of topic %s.", offset, partition, topic)
 		err := s.db.Update(func(txn *badger.Txn) error {
 			return txn.Set([]byte(topic), buff.Bytes())
 		})
@@ -70,13 +70,13 @@ func (s *localOffsetStore) Close() error {
 	if s == nil || s.db == nil {
 		return nil
 	}
-	s.printer.Writeln(internal.SuperVerbose, "Synchronising the offset store.")
+	s.printer.Log(internal.SuperVerbose, "Synchronising the offset store.")
 	if err := s.db.Sync(); err != nil {
-		s.printer.Writef(internal.Quiet, "Failed to sync the local offset file: %s.\n", err)
+		s.printer.Logf(internal.Quiet, "Failed to sync the local offset file: %s.", err)
 	}
 	err := s.db.Close()
 	if err == nil {
-		s.printer.Writeln(internal.SuperVerbose, "The offset store has been closed successfully.")
+		s.printer.Log(internal.SuperVerbose, "The offset store has been closed successfully.")
 	}
 	return err
 }
