@@ -42,10 +42,11 @@ func main() {
 
 	logFilePath := flags.String("log-file", "The `file` to write the logs to. Set to '' to discard (Default: stdout).")
 	outFilePath := flags.String("output-file", "The `file` to write the Kafka messages to. Set to '' to discard (Default: Stdout).")
-
 	kafkaVersion := flags.String("kafka-version", "Kafka cluster version.").WithDefault(kafka.DefaultClusterVersion)
 	rewind := flags.Bool("rewind", "Read to beginning of the stream")
 	resetOffsets := flags.Bool("reset-offsets", "Resets the stored offsets").WithShort("r")
+	environment := flags.String("environment", `This is to store the local offsets in different files for different environments. It's This is only required
+						if you use trubka to consume from different Kafka clusters on the same machine (eg. dev/prod).`).WithShort("E")
 	v := flags.Verbosity("The verbosity level of the tool.")
 
 	flags.Parse()
@@ -93,6 +94,7 @@ func main() {
 	consumer, err := kafka.NewConsumer(
 		brokers.Get(),
 		prn,
+		environment.Get(),
 		kafka.WithClusterVersion(kafkaVersion.Get()),
 		kafka.WithRewind(rewind.Get()),
 		kafka.WithOffsetReset(resetOffsets.Get()))
