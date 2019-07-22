@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/Shopify/sarama"
@@ -22,7 +23,7 @@ type Consumer struct {
 	wg                    sync.WaitGroup
 }
 
-func NewConsumer(brokers []string, printer internal.Printer, options ...Option) (*Consumer, error) {
+func NewConsumer(brokers []string, printer internal.Printer, environment string, options ...Option) (*Consumer, error) {
 	ops := NewOptions()
 	for _, option := range options {
 		option(ops)
@@ -34,7 +35,11 @@ func NewConsumer(brokers []string, printer internal.Printer, options ...Option) 
 		if err != nil {
 			return nil, errors.Wrap(err, "Failed to create the application cache folder")
 		}
-		ops.OffsetStore, err = newLocalOffsetStore(printer, filepath.Join(configPath, "offsets.bin"))
+		fileName := "offsets"
+		if !internal.IsEmpty(environment) {
+			fileName = strings.ToLower(strings.TrimSpace(environment)) + "_" + fileName
+		}
+		ops.OffsetStore, err = newLocalOffsetStore(printer, filepath.Join(configPath, fileName))
 		if err != nil {
 			return nil, err
 		}
