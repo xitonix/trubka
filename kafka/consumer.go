@@ -15,15 +15,16 @@ import (
 )
 
 type Consumer struct {
-	brokers               []string
-	config                *Options
-	printer               internal.Printer
-	client                sarama.Consumer
-	topicPartitionOffsets map[string]map[int32]int64
-	wg                    sync.WaitGroup
+	brokers                 []string
+	config                  *Options
+	printer                 internal.Printer
+	client                  sarama.Consumer
+	topicPartitionOffsets   map[string]map[int32]int64
+	wg                      sync.WaitGroup
+	enableAutoTopicCreation bool
 }
 
-func NewConsumer(brokers []string, printer internal.Printer, environment string, options ...Option) (*Consumer, error) {
+func NewConsumer(brokers []string, printer internal.Printer, environment string, enableAutoTopicCreation bool, options ...Option) (*Consumer, error) {
 	ops := NewOptions()
 	for _, option := range options {
 		option(ops)
@@ -52,11 +53,12 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 	}
 
 	return &Consumer{
-		config:                ops,
-		brokers:               brokers,
-		printer:               printer,
-		client:                client,
-		topicPartitionOffsets: make(map[string]map[int32]int64),
+		config:                  ops,
+		brokers:                 brokers,
+		printer:                 printer,
+		client:                  client,
+		topicPartitionOffsets:   make(map[string]map[int32]int64),
+		enableAutoTopicCreation: enableAutoTopicCreation,
 	}, nil
 }
 
@@ -165,7 +167,27 @@ func (c *Consumer) fetchTopicPartitions(topics []string) error {
 	if c.config.Rewind {
 		offset = sarama.OffsetOldest
 	}
+
+	existing := make(map[string]interface{})
+	if !c.enableAutoTopicCreation {
+		c.printer.Log(internal.SuperVerbose, "Fetching the topic list from the server.")
+		remote, err := c.client.Topics()
+		if err != nil {
+			return errors.Wrapf(err, "Failed to fetch the topic list from the broker(s)")
+		}
+		c.printer.Logf(internal.Verbose, "%d topic(s) found on the server.", len(remote))
+		for _, t := range remote {
+			c.printer.Logf(internal.SuperVerbose, "Remote topic: %s", t)
+			existing[t] = nil
+		}
+	}
+
 	for _, topic := range topics {
+		if !c.enableAutoTopicCreation {
+			if _, ok := existing[topic]; !ok {
+				return errors.Errorf("failed to find the topic %s on the server. You must create the topic manually or enable automatic topic creation both on the server and in trubka", topic)
+			}
+		}
 		c.printer.Logf(internal.SuperVerbose, "Fetching partitions for topic %s.", topic)
 		var err error
 		offsets := make(map[int32]int64)
@@ -175,6 +197,7 @@ func (c *Consumer) fetchTopicPartitions(topics []string) error {
 				return err
 			}
 		}
+
 		partitions, err := c.client.Partitions(topic)
 		if err != nil {
 			return errors.Wrapf(err, "failed to fetch the partition offsets for topic %s", topic)

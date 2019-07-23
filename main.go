@@ -31,10 +31,14 @@ func main() {
 	memProfile := flags.String("mem-profile", "Writes memory profiles to `file`").Hide()
 	protoDir := flags.String("proto-root", "The path to the folder where your *.proto files live.").WithShort("p")
 	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`)
+	protoPrefix := flags.String("proto-prefix", "The optional prefix to add to proto message types.")
 	topicsMap := flags.StringMap("topic-map", `Specifies the mappings between topics and message types in "Topic_Name:Fully_Qualified_Message_Type" format.
 						Example: --topic-map "CPU:contracts.CPUStatusChanged, RAM:contracts.MemoryUsageChanged".`).WithShort("t").Required()
 
 	brokers := flags.StringSlice("kafka-endpoints", "The comma separated list of Kafka endpoints in server:port format.").WithShort("k").Required()
+	topicPrefix := flags.String("kafka-prefix", "The optional prefix to add to Kafka topic names.")
+	enableAutoTopicCreation := flags.Bool("enable-auto-topic-creation", `Enables automatic Kafka topic creation before consuming (if it is allowed on the server). 
+		"				Enabling this option in production is not recommended since it may pollute the environment with unwanted topics.`)
 
 	format := flags.String("format", "The format in which the Kafka messages will be written to the output.").
 		WithValidRange(true, "json", "json-indent", "text", "text-indent", "hex", "hex-indent").
@@ -86,7 +90,7 @@ func main() {
 
 	prn := internal.NewPrinter(internal.ToVerbosityLevel(v.Get()), logFile, outFile)
 
-	loader, err := proto.NewFileLoader(protoDir.Get(), protoFiles.Get()...)
+	loader, err := proto.NewFileLoader(protoDir.Get(), protoPrefix.Get(), protoFiles.Get()...)
 	if err != nil {
 		exit(err)
 	}
@@ -95,6 +99,7 @@ func main() {
 		brokers.Get(),
 		prn,
 		environment.Get(),
+		enableAutoTopicCreation.Get(),
 		kafka.WithClusterVersion(kafkaVersion.Get()),
 		kafka.WithRewind(rewind.Get()),
 		kafka.WithOffsetReset(resetOffsets.Get()))
@@ -115,7 +120,11 @@ func main() {
 
 	tm := topicsMap.Get()
 	topics := make([]string, 0)
+	prefix := strings.TrimSpace(topicPrefix.Get())
 	for topic := range tm {
+		if len(prefix) > 0 && !strings.HasPrefix(topic, prefix) {
+			topic = prefix + topic
+		}
 		topics = append(topics, topic)
 	}
 
@@ -146,10 +155,11 @@ func main() {
 		return nil
 	})
 
+	prn.Close()
+
 	if err != nil {
 		exit(err)
 	}
-	prn.Close()
 
 	if closableLog {
 		closeFile(logFile.(*os.File))

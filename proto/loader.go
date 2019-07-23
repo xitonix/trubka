@@ -19,13 +19,15 @@ type Loader interface {
 const protoExtension = ".proto"
 
 type FileLoader struct {
-	files []*desc.FileDescriptor
+	files     []*desc.FileDescriptor
+	prefix    string
+	hasPrefix bool
 
 	mux   sync.Mutex
 	cache map[string]*desc.MessageDescriptor
 }
 
-func NewFileLoader(root string, files ...string) (*FileLoader, error) {
+func NewFileLoader(root string, prefix string, files ...string) (*FileLoader, error) {
 	finder, err := newFileFinder(root)
 	if err != nil {
 		return nil, err
@@ -71,13 +73,19 @@ func NewFileLoader(root string, files ...string) (*FileLoader, error) {
 		return nil, errors.Wrap(err, "failed to parse the protocol buffer (*.proto) files")
 	}
 
+	prefix = strings.TrimSpace(prefix)
 	return &FileLoader{
-		files: fileDescriptors,
-		cache: make(map[string]*desc.MessageDescriptor),
+		files:     fileDescriptors,
+		cache:     make(map[string]*desc.MessageDescriptor),
+		prefix:    prefix,
+		hasPrefix: len(prefix) > 0,
 	}, nil
 }
 
 func (f *FileLoader) Load(messageName string) (*dynamic.Message, error) {
+	if f.hasPrefix && !strings.HasPrefix(messageName, f.prefix) {
+		messageName = f.prefix + messageName
+	}
 	if md, ok := f.cache[messageName]; ok {
 		return dynamic.NewMessage(md), nil
 	}
