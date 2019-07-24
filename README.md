@@ -17,5 +17,6 @@ Download the pre-built binaries for the platform of your choice from the [releas
 ## Usage
 
 ```shell
-./trubka --proto-root /protocol_buffers_dir --kafka-endpoints localhost:9092 --topic-map "TopicA:MessageA, TopicB:MessageB"
+./trubka --proto-root /protocol_buffers_dir --kafka-endpoints localhost:9092 \
+--topic-map "TopicA:MessageA, TopicB:MessageB"
 ```
