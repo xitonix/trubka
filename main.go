@@ -25,6 +25,8 @@ import (
 
 var version string
 
+type marshaller func(msg *dynamic.Message) ([]byte, error)
+
 func main() {
 	flags.EnableAutoKeyGeneration()
 	flags.SetKeyPrefix("TBK")
@@ -32,54 +34,46 @@ func main() {
 	memProfile := flags.String("mem-profile", "Writes memory profiles to `file`").Hide()
 	protoDir := flags.String("proto-root", "The path to the folder where your *.proto files live.").WithShort("p")
 	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`)
-	protoPrefix := flags.String("proto-prefix", "The optional prefix to add to proto message types.")
+	protoPrefix := flags.String("type-prefix", "The optional prefix to prepend to proto message types.").WithShort("m")
 	topicsMap := flags.StringMap("topic-map", `Specifies the mappings between topics and message types in "Topic_Name:Fully_Qualified_Message_Type" format.
 						Example: --topic-map "CPU:contracts.CPUStatusChanged, RAM:contracts.MemoryUsageChanged".`).WithShort("t")
 
 	brokers := flags.StringSlice("kafka-endpoints", "The comma separated list of Kafka endpoints in server:port format.").WithShort("k").Required()
-	topicPrefix := flags.String("kafka-prefix", "The optional prefix to add to Kafka topic names.")
-	enableAutoTopicCreation := flags.Bool("enable-auto-topic-creation", `Enables automatic Kafka topic creation before consuming (if it is allowed on the server). 
+	topicPrefix := flags.String("kafka-prefix", "The optional prefix to add to Kafka topic names.").WithShort("s")
+	enableAutoTopicCreation := flags.Bool("auto-topic-creation", `Enables automatic Kafka topic creation before consuming (if it is allowed on the server). 
 						Enabling this option in production is not recommended since it may pollute the environment with unwanted topics.`)
 
 	format := flags.String("format", "The format in which the Kafka messages will be written to the output.").
 		WithValidRange(true, "json", "json-indent", "text", "text-indent", "hex", "hex-indent").
-		WithDefault("json-indent")
+		WithDefault("json-indent").WithShort("f")
 
-	logFilePath := flags.String("log-file", "The `file` to write the logs to. Set to '' to discard (Default: stdout).")
-	outFilePath := flags.String("output-file", "The `file` to write the Kafka messages to. Set to '' to discard (Default: Stdout).")
+	logFilePath := flags.String("log-file", "The `file` to write the logs to. Set to '' to discard (Default: stdout).").WithShort("l")
+	outFilePath := flags.String("output-file", "The `file` to write the Kafka messages to. Set to '' to discard (Default: Stdout).").WithShort("u")
 	kafkaVersion := flags.String("kafka-version", "Kafka cluster version.").WithDefault(kafka.DefaultClusterVersion)
-	rewind := flags.Bool("rewind", "Read to beginning of the stream")
+	rewind := flags.Bool("rewind", "Read to beginning of the stream").WithShort("w")
 	resetOffsets := flags.Bool("reset-offsets", "Resets the stored offsets").WithShort("r")
 	environment := flags.String("environment", `This is to store the local offsets in different files for different environments. It's This is only required
 						if you use trubka to consume from different Kafka clusters on the same machine (eg. dev/prod).`).WithShort("E")
-	v := flags.Verbosity("The verbosity level of the tool.")
 	interactive := flags.Bool("interactive", "Runs the tool in interactive mode.").WithShort("i")
-	topicFilter := flags.String("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").WithShort("m")
-	typeFilter := flags.String("type-filter", "The optional regular expression to filter the proto types with (Interactive mode only).").WithShort("n")
+	topicFilter := flags.String("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").WithShort("q")
+	typeFilter := flags.String("type-filter", "The optional regular expression to filter the proto types with (Interactive mode only).").WithShort("y")
+	v := flags.Verbosity("The verbosity level of the tool.")
+	version := flags.Bool("version", "Prints the current version of Trubka.")
 
 	flags.Parse()
 
+	if version.Get() {
+		printVersion()
+		return
+	}
+
 	if cpuProfile.IsSet() {
-		f, err := os.Create(cpuProfile.Get())
-		if err != nil {
-			exit(err)
-		}
-		err = pprof.StartCPUProfile(f)
-		if err != nil {
-			exit(err)
-		}
+		startCPUProfiling(cpuProfile.Get())
 		defer pprof.StopCPUProfile()
 	}
 
 	if memProfile.IsSet() {
-		f, err := os.Create(memProfile.Get())
-		if err != nil {
-			exit(err)
-		}
-		runtime.GC()
-		if err = pprof.WriteHeapProfile(f); err != nil {
-			exit(err)
-		}
+		startMemoryProfiling(memProfile.Get())
 	}
 
 	logFile, closableLog, err := getFile(logFilePath)
@@ -100,8 +94,7 @@ func main() {
 	}
 
 	consumer, err := kafka.NewConsumer(
-		brokers.Get(),
-		prn,
+		brokers.Get(), prn,
 		environment.Get(),
 		enableAutoTopicCreation.Get(),
 		kafka.WithClusterVersion(kafkaVersion.Get()),
@@ -144,31 +137,13 @@ func main() {
 			prn.Logf(internal.Quiet, "    %s: %s", t, m)
 		}
 		err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, time time.Time, key, value []byte) error {
-			messageType, ok := tm[topic]
-			if !ok || internal.IsEmpty(messageType) {
-				return errors.New("the message type cannot be empty")
-			}
-			msg, err := loader.Load(messageType)
-			if err != nil {
-				return err
-			}
-
-			err = msg.Unmarshal(value)
-			if err != nil {
-				return err
-			}
-
-			output, err := marshal(msg)
-			if err != nil {
-				return err
-			}
-			prn.WriteMessage(output)
-			return nil
+			return consume(tm, topic, loader, value, marshal, prn)
 		})
 	} else {
 		prn.Log(internal.Quiet, "No Kafka topic has been selected.")
 	}
 
+	consumer.Close()
 	prn.Close()
 
 	if err != nil {
@@ -181,6 +156,56 @@ func main() {
 
 	if closableOutput {
 		closeFile(outFile.(*os.File))
+	}
+}
+
+func printVersion() {
+	if version == "" {
+		version = "[build from source]"
+	}
+	fmt.Printf("Trubka %s\n", version)
+}
+
+func consume(tm map[string]string, topic string, loader *proto.FileLoader, value []byte, serialise marshaller, prn *internal.SyncPrinter) error {
+	messageType, ok := tm[topic]
+	if !ok || internal.IsEmpty(messageType) {
+		return errors.New("the message type cannot be empty")
+	}
+	msg, err := loader.Load(messageType)
+	if err != nil {
+		return err
+	}
+	err = msg.Unmarshal(value)
+	if err != nil {
+		return err
+	}
+	output, err := serialise(msg)
+	if err != nil {
+		return err
+	}
+	prn.WriteMessage(output)
+	return nil
+}
+
+func startMemoryProfiling(profileFile string) {
+	f, err := os.Create(profileFile)
+	if err != nil {
+		exit(err)
+	}
+	runtime.GC()
+	if err = pprof.WriteHeapProfile(f); err != nil {
+		exit(err)
+	}
+}
+
+func startCPUProfiling(profileFile string) {
+	f, err := os.Create(profileFile)
+	if err != nil {
+		exit(err)
+	}
+	err = pprof.StartCPUProfile(f)
+	if err != nil {
+		exit(err)
 	}
 }
 
@@ -226,7 +251,7 @@ func closeFile(file *os.File) {
 	}
 }
 
-func getMarshaller(format string) func(msg *dynamic.Message) ([]byte, error) {
+func getMarshaller(format string) marshaller {
 	format = strings.TrimSpace(strings.ToLower(format))
 	switch format {
 	case "hex", "hex-indent":
