@@ -2,6 +2,7 @@ package proto
 
 import (
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -9,11 +10,13 @@ import (
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/pkg/errors"
+
+	"go.xitonix.io/trubka/internal"
 )
 
 type Loader interface {
 	Load(messageName string) (*dynamic.Message, error)
-	List() []string
+	List(filter string) ([]string, error)
 }
 
 const protoExtension = ".proto"
@@ -101,13 +104,28 @@ func (f *FileLoader) Load(messageName string) (*dynamic.Message, error) {
 	return nil, errors.Errorf("%s not found. Make sure you use the fully qualified name of the message", messageName)
 }
 
-func (f *FileLoader) List() []string {
+func (f *FileLoader) List(filter string) ([]string, error) {
+	var search *regexp.Regexp
+	if !internal.IsEmpty(filter) {
+		s, err := regexp.Compile(filter)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid type filter regular expression")
+		}
+		search = s
+	}
 	result := make([]string, 0)
 	for _, fd := range f.files {
 		messages := fd.GetMessageTypes()
 		for _, msg := range messages {
-			result = append(result, msg.GetFullyQualifiedName())
+			name := msg.GetFullyQualifiedName()
+			if search == nil {
+				result = append(result, name)
+				continue
+			}
+			if search.Match([]byte(name)) {
+				result = append(result, name)
+			}
 		}
 	}
-	return result
+	return result, nil
 }

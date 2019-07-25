@@ -3,6 +3,7 @@ package kafka
 import (
 	"context"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,10 +22,14 @@ type Consumer struct {
 	client                  sarama.Consumer
 	topicPartitionOffsets   map[string]map[int32]int64
 	wg                      sync.WaitGroup
+	remoteTopics            []string
 	enableAutoTopicCreation bool
 }
 
 func NewConsumer(brokers []string, printer internal.Printer, environment string, enableAutoTopicCreation bool, options ...Option) (*Consumer, error) {
+	if len(brokers) == 0 {
+		return nil, errors.New("The brokers list cannot be empty")
+	}
 	ops := NewOptions()
 	for _, option := range options {
 		option(ops)
@@ -49,7 +54,7 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 	printer.Logf(internal.Verbose, "Initialising the Kafka client.")
 	client, err := initClient(brokers, ops)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialise kafka client")
+		return nil, errors.Wrap(err, "Failed to initialise kafka client")
 	}
 
 	return &Consumer{
@@ -60,6 +65,37 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 		topicPartitionOffsets:   make(map[string]map[int32]int64),
 		enableAutoTopicCreation: enableAutoTopicCreation,
 	}, nil
+}
+
+func (c *Consumer) GetTopics(filter string) ([]string, error) {
+	if c.remoteTopics != nil {
+		return c.remoteTopics, nil
+	}
+	var search *regexp.Regexp
+	if !internal.IsEmpty(filter) {
+		s, err := regexp.Compile(filter)
+		if err != nil {
+			return nil, errors.Wrap(err, "Invalid topic filter regular expression")
+		}
+		search = s
+	}
+	c.printer.Log(internal.SuperVerbose, "Fetching the topic list from the server.")
+	topics, err := c.client.Topics()
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to fetch the topic list from the server")
+	}
+
+	c.remoteTopics = make([]string, 0)
+	for _, topic := range topics {
+		if search == nil {
+			c.remoteTopics = append(c.remoteTopics, topic)
+			continue
+		}
+		if search.Match([]byte(topic)) {
+			c.remoteTopics = append(c.remoteTopics, topic)
+		}
+	}
+	return c.remoteTopics, nil
 }
 
 func (c *Consumer) Start(ctx context.Context, topics []string, cb Callback) error {
@@ -129,7 +165,7 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 	c.printer.Logf(internal.Verbose, "Start consuming from partition %d of topic %s (offset: %s).", partition, topic, getOffset(offset))
 	pc, err := c.client.ConsumePartition(topic, partition, offset)
 	if err != nil {
-		return errors.Wrapf(err, "failed to start consuming partition %d of topic %s", partition, topic)
+		return errors.Wrapf(err, "Failed to start consuming partition %d of topic %s", partition, topic)
 	}
 
 	go func(pc sarama.PartitionConsumer) {
@@ -170,12 +206,10 @@ func (c *Consumer) fetchTopicPartitions(topics []string) error {
 
 	existing := make(map[string]interface{})
 	if !c.enableAutoTopicCreation {
-		c.printer.Log(internal.SuperVerbose, "Fetching the topic list from the server.")
-		remote, err := c.client.Topics()
+		remote, err := c.GetTopics("")
 		if err != nil {
 			return errors.Wrapf(err, "Failed to fetch the topic list from the broker(s)")
 		}
-		c.printer.Logf(internal.Verbose, "%d topic(s) found on the server.", len(remote))
 		for _, t := range remote {
 			c.printer.Logf(internal.SuperVerbose, "Remote topic: %s", t)
 			existing[t] = nil
