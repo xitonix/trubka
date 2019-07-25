@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/pprof"
+	"sort"
 	"strings"
 	"time"
 
@@ -33,12 +34,12 @@ func main() {
 	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`)
 	protoPrefix := flags.String("proto-prefix", "The optional prefix to add to proto message types.")
 	topicsMap := flags.StringMap("topic-map", `Specifies the mappings between topics and message types in "Topic_Name:Fully_Qualified_Message_Type" format.
-						Example: --topic-map "CPU:contracts.CPUStatusChanged, RAM:contracts.MemoryUsageChanged".`).WithShort("t").Required()
+						Example: --topic-map "CPU:contracts.CPUStatusChanged, RAM:contracts.MemoryUsageChanged".`).WithShort("t")
 
 	brokers := flags.StringSlice("kafka-endpoints", "The comma separated list of Kafka endpoints in server:port format.").WithShort("k").Required()
 	topicPrefix := flags.String("kafka-prefix", "The optional prefix to add to Kafka topic names.")
 	enableAutoTopicCreation := flags.Bool("enable-auto-topic-creation", `Enables automatic Kafka topic creation before consuming (if it is allowed on the server). 
-		"				Enabling this option in production is not recommended since it may pollute the environment with unwanted topics.`)
+						Enabling this option in production is not recommended since it may pollute the environment with unwanted topics.`)
 
 	format := flags.String("format", "The format in which the Kafka messages will be written to the output.").
 		WithValidRange(true, "json", "json-indent", "text", "text-indent", "hex", "hex-indent").
@@ -52,6 +53,9 @@ func main() {
 	environment := flags.String("environment", `This is to store the local offsets in different files for different environments. It's This is only required
 						if you use trubka to consume from different Kafka clusters on the same machine (eg. dev/prod).`).WithShort("E")
 	v := flags.Verbosity("The verbosity level of the tool.")
+	interactive := flags.Bool("interactive", "Runs the tool in interactive mode.").WithShort("i")
+	topicFilter := flags.String("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").WithShort("m")
+	typeFilter := flags.String("type-filter", "The optional regular expression to filter the proto types with (Interactive mode only).").WithShort("n")
 
 	flags.Parse()
 
@@ -118,42 +122,52 @@ func main() {
 		cancel()
 	}()
 
-	tm := topicsMap.Get()
-	topics := make([]string, 0)
-	prefix := strings.TrimSpace(topicPrefix.Get())
-	for topic := range tm {
-		if len(prefix) > 0 && !strings.HasPrefix(topic, prefix) {
-			topic = prefix + topic
+	var topics []string
+	tm := make(map[string]string)
+	if interactive.Get() {
+		topics, tm, err = readUserData(ctx, consumer, loader, topicFilter.Get(), typeFilter.Get())
+		if err != nil {
+			exit(err)
 		}
-		topics = append(topics, topic)
+	} else {
+		tm = topicsMap.Get()
+		prefix := strings.TrimSpace(topicPrefix.Get())
+		topics = getTopics(prefix, tm)
 	}
 
 	var marshal func(msg *dynamic.Message) ([]byte, error)
-
 	marshal = getMarshaller(format.Get())
 
-	err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, time time.Time, key, value []byte) error {
-		messageType, ok := tm[topic]
-		if !ok || internal.IsEmpty(messageType) {
-			return errors.New("the message type cannot be empty")
+	if len(tm) > 0 {
+		prn.Log(internal.Quiet, "Consuming from:")
+		for t, m := range tm {
+			prn.Logf(internal.Quiet, "    %s: %s", t, m)
 		}
-		msg, err := loader.Load(messageType)
-		if err != nil {
-			return err
-		}
+		err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, time time.Time, key, value []byte) error {
+			messageType, ok := tm[topic]
+			if !ok || internal.IsEmpty(messageType) {
+				return errors.New("the message type cannot be empty")
+			}
+			msg, err := loader.Load(messageType)
+			if err != nil {
+				return err
+			}
 
-		err = msg.Unmarshal(value)
-		if err != nil {
-			return err
-		}
+			err = msg.Unmarshal(value)
+			if err != nil {
+				return err
+			}
 
-		output, err := marshal(msg)
-		if err != nil {
-			return err
-		}
-		prn.WriteMessage(output)
-		return nil
-	})
+			output, err := marshal(msg)
+			if err != nil {
+				return err
+			}
+			prn.WriteMessage(output)
+			return nil
+		})
+	} else {
+		prn.Log(internal.Quiet, "No Kafka topic has been selected.")
+	}
 
 	prn.Close()
 
@@ -168,6 +182,18 @@ func main() {
 	if closableOutput {
 		closeFile(outFile.(*os.File))
 	}
+}
+
+func getTopics(prefix string, topicMap map[string]string) []string {
+	topics := make([]string, 0)
+	for topic := range topicMap {
+		if len(prefix) > 0 && !strings.HasPrefix(topic, prefix) {
+			topic = prefix + topic
+		}
+		topics = append(topics, topic)
+	}
+	sort.Strings(topics)
+	return topics
 }
 
 func exit(err error) {
