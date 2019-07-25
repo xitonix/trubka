@@ -14,6 +14,14 @@ import (
 	"go.xitonix.io/trubka/proto"
 )
 
+type confirmationResult int8
+
+const (
+	yes confirmationResult = iota
+	no
+	quit
+)
+
 func readUserData(ctx context.Context, consumer *kafka.Consumer, loader proto.Loader, topicFilter string, typeFilter string) ([]string, map[string]string, error) {
 	remoteTopic, err := consumer.GetTopics(topicFilter)
 	if err != nil {
@@ -29,7 +37,7 @@ func readUserData(ctx context.Context, consumer *kafka.Consumer, loader proto.Lo
 
 	tm := make(map[string]string)
 	topics := make([]string, 0)
-	repeatUntilNo(ctx, "More topics to consume from", func() bool {
+	proceed := repeatUntilNo(ctx, "More topics to consume from", func() bool {
 		topicIndex := pickAnIndex("Choose the topic to consume from", "topic", remoteTopic)
 		if topicIndex < 0 {
 			return false
@@ -43,17 +51,26 @@ func readUserData(ctx context.Context, consumer *kafka.Consumer, loader proto.Lo
 		topics = append(topics, topic)
 		return true
 	})
+	if !proceed {
+		return nil, nil, nil
+	}
 	return topics, tm, nil
 }
 
 // repeatUntilNo repeats an action until the user stops
-func repeatUntilNo(ctx context.Context, message string, action func() bool) {
+func repeatUntilNo(ctx context.Context, message string, action func() bool) bool {
 	for {
 		if !action() {
-			break
+			return false
 		}
-		if !askForConfirmationWithCancellation(ctx, message) {
-			break
+		result := askForConfirmationWithCancellation(ctx, message)
+		switch result {
+		case quit:
+			return false
+		case no:
+			return true
+		default:
+			continue
 		}
 	}
 }
@@ -100,25 +117,28 @@ func pickAnIndex(message, entryName string, input []string) int {
 	return -1
 }
 
-// askForConfirmationWithCancellation asks the user for confirmation. The user must type in "yes" or "no" and
-// then press enter. It has fuzzy matching, so "y", "Y", "yes", "YES", and "Yes" all count as
+// askForConfirmationWithCancellation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"
+// and then press enter. It has fuzzy matching, so "y", "Y", "yes", "YES", and "Yes" all count as
 // confirmations. If the input is not recognized, it will ask again. The function does not return
 // until it gets a valid response from the user or receives a cancellation signal.
-func askForConfirmationWithCancellation(ctx context.Context, s string) bool {
+func askForConfirmationWithCancellation(ctx context.Context, s string) confirmationResult {
 
-	input := make(chan bool)
+	input := make(chan confirmationResult)
 
 	go func() {
 		scanner := bufio.NewScanner(os.Stdin)
-		msg := fmt.Sprintf("%s [y/n]?: ", s)
+		msg := fmt.Sprintf("%s [y/n/q]?: ", s)
 		for fmt.Print(msg); scanner.Scan(); fmt.Print(msg) {
 			r := strings.ToLower(strings.TrimSpace(scanner.Text()))
 			switch r {
 			case "y", "yes":
-				input <- true
+				input <- yes
 				return
 			case "n", "no":
-				input <- false
+				input <- no
+				return
+			case "q", "quit", "exit":
+				input <- quit
 				return
 			}
 		}
@@ -127,11 +147,11 @@ func askForConfirmationWithCancellation(ctx context.Context, s string) bool {
 	for {
 		select {
 		case <-ctx.Done():
-			return false
+			return quit
 		case response := <-input:
 			return response
 		}
 	}
 
-	return false
+	return quit
 }

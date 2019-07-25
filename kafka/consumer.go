@@ -24,6 +24,9 @@ type Consumer struct {
 	wg                      sync.WaitGroup
 	remoteTopics            []string
 	enableAutoTopicCreation bool
+
+	mux      sync.Mutex
+	isClosed bool
 }
 
 func NewConsumer(brokers []string, printer internal.Printer, environment string, enableAutoTopicCreation bool, options ...Option) (*Consumer, error) {
@@ -112,10 +115,11 @@ func (c *Consumer) Start(ctx context.Context, topics []string, cb Callback) erro
 	if err != nil {
 		return err
 	}
-	return c.consumeTopics(ctx, cb)
+	c.consumeTopics(ctx, cb)
+	return nil
 }
 
-func (c *Consumer) consumeTopics(ctx context.Context, cb Callback) error {
+func (c *Consumer) consumeTopics(ctx context.Context, cb Callback) {
 	cn, cancel := context.WithCancel(ctx)
 	defer cancel()
 	for topic, partitionOffsets := range c.topicPartitionOffsets {
@@ -146,7 +150,17 @@ func (c *Consumer) consumeTopics(ctx context.Context, cb Callback) error {
 		}
 	}
 	c.wg.Wait()
-	c.printer.Log(internal.SuperVerbose, "Closing Kafka consumer.")
+	c.Close()
+}
+
+func (c *Consumer) Close() {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	if c.isClosed || c.client == nil {
+		return
+	}
+	c.printer.Log(internal.Normal, "Closing Kafka consumer.")
+	c.isClosed = true
 	err := c.client.Close()
 	if err != nil {
 		c.printer.Logf(internal.Quiet, "Failed to close Kafka client: %s.", err)
@@ -156,9 +170,11 @@ func (c *Consumer) consumeTopics(ctx context.Context, cb Callback) error {
 
 	if c.config.OffsetStore != nil {
 		c.printer.Log(internal.SuperVerbose, "Closing the offset store.")
-		return c.config.OffsetStore.Close()
+		err = c.config.OffsetStore.Close()
+		if err != nil {
+			c.printer.Logf(internal.Quiet, "Failed to close the offset store: %s.", err)
+		}
 	}
-	return nil
 }
 
 func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic string, partition int32, offset int64) error {
