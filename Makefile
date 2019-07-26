@@ -2,7 +2,7 @@ EXECUTABLE=trubka
 WINDOWS=./bin/windows_amd64
 LINUX=./bin/linux_amd64
 DARWIN=./bin/darwin_amd64
-VERSION=$(shell git describe --tags --always --long)
+VERSION=$(shell git describe --tags --abbrev=0)
 
 windows:
 	env GOOS=windows GOARCH=amd64 go build -i -v -o $(WINDOWS)/$(EXECUTABLE).exe -ldflags="-s -w -X main.version=$(VERSION)"  *.go
@@ -17,6 +17,7 @@ build: windows linux darwin ## Build binaries
 	@echo version: $(VERSION)
 
 package:
+	rm -f ./bin/binaries.zip
 	zip -v -r ./bin/binaries.zip ./bin/*
 
 all: build package clean
