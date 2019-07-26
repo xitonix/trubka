@@ -17,8 +17,7 @@ import (
 func main() {
 	brokers := flags.StringSlice("kafka-endpoints", "The comma separated list of Kafka endpoints in server:port format.").
 		WithShort("k").
-		WithDefault([]string{"127.0.0.1:9092"}).
-		WithTrimming()
+		WithDefault([]string{"127.0.0.1:9092"})
 
 	topic := flags.String("topic", "The Kafka topic to publish to.").WithDefault("People")
 
