@@ -38,7 +38,7 @@ func main() {
 	topicsMap := flags.StringMap("topic-map", `Specifies the mappings between topics and message types in "Topic_Name:Fully_Qualified_Message_Type" format.
 						Example: --topic-map "CPU:contracts.CPUStatusChanged, RAM:contracts.MemoryUsageChanged".`).WithShort("t")
 
-	brokers := flags.StringSlice("kafka-endpoints", "The comma separated list of Kafka endpoints in server:port format.").WithShort("k").Required()
+	brokers := flags.StringSlice("kafka-endpoints", "The comma separated list of Kafka endpoints in server:port format.").WithShort("k")
 	topicPrefix := flags.String("kafka-prefix", "The optional prefix to add to Kafka topic names.").WithShort("s")
 	enableAutoTopicCreation := flags.Bool("auto-topic-creation", `Enables automatic Kafka topic creation before consuming (if it is allowed on the server). 
 						Enabling this option in production is not recommended since it may pollute the environment with unwanted topics.`)
