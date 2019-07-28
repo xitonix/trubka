@@ -32,7 +32,14 @@ test: ##  Runs the unit tests.
 
 package:
 	@echo Creating the zip file
-	@zip -v -r ./bin/binaries.zip ./bin/*
+	@tar -C $(DARWIN) -cvzf ./bin/trubka_darwin-$(VERSION).tar.gz $(EXECUTABLE)
+	@zip -j ./bin/trubka_windows-$(VERSION).zip $(WINDOWS)/$(EXECUTABLE).exe
+	@tar -C $(LINUX) -cvzf ./bin/trubka_linux-$(VERSION).tar.gz $(EXECUTABLE)
+	@echo Darwin Checksum:
+	@shasum -a 256 ./bin/trubka_darwin-$(VERSION).tar.gz
+
+install:
+	@cp -pv $(DARWIN)/$(EXECUTABLE)
 
 help: ##  Show this help.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
