@@ -59,6 +59,7 @@ func main() {
 	topicFilter := flags.String("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").WithShort("m")
 	typeFilter := flags.String("type-filter", "The optional regular expression to filter the proto types with (Interactive mode only).").WithShort("n")
 	searchQuery := flags.String("search-query", "The optional regular expression to filter the message content by.").WithShort("q")
+	reverse := flags.Bool("reverse", "If set, the messages of which the content matches the search query will be ignored.")
 	v := flags.Verbosity("The verbosity level of the tool.")
 	version := flags.Bool("version", "Prints the current version of Trubka.")
 
@@ -152,7 +153,7 @@ func main() {
 			prn.Logf(internal.Quiet, "    %s: %s", t, m)
 		}
 		err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, time time.Time, key, value []byte) error {
-			return consume(tm, topic, loader, value, marshal, prn, searchExpression)
+			return consume(tm, topic, loader, value, marshal, prn, searchExpression, reverse.Get())
 		})
 	} else {
 		prn.Log(internal.Quiet, "No Kafka topic has been selected.")
@@ -187,7 +188,8 @@ func consume(tm map[string]string,
 	value []byte,
 	serialise marshaller,
 	prn *internal.SyncPrinter,
-	search *regexp.Regexp) error {
+	search *regexp.Regexp,
+	reverse bool) error {
 	messageType, ok := tm[topic]
 	if !ok || internal.IsEmpty(messageType) {
 		return errors.New("the message type cannot be empty")
@@ -204,7 +206,7 @@ func consume(tm map[string]string,
 	if err != nil {
 		return err
 	}
-	if search != nil && !search.Match(output) {
+	if search != nil && search.Match(output) == reverse {
 		return nil
 	}
 	prn.WriteMessage(output)
