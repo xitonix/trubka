@@ -15,6 +15,7 @@ import (
 	"go.xitonix.io/trubka/internal"
 )
 
+// Consumer represents a new Kafka cluster consumer.
 type Consumer struct {
 	brokers                 []string
 	config                  *Options
@@ -29,6 +30,7 @@ type Consumer struct {
 	isClosed bool
 }
 
+// NewConsumer creates a new instance of Kafka cluster consumer.
 func NewConsumer(brokers []string, printer internal.Printer, environment string, enableAutoTopicCreation bool, options ...Option) (*Consumer, error) {
 	if len(brokers) == 0 {
 		return nil, errors.New("The brokers list cannot be empty")
@@ -70,6 +72,7 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 	}, nil
 }
 
+// GetTopics fetches the topics from the server.
 func (c *Consumer) GetTopics(filter string) ([]string, error) {
 	if c.remoteTopics != nil {
 		return c.remoteTopics, nil
@@ -101,6 +104,10 @@ func (c *Consumer) GetTopics(filter string) ([]string, error) {
 	return c.remoteTopics, nil
 }
 
+// Start starts consuming from the specified topics and executes the callback function on each message.
+//
+// This is a blocking call which will be terminated on cancellation of the context parameter.
+// The method returns error if the topic list is empty or the callback function is nil.
 func (c *Consumer) Start(ctx context.Context, topics []string, cb Callback) error {
 	if len(topics) == 0 {
 		return errors.New("the topic list cannot be empty")
@@ -153,6 +160,7 @@ func (c *Consumer) consumeTopics(ctx context.Context, cb Callback) {
 	c.Close()
 }
 
+// Close closes the Kafka consumer.
 func (c *Consumer) Close() {
 	c.mux.Lock()
 	defer c.mux.Unlock()

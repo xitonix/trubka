@@ -14,6 +14,7 @@ import (
 	"go.xitonix.io/trubka/internal"
 )
 
+// Loader the interface to load and list the protocol buffer message types.
 type Loader interface {
 	Load(messageName string) (*dynamic.Message, error)
 	List(filter string) ([]string, error)
@@ -21,6 +22,7 @@ type Loader interface {
 
 const protoExtension = ".proto"
 
+// FileLoader is an implementation of Loader interface to load the proto files from the disk.
 type FileLoader struct {
 	files     []*desc.FileDescriptor
 	prefix    string
@@ -30,6 +32,7 @@ type FileLoader struct {
 	cache map[string]*desc.MessageDescriptor
 }
 
+// NewFileLoader creates a new instance of local file loader.
 func NewFileLoader(root string, prefix string, files ...string) (*FileLoader, error) {
 	finder, err := newFileFinder(root)
 	if err != nil {
@@ -85,6 +88,10 @@ func NewFileLoader(root string, prefix string, files ...string) (*FileLoader, er
 	}, nil
 }
 
+// Load creates a new instance of the specified protocol buffer message.
+//
+// The input parameter must be the fully qualified name of the message type.
+// The method will return an error if the specified message type does not exist in the path.
 func (f *FileLoader) Load(messageName string) (*dynamic.Message, error) {
 	if f.hasPrefix && !strings.HasPrefix(messageName, f.prefix) {
 		messageName = f.prefix + messageName
@@ -104,6 +111,7 @@ func (f *FileLoader) Load(messageName string) (*dynamic.Message, error) {
 	return nil, errors.Errorf("%s not found. Make sure you use the fully qualified name of the message", messageName)
 }
 
+// List returns a list of all the protocol buffer messages exist in the path.
 func (f *FileLoader) List(filter string) ([]string, error) {
 	var search *regexp.Regexp
 	if !internal.IsEmpty(filter) {
