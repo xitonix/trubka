@@ -15,3 +15,5 @@ trubka
 .DS_Store
 cmd/producer/producer
 bin
+mem.pprof
+cpu.pprof
