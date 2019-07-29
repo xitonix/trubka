@@ -7,14 +7,14 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
-	"runtime"
-	"runtime/pprof"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/pkg/errors"
+	"github.com/pkg/profile"
 	"github.com/xitonix/flags"
 	"github.com/xitonix/flags/core"
 
@@ -30,11 +30,12 @@ type marshaller func(msg *dynamic.Message) ([]byte, error)
 func main() {
 	flags.EnableAutoKeyGeneration()
 	flags.SetKeyPrefix("TBK")
-	cpuProfile := flags.String("cpu-profile", "Writes cpu profiles to `file`").Hide()
-	memProfile := flags.String("mem-profile", "Writes memory profiles to `file`").Hide()
+	profilingMode := flags.String("profile", "Enables profiling.").
+		WithValidRange(true, "cpu", "mem", "block", "mutex").Hide()
+
 	protoDir := flags.String("proto-root", "The path to the folder where your *.proto files live.").WithShort("p")
 	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`)
-	protoPrefix := flags.String("type-prefix", "The optional prefix to prepend to proto message types.").WithShort("m")
+	protoPrefix := flags.String("type-prefix", "The optional prefix to prepend to proto message types.").WithShort("x")
 	topicsMap := flags.StringMap("topic-map", `Specifies the mappings between topics and message types in "Topic_Name:Fully_Qualified_Message_Type" format.
 						Example: --topic-map "CPU:contracts.CPUStatusChanged, RAM:contracts.MemoryUsageChanged".`).WithShort("t")
 
@@ -55,8 +56,9 @@ func main() {
 	environment := flags.String("environment", `This is to store the local offsets in different files for different environments. It's This is only required
 						if you use trubka to consume from different Kafka clusters on the same machine (eg. dev/prod).`).WithShort("E")
 	interactive := flags.Bool("interactive", "Runs the tool in interactive mode.").WithShort("i")
-	topicFilter := flags.String("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").WithShort("q")
-	typeFilter := flags.String("type-filter", "The optional regular expression to filter the proto types with (Interactive mode only).").WithShort("y")
+	topicFilter := flags.String("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").WithShort("m")
+	typeFilter := flags.String("type-filter", "The optional regular expression to filter the proto types with (Interactive mode only).").WithShort("n")
+	searchQuery := flags.String("search-query", "The optional regular expression to filter the message content by.").WithShort("q")
 	v := flags.Verbosity("The verbosity level of the tool.")
 	version := flags.Bool("version", "Prints the current version of Trubka.")
 
@@ -67,13 +69,26 @@ func main() {
 		return
 	}
 
-	if cpuProfile.IsSet() {
-		startCPUProfiling(cpuProfile.Get())
-		defer pprof.StopCPUProfile()
+	var searchExpression *regexp.Regexp
+	if searchQuery.IsSet() {
+		se, err := regexp.Compile(searchQuery.Get())
+		if err != nil {
+			exit(errors.Wrap(err, "Failed to parse the search query"))
+		}
+		searchExpression = se
 	}
 
-	if memProfile.IsSet() {
-		startMemoryProfiling(memProfile.Get())
+	if profilingMode.IsSet() {
+		switch strings.ToLower(profilingMode.Get()) {
+		case "cpu":
+			defer profile.Start(profile.CPUProfile, profile.ProfilePath(".")).Stop()
+		case "mem":
+			defer profile.Start(profile.MemProfile, profile.ProfilePath(".")).Stop()
+		case "mutex":
+			defer profile.Start(profile.MutexProfile, profile.ProfilePath(".")).Stop()
+		case "block":
+			defer profile.Start(profile.BlockProfile, profile.ProfilePath(".")).Stop()
+		}
 	}
 
 	logFile, closableLog, err := getFile(logFilePath)
@@ -137,7 +152,7 @@ func main() {
 			prn.Logf(internal.Quiet, "    %s: %s", t, m)
 		}
 		err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, time time.Time, key, value []byte) error {
-			return consume(tm, topic, loader, value, marshal, prn)
+			return consume(tm, topic, loader, value, marshal, prn, searchExpression)
 		})
 	} else {
 		prn.Log(internal.Quiet, "No Kafka topic has been selected.")
@@ -166,7 +181,13 @@ func printVersion() {
 	fmt.Printf("Trubka %s\n", version)
 }
 
-func consume(tm map[string]string, topic string, loader *proto.FileLoader, value []byte, serialise marshaller, prn *internal.SyncPrinter) error {
+func consume(tm map[string]string,
+	topic string,
+	loader *proto.FileLoader,
+	value []byte,
+	serialise marshaller,
+	prn *internal.SyncPrinter,
+	search *regexp.Regexp) error {
 	messageType, ok := tm[topic]
 	if !ok || internal.IsEmpty(messageType) {
 		return errors.New("the message type cannot be empty")
@@ -183,30 +204,11 @@ func consume(tm map[string]string, topic string, loader *proto.FileLoader, value
 	if err != nil {
 		return err
 	}
+	if search != nil && !search.Match(output) {
+		return nil
+	}
 	prn.WriteMessage(output)
 	return nil
-}
-
-func startMemoryProfiling(profileFile string) {
-	f, err := os.Create(profileFile)
-	if err != nil {
-		exit(err)
-	}
-	runtime.GC()
-	if err = pprof.WriteHeapProfile(f); err != nil {
-		exit(err)
-	}
-}
-
-func startCPUProfiling(profileFile string) {
-	f, err := os.Create(profileFile)
-	if err != nil {
-		exit(err)
-	}
-	err = pprof.StartCPUProfile(f)
-	if err != nil {
-		exit(err)
-	}
 }
 
 func getTopics(prefix string, topicMap map[string]string) []string {
