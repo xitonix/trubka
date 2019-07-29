@@ -44,3 +44,7 @@ trubka --proto-root /protocol_buffers_dir --kafka-endpoints localhost:9092 \
 ##### Note
 
 `topic-filter` and `type-filter` flags are regular expressions.
+
+### Searching Messages
+
+You can optionally define a regular expression using the `-q` flag to filter the messages consumed from Kafka. It's simply a string match on the string representation of the deserialised message content.
