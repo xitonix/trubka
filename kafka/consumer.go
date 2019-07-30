@@ -2,7 +2,6 @@ package kafka
 
 import (
 	"context"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -121,16 +120,17 @@ func (c *Consumer) Start(ctx context.Context, topics []string, cb Callback) erro
 }
 
 func (c *Consumer) initialiseLocalOffsetStore() (*localOffsetStore, error) {
-	configPath := configdir.LocalConfig("trubka")
+	var environment string
+	if !internal.IsEmpty(c.environment) {
+		environment = strings.ToLower(strings.TrimSpace(c.environment))
+	}
+	configPath := configdir.LocalConfig("trubka", environment)
 	err := configdir.MakePath(configPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create the application cache folder")
 	}
-	fileName := "offsets"
-	if !internal.IsEmpty(c.environment) {
-		fileName = strings.ToLower(strings.TrimSpace(c.environment)) + "_" + fileName
-	}
-	ls, err := newLocalOffsetStore(c.printer, filepath.Join(configPath, fileName))
+
+	ls, err := newLocalOffsetStore(c.printer, configPath)
 	if err != nil {
 		return nil, err
 	}
