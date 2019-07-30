@@ -14,22 +14,22 @@ func TestToVerbosityLevel(t *testing.T) {
 		{
 			title:    "negative value",
 			counter:  -1,
-			expected: Quiet,
+			expected: Forced,
 		},
 		{
 			title:    "zero value",
 			counter:  0,
-			expected: Quiet,
+			expected: Forced,
 		},
 		{
 			title:    "one",
 			counter:  1,
-			expected: Normal,
+			expected: Verbose,
 		},
 		{
 			title:    "two",
 			counter:  2,
-			expected: Verbose,
+			expected: VeryVerbose,
 		},
 		{
 			title:    "three",

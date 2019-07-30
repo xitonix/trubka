@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -49,7 +50,7 @@ func main() {
 		WithDefault("json-indent").WithShort("f")
 
 	logFilePath := flags.String("log-file", "The `file` to write the logs to. Set to '' to discard (Default: stdout).").WithShort("l")
-	outFilePath := flags.String("output-file", "The `file` to write the Kafka messages to. Set to '' to discard (Default: Stdout).").WithShort("u")
+	outputDir := flags.String("output-dir", "The `directory` to write the Kafka messages to. Set to '' to discard (Default: Stdout).").WithShort("d")
 	kafkaVersion := flags.String("kafka-version", "Kafka cluster version.").WithDefault(kafka.DefaultClusterVersion)
 	rewind := flags.Bool("rewind", "Read to beginning of the stream").WithShort("w")
 	resetOffsets := flags.Bool("reset-offsets", "Resets the stored offsets").WithShort("r")
@@ -92,17 +93,12 @@ func main() {
 		}
 	}
 
-	logFile, closableLog, err := getFile(logFilePath)
+	logFile, closableLog, err := getLogWriter(logFilePath)
 	if err != nil {
 		exit(err)
 	}
 
-	outFile, closableOutput, err := getFile(outFilePath)
-	if err != nil {
-		exit(err)
-	}
-
-	prn := internal.NewPrinter(internal.ToVerbosityLevel(v.Get()), logFile, outFile)
+	prn := internal.NewPrinter(internal.ToVerbosityLevel(v.Get()), logFile)
 
 	loader, err := proto.NewFileLoader(protoDir.Get(), protoPrefix.Get(), protoFiles.Get()...)
 	if err != nil {
@@ -128,6 +124,7 @@ func main() {
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, os.Kill, os.Interrupt)
 		<-signals
+		prn.Log(internal.Verbose, "Stopping Trubka.")
 		cancel()
 	}()
 
@@ -144,22 +141,32 @@ func main() {
 		topics = getTopics(prefix, tm)
 	}
 
+	writers, closable, err := getOutputWriters(outputDir, topics)
+	if err != nil {
+		exit(err)
+	}
+
+	prn.Start(writers)
+
 	var marshal func(msg *dynamic.Message) ([]byte, error)
 	marshal = getMarshaller(format.Get())
 
 	if len(tm) > 0 {
-		prn.Log(internal.Quiet, "Consuming from:")
+		prn.Log(internal.Forced, "Consuming from:")
 		for t, m := range tm {
-			prn.Logf(internal.Quiet, "    %s: %s", t, m)
+			prn.Logf(internal.Forced, "    %s: %s", t, m)
 		}
 		err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, time time.Time, key, value []byte) error {
 			return consume(tm, topic, loader, value, marshal, prn, searchExpression, reverse.Get())
 		})
 	} else {
-		prn.Log(internal.Quiet, "No Kafka topic has been selected.")
+		prn.Log(internal.Forced, "No Kafka topic has been selected.")
 	}
 
+	// We still need to explicitly close the underlying Kafka client, in case `consumer.Start` has not been called.
+	// It is safe to close the consumer twice.
 	consumer.Close()
+
 	prn.Close()
 
 	if err != nil {
@@ -170,8 +177,10 @@ func main() {
 		closeFile(logFile.(*os.File))
 	}
 
-	if closableOutput {
-		closeFile(outFile.(*os.File))
+	if closable {
+		for _, w := range writers {
+			closeFile(w.(*os.File))
+		}
 	}
 }
 
@@ -209,7 +218,7 @@ func consume(tm map[string]string,
 	if search != nil && search.Match(output) == reverse {
 		return nil
 	}
-	prn.WriteMessage(output)
+	prn.WriteMessage(topic, output)
 	return nil
 }
 
@@ -230,7 +239,7 @@ func exit(err error) {
 	os.Exit(1)
 }
 
-func getFile(f *core.StringFlag) (io.Writer, bool, error) {
+func getLogWriter(f *core.StringFlag) (io.Writer, bool, error) {
 	file := f.Get()
 	if internal.IsEmpty(file) {
 		if f.IsSet() {
@@ -243,6 +252,39 @@ func getFile(f *core.StringFlag) (io.Writer, bool, error) {
 		return nil, false, errors.Wrapf(err, "Failed to create: %s", file)
 	}
 	return lf, true, nil
+}
+
+func getOutputWriters(dir *core.StringFlag, topics []string) (map[string]io.Writer, bool, error) {
+	root := dir.Get()
+	result := make(map[string]io.Writer)
+
+	if internal.IsEmpty(root) {
+		discard := dir.IsSet()
+		for _, topic := range topics {
+			if discard {
+				result[topic] = ioutil.Discard
+				continue
+			}
+			result[topic] = os.Stdout
+		}
+		return result, false, nil
+	}
+
+	err := os.MkdirAll(root, 0755)
+	if err != nil {
+		return nil, false, errors.Wrap(err, "Failed to create the output directory")
+	}
+
+	for _, topic := range topics {
+		file := filepath.Join(root, topic)
+		lf, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+		if err != nil {
+			return nil, false, errors.Wrapf(err, "Failed to create: %s", file)
+		}
+		result[topic] = lf
+	}
+
+	return result, true, nil
 }
 
 func closeFile(file *os.File) {
