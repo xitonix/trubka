@@ -6,56 +6,74 @@ import (
 	"sync"
 )
 
-// Printer represents a printer type
+const (
+	loggingWriterKey = "___trubka__logging__writer__key___"
+)
+
+// Printer represents a printer type.
 type Printer interface {
 	Logf(level VerbosityLevel, format string, args ...interface{})
 	Log(level VerbosityLevel, msg string)
-	WriteMessage(bytes []byte)
+	WriteMessage(topic string, bytes []byte)
 	Level() VerbosityLevel
 	Close()
-}
-
-type entry struct {
-	writer io.Writer
-	value  interface{}
 }
 
 // SyncPrinter is an implementation of Printer interface to synchronously write to specified io.Writer instances.
 type SyncPrinter struct {
 	currentLevel  VerbosityLevel
 	wg            sync.WaitGroup
-	mux           sync.Mutex
-	isClosed      bool
-	input         chan *entry
-	logOutput     io.Writer
-	messageOutput io.Writer
+	targets       map[string]chan interface{}
+	uniqueTargets map[io.Writer]chan interface{}
 }
 
 // NewPrinter creates a new synchronised writer.
-func NewPrinter(currentLevel VerbosityLevel, logOutput, messageOutput io.Writer) *SyncPrinter {
-	p := &SyncPrinter{
-		currentLevel:  currentLevel,
-		logOutput:     logOutput,
-		messageOutput: messageOutput,
-		input:         make(chan *entry, 100),
+func NewPrinter(currentLevel VerbosityLevel, logOutput io.Writer) *SyncPrinter {
+	logInput := make(chan interface{}, 100)
+	return &SyncPrinter{
+		currentLevel: currentLevel,
+		uniqueTargets: map[io.Writer]chan interface{}{
+			logOutput: logInput,
+		},
+		targets: map[string]chan interface{}{
+			loggingWriterKey: logInput,
+		},
+	}
+}
+
+// Start starts the underlying message processors.
+func (p *SyncPrinter) Start(messageOutputs map[string]io.Writer) {
+	for topic, writer := range messageOutputs {
+		input, ok := p.uniqueTargets[writer]
+		if !ok {
+			input = make(chan interface{})
+			p.uniqueTargets[writer] = input
+		}
+
+		p.targets[topic] = input
 	}
 
-	p.wg.Add(1)
-	go p.writeEntities()
-	return p
+	for w, in := range p.uniqueTargets {
+		p.wg.Add(1)
+		go func(writer io.Writer, input chan interface{}) {
+			defer p.wg.Done()
+			for value := range input {
+				_, err := fmt.Fprint(writer, value)
+				if err != nil {
+					fmt.Printf("Failed to write the entry: %s\n", err)
+				}
+			}
+		}(w, in)
+	}
 }
 
 // Close closes the internal synchronisation channels.
 //
-// Writing into a closed printer will have no effect.
+// Writing into a closed printer will panic.
 func (p *SyncPrinter) Close() {
-	p.mux.Lock()
-	defer p.mux.Unlock()
-	if p.isClosed {
-		return
+	for _, inputChannel := range p.uniqueTargets {
+		close(inputChannel)
 	}
-	p.isClosed = true
-	close(p.input)
 	p.wg.Wait()
 }
 
@@ -75,40 +93,14 @@ func (p *SyncPrinter) Level() VerbosityLevel {
 	return p.currentLevel
 }
 
-// WriteMessage writes the message to the Message io.Writer.
-func (p *SyncPrinter) WriteMessage(bytes []byte) {
-	p.mux.Lock()
-	defer p.mux.Unlock()
-	if p.isClosed {
-		return
-	}
-	p.input <- &entry{
-		writer: p.messageOutput,
-		value:  string(bytes) + "\n",
-	}
+// WriteMessage writes the message to the relevant message io.Writer.
+func (p *SyncPrinter) WriteMessage(topic string, bytes []byte) {
+	p.targets[topic] <- string(bytes) + "\n"
 }
 
 func (p *SyncPrinter) log(level VerbosityLevel, msg string) {
 	if p.currentLevel < level {
 		return
 	}
-	p.mux.Lock()
-	defer p.mux.Unlock()
-	if p.isClosed {
-		return
-	}
-	p.input <- &entry{
-		writer: p.logOutput,
-		value:  msg + "\n",
-	}
-}
-
-func (p *SyncPrinter) writeEntities() {
-	defer p.wg.Done()
-	for entry := range p.input {
-		_, err := fmt.Fprint(entry.writer, entry.value)
-		if err != nil {
-			fmt.Printf("Failed to write the entry: %s\n", err)
-		}
-	}
+	p.targets[loggingWriterKey] <- msg + "\n"
 }

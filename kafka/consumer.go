@@ -25,6 +25,7 @@ type Consumer struct {
 	wg                      sync.WaitGroup
 	remoteTopics            []string
 	enableAutoTopicCreation bool
+	environment             string
 
 	mux      sync.Mutex
 	isClosed bool
@@ -40,23 +41,6 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 		option(ops)
 	}
 
-	if ops.OffsetStore == nil {
-		configPath := configdir.LocalConfig("trubka")
-		err := configdir.MakePath(configPath)
-		if err != nil {
-			return nil, errors.Wrap(err, "Failed to create the application cache folder")
-		}
-		fileName := "offsets"
-		if !internal.IsEmpty(environment) {
-			fileName = strings.ToLower(strings.TrimSpace(environment)) + "_" + fileName
-		}
-		ops.OffsetStore, err = newLocalOffsetStore(printer, filepath.Join(configPath, fileName))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	printer.Logf(internal.Verbose, "Initialising the Kafka client.")
 	client, err := initClient(brokers, ops)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to initialise kafka client")
@@ -69,6 +53,7 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 		client:                  client,
 		topicPartitionOffsets:   make(map[string]map[int32]int64),
 		enableAutoTopicCreation: enableAutoTopicCreation,
+		environment:             environment,
 	}, nil
 }
 
@@ -116,7 +101,16 @@ func (c *Consumer) Start(ctx context.Context, topics []string, cb Callback) erro
 		return errors.New("consumer callback function cannot be nil")
 	}
 
-	c.printer.Logf(internal.Verbose, "Starting Kafka consumers.")
+	if c.config.OffsetStore == nil {
+		store, err := c.initialiseLocalOffsetStore()
+		if err != nil {
+			return err
+		}
+		c.config.OffsetStore = store
+		defer store.Close()
+	}
+
+	c.printer.Logf(internal.VeryVerbose, "Starting Kafka consumers.")
 
 	err := c.fetchTopicPartitions(topics)
 	if err != nil {
@@ -124,6 +118,32 @@ func (c *Consumer) Start(ctx context.Context, topics []string, cb Callback) erro
 	}
 	c.consumeTopics(ctx, cb)
 	return nil
+}
+
+func (c *Consumer) initialiseLocalOffsetStore() (*localOffsetStore, error) {
+	configPath := configdir.LocalConfig("trubka")
+	err := configdir.MakePath(configPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to create the application cache folder")
+	}
+	fileName := "offsets"
+	if !internal.IsEmpty(c.environment) {
+		fileName = strings.ToLower(strings.TrimSpace(c.environment)) + "_" + fileName
+	}
+	ls, err := newLocalOffsetStore(c.printer, filepath.Join(configPath, fileName))
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		for err := range ls.Errors() {
+			c.printer.Logf(internal.Forced, "Err: %s", err)
+		}
+	}()
+
+	ls.Start()
+
+	return ls, nil
 }
 
 func (c *Consumer) consumeTopics(ctx context.Context, cb Callback) {
@@ -148,7 +168,7 @@ func (c *Consumer) consumeTopics(ctx context.Context, cb Callback) {
 				default:
 					err := c.consumePartition(cn, cb, topic, partition, offset)
 					if err != nil {
-						c.printer.Logf(internal.Quiet, "Failed to start consuming from %s offset of topic %s, partition %d: %s", getOffset(offset), topic, partition, err)
+						c.printer.Logf(internal.Forced, "Failed to start consuming from %s offset of topic %s, partition %d: %s", getOffset(offset), topic, partition, err)
 						cancel()
 						cancelled = true
 					}
@@ -167,26 +187,18 @@ func (c *Consumer) Close() {
 	if c.isClosed || c.client == nil {
 		return
 	}
-	c.printer.Log(internal.Normal, "Closing Kafka consumer.")
+	c.printer.Log(internal.Verbose, "Closing Kafka consumer.")
 	c.isClosed = true
 	err := c.client.Close()
 	if err != nil {
-		c.printer.Logf(internal.Quiet, "Failed to close Kafka client: %s.", err)
+		c.printer.Logf(internal.Forced, "Failed to close Kafka client: %s.", err)
 	} else {
-		c.printer.Log(internal.Verbose, "The Kafka client has been closed successfully.")
-	}
-
-	if c.config.OffsetStore != nil {
-		c.printer.Log(internal.SuperVerbose, "Closing the offset store.")
-		err = c.config.OffsetStore.Close()
-		if err != nil {
-			c.printer.Logf(internal.Quiet, "Failed to close the offset store: %s.", err)
-		}
+		c.printer.Log(internal.VeryVerbose, "The Kafka client has been closed successfully.")
 	}
 }
 
 func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic string, partition int32, offset int64) error {
-	c.printer.Logf(internal.Verbose, "Start consuming from partition %d of topic %s (offset: %s).", partition, topic, getOffset(offset))
+	c.printer.Logf(internal.VeryVerbose, "Start consuming from partition %d of topic %s (offset: %s).", partition, topic, getOffset(offset))
 	pc, err := c.client.ConsumePartition(topic, partition, offset)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to start consuming partition %d of topic %s", partition, topic)
@@ -205,7 +217,7 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 			if err == nil && c.config.OffsetStore != nil {
 				err := c.config.OffsetStore.Store(m.Topic, m.Partition, m.Offset+1)
 				if err != nil {
-					c.printer.Logf(internal.Quiet, "Failed to store the offset: %s.", err)
+					c.printer.Logf(internal.Forced, "Failed to store the offset: %s.", err)
 				}
 			}
 		}
@@ -215,7 +227,7 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 	go func(pc sarama.PartitionConsumer) {
 		defer c.wg.Done()
 		for err := range pc.Errors() {
-			c.printer.Logf(internal.Quiet, "Failed to consume message: %s.", err)
+			c.printer.Logf(internal.Forced, "Failed to consume message: %s.", err)
 		}
 	}(pc)
 

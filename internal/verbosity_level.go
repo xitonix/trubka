@@ -4,12 +4,12 @@ package internal
 type VerbosityLevel int8
 
 const (
-	// Quiet the lowest logging level. Everything will be printer under this level.
-	Quiet VerbosityLevel = iota
-	// Normal normal mode (-v)
-	Normal
-	// Verbose verbose mode (-vv)
+	// Forced the lowest logging level. Everything will be printed under this level.
+	Forced VerbosityLevel = iota
+	// Verbose verbose mode (-v)
 	Verbose
+	// VeryVerbose very verbose mode (-vv)
+	VeryVerbose
 	// SuperVerbose super verbose mode (-vvv)
 	SuperVerbose
 )
@@ -18,12 +18,12 @@ const (
 func ToVerbosityLevel(counter int) VerbosityLevel {
 	switch {
 	case counter == 1:
-		return Normal
-	case counter == 2:
 		return Verbose
+	case counter == 2:
+		return VeryVerbose
 	case counter >= 3:
 		return SuperVerbose
 	default:
-		return Quiet
+		return Forced
 	}
 }
