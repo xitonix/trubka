@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
-	"github.com/dgraph-io/badger"
+	"github.com/peterbourgon/diskv"
 	"github.com/pkg/errors"
 
 	"go.xitonix.io/trubka/internal"
@@ -20,7 +21,7 @@ type progress struct {
 }
 
 type localOffsetStore struct {
-	db          *badger.DB
+	db          *diskv.Diskv
 	printer     internal.Printer
 	wg          sync.WaitGroup
 	writeErrors chan error
@@ -29,13 +30,16 @@ type localOffsetStore struct {
 	offsets map[string]map[int32]int64
 }
 
-func newLocalOffsetStore(printer internal.Printer, filePath string) (*localOffsetStore, error) {
-	printer.Logf(internal.Verbose, "Initialising local offset store at %s", filePath)
-	ops := badger.DefaultOptions(filePath).WithLogger(nil)
-	db, err := badger.Open(ops)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to create the local offset file")
-	}
+func newLocalOffsetStore(printer internal.Printer, base string) (*localOffsetStore, error) {
+	printer.Logf(internal.Verbose, "Initialising local offset store at %s", base)
+
+	flatTransform := func(s string) []string { return []string{} }
+
+	db := diskv.New(diskv.Options{
+		BasePath:     base,
+		Transform:    flatTransform,
+		CacheSizeMax: 1024 * 1024,
+	})
 
 	return &localOffsetStore{
 		db:          db,
@@ -86,9 +90,7 @@ func (s *localOffsetStore) writeOffsetsToDisk() {
 				offsetsString = fmt.Sprintf(" %v", offsets)
 			}
 			s.printer.Logf(internal.VeryVerbose, "Writing the offsets%v of topic %s to the disk", offsetsString, topic)
-			err := s.db.Update(func(txn *badger.Txn) error {
-				return txn.Set([]byte(topic), buff.Bytes())
-			})
+			err := s.db.Write(topic, buff.Bytes())
 			if err != nil {
 				s.writeErrors <- errors.Wrapf(err, "Failed to write the offsets %v of topic %s to the disk", offsets, topic)
 			}
@@ -114,33 +116,21 @@ func (s *localOffsetStore) Store(topic string, partition int32, offset int64) er
 
 func (s *localOffsetStore) Query(topic string) (map[int32]int64, error) {
 	offsets := make(map[int32]int64)
-	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(topic))
-		if err != nil {
-			if err == badger.ErrKeyNotFound {
-				return nil
-			}
-			return err
-		}
-
-		err = item.Value(func(val []byte) error {
-			buff := bytes.NewBuffer(val)
-			dec := gob.NewDecoder(buff)
-			err := dec.Decode(&offsets)
-			if err != nil {
-				return errors.Wrapf(err, "Failed to deserialize the value from local offset store for topic %s", topic)
-			}
-			return nil
-		})
-		if err != nil {
-			return errors.Wrapf(err, "Failed to read the value from local offset store for topic %s", topic)
-		}
-		s.offsets[topic] = offsets
-		return nil
-	})
+	val, err := s.db.Read(topic)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
+
+	buff := bytes.NewBuffer(val)
+	dec := gob.NewDecoder(buff)
+	err = dec.Decode(&offsets)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to deserialize the value from local offset store for topic %s", topic)
+	}
+	s.offsets[topic] = offsets
 	return offsets, nil
 }
 
@@ -152,12 +142,5 @@ func (s *localOffsetStore) Close() {
 	close(s.in)
 	s.wg.Wait()
 	close(s.writeErrors)
-	s.printer.Log(internal.SuperVerbose, "Synchronising the offset store.")
-	if err := s.db.Sync(); err != nil {
-		s.printer.Logf(internal.Forced, "Failed to sync the local offset file: %s.", err)
-	}
-	err := s.db.Close()
-	if err == nil {
-		s.printer.Log(internal.SuperVerbose, "The offset store has been closed successfully.")
-	}
+	s.printer.Log(internal.SuperVerbose, "The offset store has been closed successfully.")
 }
