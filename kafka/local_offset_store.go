@@ -62,7 +62,7 @@ func (s *localOffsetStore) Start() {
 			case p, more := <-s.in:
 				if !more {
 					ticker.Stop()
-					s.printer.Log(internal.Verbose, "Flushing the offset store")
+					s.printer.Log(internal.Verbose, "Flushing the offsets to disk.")
 					s.writeOffsetsToDisk()
 					return
 				}
@@ -74,28 +74,6 @@ func (s *localOffsetStore) Start() {
 			}
 		}
 	}()
-}
-
-func (s *localOffsetStore) writeOffsetsToDisk() {
-	for topic, offsets := range s.offsets {
-		buff := bytes.Buffer{}
-		enc := gob.NewEncoder(&buff)
-		err := enc.Encode(offsets)
-		if err != nil {
-			s.writeErrors <- errors.Wrapf(err, "Failed to serialise the offsets of topic %s", topic)
-		}
-		if buff.Len() > 0 {
-			var offsetsString string
-			if s.printer.Level() == internal.SuperVerbose {
-				offsetsString = fmt.Sprintf(" %v", offsets)
-			}
-			s.printer.Logf(internal.VeryVerbose, "Writing the offsets%v of topic %s to the disk", offsetsString, topic)
-			err := s.db.Write(topic, buff.Bytes())
-			if err != nil {
-				s.writeErrors <- errors.Wrapf(err, "Failed to write the offsets %v of topic %s to the disk", offsets, topic)
-			}
-		}
-	}
 }
 
 // Errors returns the channel on which the write errors will be received.
@@ -119,7 +97,8 @@ func (s *localOffsetStore) Query(topic string) (map[int32]int64, error) {
 	val, err := s.db.Read(topic)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			s.offsets[topic] = offsets
+			return offsets, nil
 		}
 		return nil, err
 	}
@@ -143,4 +122,26 @@ func (s *localOffsetStore) Close() {
 	s.wg.Wait()
 	close(s.writeErrors)
 	s.printer.Log(internal.SuperVerbose, "The offset store has been closed successfully.")
+}
+
+func (s *localOffsetStore) writeOffsetsToDisk() {
+	for topic, offsets := range s.offsets {
+		buff := bytes.Buffer{}
+		enc := gob.NewEncoder(&buff)
+		err := enc.Encode(offsets)
+		if err != nil {
+			s.writeErrors <- errors.Wrapf(err, "Failed to serialise the offsets of topic %s", topic)
+		}
+		if buff.Len() > 0 {
+			var offsetsString string
+			if s.printer.Level() == internal.SuperVerbose {
+				offsetsString = fmt.Sprintf(" %v", offsets)
+			}
+			s.printer.Logf(internal.VeryVerbose, "Writing the offsets%v of topic %s to the disk", offsetsString, topic)
+			err := s.db.Write(topic, buff.Bytes())
+			if err != nil {
+				s.writeErrors <- errors.Wrapf(err, "Failed to write the offsets %v of topic %s to the disk", offsets, topic)
+			}
+		}
+	}
 }
