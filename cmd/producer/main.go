@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/xitonix/flags"
 
-	"go.xitonix.io/trubka/cmd/contracts"
+	"github.com/xitonix/trubka/cmd/contracts"
 )
 
 func main() {

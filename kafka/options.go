@@ -1,7 +1,7 @@
 package kafka
 
 import (
-	"go.xitonix.io/trubka/internal"
+	"github.com/xitonix/trubka/internal"
 )
 
 const (
