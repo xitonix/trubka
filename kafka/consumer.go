@@ -11,7 +11,7 @@ import (
 	"github.com/kirsle/configdir"
 	"github.com/pkg/errors"
 
-	"go.xitonix.io/trubka/internal"
+	"github.com/xitonix/trubka/internal"
 )
 
 // Consumer represents a new Kafka cluster consumer.

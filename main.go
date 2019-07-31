@@ -19,9 +19,9 @@ import (
 	"github.com/xitonix/flags"
 	"github.com/xitonix/flags/core"
 
-	"go.xitonix.io/trubka/internal"
-	"go.xitonix.io/trubka/kafka"
-	"go.xitonix.io/trubka/proto"
+	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/kafka"
+	"github.com/xitonix/trubka/proto"
 )
 
 var version string

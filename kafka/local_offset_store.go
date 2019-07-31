@@ -11,7 +11,7 @@ import (
 	"github.com/peterbourgon/diskv"
 	"github.com/pkg/errors"
 
-	"go.xitonix.io/trubka/internal"
+	"github.com/xitonix/trubka/internal"
 )
 
 type progress struct {

@@ -1,4 +1,4 @@
-module go.xitonix.io/trubka
+module github.com/xitonix/trubka
 
 go 1.12
 

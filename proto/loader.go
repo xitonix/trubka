@@ -11,7 +11,7 @@ import (
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/pkg/errors"
 
-	"go.xitonix.io/trubka/internal"
+	"github.com/xitonix/trubka/internal"
 )
 
 // Loader the interface to load and list the protocol buffer message types.

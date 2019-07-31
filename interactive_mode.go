@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"go.xitonix.io/trubka/kafka"
-	"go.xitonix.io/trubka/proto"
+	"github.com/xitonix/trubka/kafka"
+	"github.com/xitonix/trubka/proto"
 )
 
 type confirmationResult int8
