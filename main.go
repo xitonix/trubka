@@ -156,8 +156,9 @@ func main() {
 		for t, m := range tm {
 			prn.Logf(internal.Forced, "    %s: %s", t, m)
 		}
-		err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, time time.Time, key, value []byte) error {
-			return consume(tm, topic, loader, value, marshal, prn, searchExpression, reverse.Get())
+		reversed := reverse.Get()
+		err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, time time.Time, value []byte) error {
+			return consume(tm, topic, loader, value, marshal, prn, searchExpression, reversed)
 		})
 	} else {
 		prn.Log(internal.Forced, "No Kafka topic has been selected.")

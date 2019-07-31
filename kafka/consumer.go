@@ -213,7 +213,9 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 	go func(pc sarama.PartitionConsumer) {
 		defer c.wg.Done()
 		for m := range pc.Messages() {
-			err := cb(m.Topic, m.Partition, m.Offset, m.Timestamp, m.Key, m.Value)
+			clone := make([]byte, len(m.Value))
+			copy(clone, m.Value)
+			err := cb(m.Topic, m.Partition, m.Offset, m.Timestamp, clone)
 			if err == nil && c.config.OffsetStore != nil {
 				err := c.config.OffsetStore.Store(m.Topic, m.Partition, m.Offset+1)
 				if err != nil {
