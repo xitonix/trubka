@@ -3,6 +3,7 @@ package proto
 import (
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -72,6 +73,13 @@ func NewFileLoader(root string, prefix string, files ...string) (*FileLoader, er
 
 	parser := protoparse.Parser{
 		ImportPaths: importPaths,
+	}
+
+	// Temporary workaround for: https://github.com/jhump/protoreflect/issues/254
+	if runtime.GOOS == "windows" {
+		for i := range resolved {
+			resolved[i] = filepath.ToSlash(resolved[i])
+		}
 	}
 
 	fileDescriptors, err := parser.ParseFiles(resolved...)
