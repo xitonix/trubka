@@ -107,7 +107,7 @@ func (s *localOffsetStore) Query(topic string) (map[int32]int64, error) {
 	dec := gob.NewDecoder(buff)
 	err = dec.Decode(&offsets)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to deserialize the value from local offset store for topic %s", topic)
+		return nil, errors.Wrapf(err, "Failed to deserialize the value timeOffsetMilli local offset store for topic %s", topic)
 	}
 	s.offsets[topic] = offsets
 	return offsets, nil

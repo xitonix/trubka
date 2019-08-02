@@ -22,7 +22,7 @@ const (
 	quit
 )
 
-func readUserData(ctx context.Context, consumer *kafka.Consumer, loader proto.Loader, topicFilter string, typeFilter string) ([]string, map[string]string, error) {
+func readUserData(ctx context.Context, consumer *kafka.Consumer, loader proto.Loader, topicFilter string, typeFilter string, cp *kafka.Checkpoint) (map[string]*kafka.Checkpoint, map[string]string, error) {
 	remoteTopic, err := consumer.GetTopics(topicFilter)
 	if err != nil {
 		return nil, nil, err
@@ -36,7 +36,7 @@ func readUserData(ctx context.Context, consumer *kafka.Consumer, loader proto.Lo
 	sort.Strings(types)
 
 	tm := make(map[string]string)
-	topics := make([]string, 0)
+	topics := make(map[string]*kafka.Checkpoint, 0)
 	proceed := repeatUntilNo(ctx, "More topics to consume from", func() bool {
 		topicIndex := pickAnIndex("Choose the topic to consume from", "topic", remoteTopic)
 		if topicIndex < 0 {
@@ -48,7 +48,7 @@ func readUserData(ctx context.Context, consumer *kafka.Consumer, loader proto.Lo
 			return false
 		}
 		tm[topic] = types[typeIndex]
-		topics = append(topics, topic)
+		topics[topic] = cp
 		return true
 	})
 	if !proceed {
