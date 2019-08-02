@@ -45,14 +45,15 @@ func main() {
 
 	format := flags.String("format", "The format in which the Kafka messages will be written to the output.").
 		WithValidRange(true, "json", "json-indent", "text", "text-indent", "hex", "hex-indent").
-		WithDefault("json-indent").WithShort("f")
+		WithDefault("json-indent")
 
 	logFilePath := flags.String("log-file", "The `file` to write the logs to. Set to '' to discard (Default: stdout).").WithShort("l")
 	outputDir := flags.String("output-dir", "The `directory` to write the Kafka messages to. Set to '' to discard (Default: Stdout).").WithShort("d")
 	kafkaVersion := flags.String("kafka-version", "Kafka cluster version.").WithDefault(kafka.DefaultClusterVersion)
-	rewind := flags.Bool("rewind", "Starts consuming from the beginning of the stream.").WithShort("w")
-	timeCheckpoint := flags.Time("from-time", `Starts consuming from the most recent available offset at the given time. This will override --rewind.`)
-	offsetCheckpoint := flags.Int64("from-offset", `Starts consuming from the specified offset (if applicable). This will override --rewind and --time-checkpoint.`)
+	rewind := flags.Bool("rewind", `Starts consuming from the beginning of the stream.`).WithShort("w")
+	timeCheckpoint := flags.Time("from", `Starts consuming from the most recent available offset at the given time. This will override --rewind.`).WithShort("f")
+	offsetCheckpoint := flags.Int64("from-offset", `Starts consuming from the specified offset (if applicable). This will override --rewind and --from.
+						If the most recent offset value of a partition is less than the specified value, this flag will be ignored.`).WithShort("o")
 	environment := flags.String("environment", `This is to store the local offsets in different files for different environments. It's This is only required
 						if you use trubka to consume from different Kafka clusters on the same machine (eg. dev/prod).`).WithShort("E").Required()
 	interactive := flags.Bool("interactive", "Runs the tool in interactive mode.").WithShort("i")
@@ -60,8 +61,8 @@ func main() {
 	typeFilter := flags.String("type-filter", "The optional regular expression to filter the proto types with (Interactive mode only).").WithShort("n")
 	searchQuery := flags.String("search-query", "The optional regular expression to filter the message content by.").WithShort("q")
 	reverse := flags.Bool("reverse", "If set, the messages of which the content matches the search query will be ignored.")
-	v := flags.Verbosity("The verbosity level of the tool.")
-	version := flags.Bool("version", "Prints the current version of Trubka.")
+	v := flags.Verbosity("The verbosity level of the tool.").WithKey("-")
+	version := flags.Bool("version", "Prints the current version of Trubka.").WithKey("-")
 
 	flags.Parse()
 
