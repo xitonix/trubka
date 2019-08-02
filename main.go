@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -31,8 +30,7 @@ type marshaller func(msg *dynamic.Message) ([]byte, error)
 func main() {
 	flags.EnableAutoKeyGeneration()
 	flags.SetKeyPrefix("TBK")
-	profilingMode := flags.String("profile", "Enables profiling.").
-		WithValidRange(true, "cpu", "mem", "block", "mutex").Hide()
+	profilingMode := flags.String("profile", "Enables profiling.").WithValidRange(true, "cpu", "mem", "block", "mutex").Hide()
 
 	protoDir := flags.String("proto-root", "The path to the folder where your *.proto files live.").WithShort("p")
 	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`)
@@ -52,10 +50,11 @@ func main() {
 	logFilePath := flags.String("log-file", "The `file` to write the logs to. Set to '' to discard (Default: stdout).").WithShort("l")
 	outputDir := flags.String("output-dir", "The `directory` to write the Kafka messages to. Set to '' to discard (Default: Stdout).").WithShort("d")
 	kafkaVersion := flags.String("kafka-version", "Kafka cluster version.").WithDefault(kafka.DefaultClusterVersion)
-	rewind := flags.Bool("rewind", "Read to beginning of the stream").WithShort("w")
-	resetOffsets := flags.Bool("reset-offsets", "Resets the stored offsets").WithShort("r")
+	rewind := flags.Bool("rewind", "Starts consuming from the beginning of the stream.").WithShort("w")
+	timeCheckpoint := flags.Time("from-time", `Starts consuming from the most recent available offset at the given time. This will override --rewind.`)
+	offsetCheckpoint := flags.Int64("from-offset", `Starts consuming from the specified offset (if applicable). This will override --rewind and --time-checkpoint.`)
 	environment := flags.String("environment", `This is to store the local offsets in different files for different environments. It's This is only required
-						if you use trubka to consume from different Kafka clusters on the same machine (eg. dev/prod).`).WithShort("E")
+						if you use trubka to consume from different Kafka clusters on the same machine (eg. dev/prod).`).WithShort("E").Required()
 	interactive := flags.Bool("interactive", "Runs the tool in interactive mode.").WithShort("i")
 	topicFilter := flags.String("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").WithShort("m")
 	typeFilter := flags.String("type-filter", "The optional regular expression to filter the proto types with (Interactive mode only).").WithShort("n")
@@ -109,9 +108,7 @@ func main() {
 		brokers.Get(), prn,
 		environment.Get(),
 		enableAutoTopicCreation.Get(),
-		kafka.WithClusterVersion(kafkaVersion.Get()),
-		kafka.WithRewind(rewind.Get()),
-		kafka.WithOffsetReset(resetOffsets.Get()))
+		kafka.WithClusterVersion(kafkaVersion.Get()))
 
 	if err != nil {
 		exit(err)
@@ -128,17 +125,18 @@ func main() {
 		cancel()
 	}()
 
-	var topics []string
+	topics := make(map[string]*kafka.Checkpoint)
 	tm := make(map[string]string)
+	cp := getCheckpoint(rewind.Get(), timeCheckpoint, offsetCheckpoint)
 	if interactive.Get() {
-		topics, tm, err = readUserData(ctx, consumer, loader, topicFilter.Get(), typeFilter.Get())
+		topics, tm, err = readUserData(ctx, consumer, loader, topicFilter.Get(), typeFilter.Get(), cp)
 		if err != nil {
 			exit(err)
 		}
 	} else {
 		tm = topicsMap.Get()
 		prefix := strings.TrimSpace(topicPrefix.Get())
-		topics = getTopics(prefix, tm)
+		topics = getTopics(prefix, tm, cp)
 	}
 
 	writers, closable, err := getOutputWriters(outputDir, topics)
@@ -185,6 +183,16 @@ func main() {
 	}
 }
 
+func getCheckpoint(rewind bool, timeCheckpoint *core.TimeFlag, offsetCheckpoint *core.Int64Flag) *kafka.Checkpoint {
+	if offsetCheckpoint.IsSet() {
+		return kafka.NewOffsetCheckpoint(offsetCheckpoint.Get())
+	}
+	if timeCheckpoint.IsSet() {
+		return kafka.NewTimeCheckpoint(timeCheckpoint.Get())
+	}
+	return kafka.NewCheckpoint(rewind)
+}
+
 func printVersion() {
 	if version == "" {
 		version = "[build from source]"
@@ -223,15 +231,14 @@ func consume(tm map[string]string,
 	return nil
 }
 
-func getTopics(prefix string, topicMap map[string]string) []string {
-	topics := make([]string, 0)
+func getTopics(prefix string, topicMap map[string]string, cp *kafka.Checkpoint) map[string]*kafka.Checkpoint {
+	topics := make(map[string]*kafka.Checkpoint)
 	for topic := range topicMap {
 		if len(prefix) > 0 && !strings.HasPrefix(topic, prefix) {
 			topic = prefix + topic
 		}
-		topics = append(topics, topic)
+		topics[topic] = cp
 	}
-	sort.Strings(topics)
 	return topics
 }
 
@@ -255,13 +262,13 @@ func getLogWriter(f *core.StringFlag) (io.Writer, bool, error) {
 	return lf, true, nil
 }
 
-func getOutputWriters(dir *core.StringFlag, topics []string) (map[string]io.Writer, bool, error) {
+func getOutputWriters(dir *core.StringFlag, topics map[string]*kafka.Checkpoint) (map[string]io.Writer, bool, error) {
 	root := dir.Get()
 	result := make(map[string]io.Writer)
 
 	if internal.IsEmpty(root) {
 		discard := dir.IsSet()
-		for _, topic := range topics {
+		for topic := range topics {
 			if discard {
 				result[topic] = ioutil.Discard
 				continue
@@ -276,7 +283,7 @@ func getOutputWriters(dir *core.StringFlag, topics []string) (map[string]io.Writ
 		return nil, false, errors.Wrap(err, "Failed to create the output directory")
 	}
 
-	for _, topic := range topics {
+	for topic := range topics {
 		file := filepath.Join(root, topic)
 		lf, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 		if err != nil {

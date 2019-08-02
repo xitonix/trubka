@@ -14,12 +14,8 @@ type Options struct {
 	DisableErrorReporting bool
 	// ClusterVersion kafka cluster version.
 	ClusterVersion string
-	// Rewind if true, the consumer will start consuming from the beginning of the stream.
-	Rewind bool
 	// OffsetStore the type responsible to store consumer offsets
 	OffsetStore OffsetStore
-	// ResetOffsets if true, the stored offsets will be reset.
-	ResetOffsets bool
 }
 
 // NewOptions creates a new Options object with default values.
@@ -27,7 +23,6 @@ func NewOptions() *Options {
 	return &Options{
 		DisableErrorReporting: false,
 		ClusterVersion:        DefaultClusterVersion,
-		Rewind:                false,
 	}
 }
 
@@ -41,20 +36,6 @@ func WithClusterVersion(version string) Option {
 			version = DefaultClusterVersion
 		}
 		options.ClusterVersion = version
-	}
-}
-
-// WithRewind if set to true the consumer will start consuming from the beginning of the stream.
-func WithRewind(rewind bool) Option {
-	return func(options *Options) {
-		options.Rewind = rewind
-	}
-}
-
-// WithOffsetReset resets the stored offset if any.
-func WithOffsetReset(reset bool) Option {
-	return func(options *Options) {
-		options.ResetOffsets = reset
 	}
 }
 
