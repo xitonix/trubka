@@ -25,18 +25,18 @@ import (
 
 var version string
 
-type marshaller func(msg *dynamic.Message) ([]byte, error)
+type marshaller func(msg *dynamic.Message, ts time.Time) ([]byte, error)
 
 func main() {
 	flags.EnableAutoKeyGeneration()
 	flags.SetKeyPrefix("TBK")
 	profilingMode := flags.String("profile", "Enables profiling.").WithValidRange(true, "cpu", "mem", "block", "mutex").Hide()
 
-	protoDir := flags.String("proto-root", "The path to the folder where your *.proto files live.").WithShort("p")
+	protoDir := flags.String("proto-root", "The path to the folder where your *.proto files live.").WithShort("R")
 	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`)
-	protoPrefix := flags.String("type-prefix", "The optional prefix to prepend to proto message types.").WithShort("x")
-	topicsMap := flags.StringMap("topic-map", `Specifies the mappings between topics and message types in "Topic_Name:Fully_Qualified_Message_Type" format.
-						Example: --topic-map "CPU:contracts.CPUStatusChanged, RAM:contracts.MemoryUsageChanged".`).WithShort("t")
+	protoPrefix := flags.String("proto-prefix", "The optional prefix to prepend to proto message types.").WithShort("x")
+	topic := flags.String("topic", `The Kafka topic to consume from.`).WithShort("t")
+	messageType := flags.String("proto", `The fully qualified name of the protobuf type, stores in the given topic.`).WithShort("p")
 
 	brokers := flags.StringSlice("kafka-endpoints", "The comma separated list of Kafka endpoints in server:port format.").WithShort("k")
 	topicPrefix := flags.String("kafka-prefix", "The optional prefix to add to Kafka topic names.").WithShort("s")
@@ -57,8 +57,8 @@ func main() {
 	environment := flags.String("environment", `This is to store the local offsets in different files for different environments. It's This is only required
 						if you use trubka to consume from different Kafka clusters on the same machine (eg. dev/prod).`).WithShort("E").Required()
 	interactive := flags.Bool("interactive", "Runs the tool in interactive mode.").WithShort("i")
-	topicFilter := flags.String("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").WithShort("m")
-	typeFilter := flags.String("type-filter", "The optional regular expression to filter the proto types with (Interactive mode only).").WithShort("n")
+	topicFilter := flags.String("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").WithShort("n")
+	typeFilter := flags.String("type-filter", "The optional regular expression to filter the proto types with (Interactive mode only).").WithShort("m")
 	searchQuery := flags.String("search-query", "The optional regular expression to filter the message content by.").WithShort("q")
 	reverse := flags.Bool("reverse", "If set, the messages of which the content matches the search query will be ignored.")
 	v := flags.Verbosity("The verbosity level of the tool.").WithKey("-")
@@ -130,12 +130,12 @@ func main() {
 	tm := make(map[string]string)
 	cp := getCheckpoint(rewind.Get(), timeCheckpoint, offsetCheckpoint)
 	if interactive.Get() {
-		topics, tm, err = readUserData(ctx, consumer, loader, topicFilter.Get(), typeFilter.Get(), cp)
+		topics, tm, err = readUserData(consumer, loader, topicFilter.Get(), typeFilter.Get(), cp)
 		if err != nil {
 			exit(err)
 		}
 	} else {
-		tm = topicsMap.Get()
+		tm[topic.Get()] = messageType.Get()
 		prefix := strings.TrimSpace(topicPrefix.Get())
 		topics = getTopics(prefix, tm, cp)
 	}
@@ -147,7 +147,7 @@ func main() {
 
 	prn.Start(writers)
 
-	var marshal func(msg *dynamic.Message) ([]byte, error)
+	var marshal func(msg *dynamic.Message, ts time.Time) ([]byte, error)
 	marshal = getMarshaller(format.Get())
 
 	if len(tm) > 0 {
@@ -156,11 +156,11 @@ func main() {
 			prn.Logf(internal.Forced, "    %s: %s", t, m)
 		}
 		reversed := reverse.Get()
-		err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, time time.Time, value []byte) error {
-			return consume(tm, topic, loader, value, marshal, prn, searchExpression, reversed)
+		err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, ts time.Time, key, value []byte) error {
+			return consume(tm, topic, loader, value, ts, marshal, prn, searchExpression, reversed)
 		})
 	} else {
-		prn.Log(internal.Forced, "No Kafka topic has been selected.")
+		prn.Log(internal.Forced, "Nothing to process. Terminating Trubka.")
 	}
 
 	// We still need to explicitly close the underlying Kafka client, in case `consumer.Start` has not been called.
@@ -185,13 +185,14 @@ func main() {
 }
 
 func getCheckpoint(rewind bool, timeCheckpoint *core.TimeFlag, offsetCheckpoint *core.Int64Flag) *kafka.Checkpoint {
-	if offsetCheckpoint.IsSet() {
-		return kafka.NewOffsetCheckpoint(offsetCheckpoint.Get())
+	cp := kafka.NewCheckpoint(rewind)
+	switch {
+	case offsetCheckpoint.IsSet():
+		cp.SetOffset(offsetCheckpoint.Get())
+	case timeCheckpoint.IsSet():
+		cp.SetTimeOffset(timeCheckpoint.Get())
 	}
-	if timeCheckpoint.IsSet() {
-		return kafka.NewTimeCheckpoint(timeCheckpoint.Get())
-	}
-	return kafka.NewCheckpoint(rewind)
+	return cp
 }
 
 func printVersion() {
@@ -205,6 +206,7 @@ func consume(tm map[string]string,
 	topic string,
 	loader *proto.FileLoader,
 	value []byte,
+	ts time.Time,
 	serialise marshaller,
 	prn *internal.SyncPrinter,
 	search *regexp.Regexp,
@@ -221,7 +223,7 @@ func consume(tm map[string]string,
 	if err != nil {
 		return err
 	}
-	output, err := serialise(msg)
+	output, err := serialise(msg, ts)
 	if err != nil {
 		return err
 	}
@@ -310,32 +312,52 @@ func getMarshaller(format string) marshaller {
 	format = strings.TrimSpace(strings.ToLower(format))
 	switch format {
 	case "hex", "hex-indent":
-		return func(msg *dynamic.Message) ([]byte, error) {
+		return func(msg *dynamic.Message, ts time.Time) ([]byte, error) {
 			output, err := msg.Marshal()
 			if err != nil {
 				return nil, err
 			}
-			fm := "%X"
+			fm := "%v: %X"
 			if format == "hex-indent" {
-				fm = "% X"
+				fm = "%v: % X"
 			}
-			return []byte(fmt.Sprintf(fm, output)), nil
+			return []byte(fmt.Sprintf(fm, ts, output)), nil
 		}
 	case "text":
-		return func(msg *dynamic.Message) ([]byte, error) {
-			return msg.MarshalText()
+		return func(msg *dynamic.Message, ts time.Time) ([]byte, error) {
+			m, err := msg.MarshalText()
+			if err != nil {
+				return nil, err
+			}
+			return prependTimestamp(ts, m), nil
 		}
 	case "text-indent":
-		return func(msg *dynamic.Message) ([]byte, error) {
-			return msg.MarshalTextIndent()
+		return func(msg *dynamic.Message, ts time.Time) ([]byte, error) {
+			m, err := msg.MarshalTextIndent()
+			if err != nil {
+				return nil, err
+			}
+			return prependTimestamp(ts, m), nil
 		}
 	case "json":
-		return func(msg *dynamic.Message) ([]byte, error) {
-			return msg.MarshalJSON()
+		return func(msg *dynamic.Message, ts time.Time) ([]byte, error) {
+			m, err := msg.MarshalJSON()
+			if err != nil {
+				return nil, err
+			}
+			return prependTimestamp(ts, m), nil
 		}
 	default:
-		return func(msg *dynamic.Message) ([]byte, error) {
-			return msg.MarshalJSONIndent()
+		return func(msg *dynamic.Message, ts time.Time) ([]byte, error) {
+			m, err := msg.MarshalJSONIndent()
+			if err != nil {
+				return nil, err
+			}
+			return prependTimestamp(ts, m), nil
 		}
 	}
+}
+
+func prependTimestamp(ts time.Time, in []byte) []byte {
+	return append([]byte(fmt.Sprintf("[%v]\n", ts)), in...)
 }

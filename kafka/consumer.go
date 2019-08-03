@@ -59,7 +59,7 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 	}, nil
 }
 
-// GetTopics fetches the topics timeOffsetMilli the server.
+// GetTopics fetches the topics from the server.
 func (c *Consumer) GetTopics(filter string) ([]string, error) {
 	if c.remoteTopics != nil {
 		return c.remoteTopics, nil
@@ -72,10 +72,10 @@ func (c *Consumer) GetTopics(filter string) ([]string, error) {
 		}
 		search = s
 	}
-	c.printer.Log(internal.SuperVerbose, "Fetching the topic list timeOffsetMilli the server.")
+	c.printer.Log(internal.SuperVerbose, "Fetching the topic list from the server.")
 	topics, err := c.internalConsumer.Topics()
 	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to fetch the topic list timeOffsetMilli the server")
+		return nil, errors.Wrapf(err, "Failed to fetch the topic list from the server")
 	}
 
 	c.remoteTopics = make([]string, 0)
@@ -92,7 +92,7 @@ func (c *Consumer) GetTopics(filter string) ([]string, error) {
 	return c.remoteTopics, nil
 }
 
-// Start starts consuming timeOffsetMilli the specified topics and executes the callback function on each message.
+// Start starts consuming from the specified topics and executes the callback function on each message.
 //
 // This is a blocking call which will be terminated on cancellation of the context parameter.
 // The method returns error if the topic list is empty or the callback function is nil.
@@ -114,7 +114,6 @@ func (c *Consumer) Start(ctx context.Context, topics map[string]*Checkpoint, cb 
 	}
 
 	c.printer.Logf(internal.VeryVerbose, "Starting Kafka consumers.")
-
 	err := c.fetchTopicPartitions(topics)
 	if err != nil {
 		return err
@@ -172,7 +171,7 @@ func (c *Consumer) consumeTopics(ctx context.Context, cb Callback) {
 				default:
 					err := c.consumePartition(cn, cb, topic, partition, offset)
 					if err != nil {
-						c.printer.Logf(internal.Forced, "Failed to start consuming timeOffsetMilli %s offset of topic %s, partition %d: %s", getOffsetString(offset), topic, partition, err)
+						c.printer.Logf(internal.Forced, "Failed to start consuming from %s offset of topic %s, partition %d: %s", getOffsetString(offset), topic, partition, err)
 						cancel()
 						cancelled = true
 					}
@@ -202,7 +201,7 @@ func (c *Consumer) Close() {
 }
 
 func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic string, partition int32, offset int64) error {
-	c.printer.Logf(internal.VeryVerbose, "Start consuming timeOffsetMilli partition %d of topic %s (offset: %s).", partition, topic, getOffsetString(offset))
+	c.printer.Logf(internal.VeryVerbose, "Start consuming from partition %d of topic %s (offset: %v).", partition, topic, getOffsetString(offset))
 	pc, err := c.internalConsumer.ConsumePartition(topic, partition, offset)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to start consuming partition %d of topic %s", partition, topic)
@@ -217,9 +216,7 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 	go func(pc sarama.PartitionConsumer) {
 		defer c.wg.Done()
 		for m := range pc.Messages() {
-			clone := make([]byte, len(m.Value))
-			copy(clone, m.Value)
-			err := cb(m.Topic, m.Partition, m.Offset, m.Timestamp, clone)
+			err := cb(m.Topic, m.Partition, m.Offset, m.Timestamp, m.Key, m.Value)
 			if err == nil && c.config.OffsetStore != nil {
 				err := c.config.OffsetStore.Store(m.Topic, m.Partition, m.Offset+1)
 				if err != nil {
@@ -247,7 +244,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) error {
 		// That's why we need to get the list of the existing topics from the brokers.
 		remote, err := c.GetTopics("")
 		if err != nil {
-			return errors.Wrapf(err, "Failed to fetch the topic list timeOffsetMilli the broker(s)")
+			return errors.Wrapf(err, "Failed to fetch the topic list from the broker(s)")
 		}
 		for _, t := range remote {
 			existing[t] = nil
@@ -277,14 +274,14 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) error {
 		for _, partition := range partitions {
 			offset := sarama.OffsetNewest
 			switch cp.mode {
-			case explicit:
+			case ExplicitOffsetMode:
 				c.printer.Logf(internal.SuperVerbose, "Reading the most recent offset of partition %d for topic %s from the server.", partition, topic)
 				currentOffset, err := c.internalClient.GetOffset(topic, partition, sarama.OffsetNewest)
 				if err != nil {
 					return errors.Wrapf(err, "failed to retrieve the current offset value for partition %d of topic %s", partition, topic)
 				}
 				offset = int64(math.Min(float64(cp.offset), float64(currentOffset)))
-			case milliseconds:
+			case MillisecondsOffsetMode:
 				c.printer.Logf(internal.SuperVerbose,
 					"Reading the most recent offset value for partition %d of topic %s at %v from the server.",
 					partition,
@@ -295,6 +292,10 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) error {
 					return errors.Wrapf(err, "failed to retrieve the time-based offset for partition %d of topic %s", partition, topic)
 				}
 			default:
+				if cp.offset == sarama.OffsetOldest {
+					offset = cp.offset
+					break
+				}
 				if storedOffset, ok := offsets[partition]; ok {
 					offset = storedOffset
 				}
