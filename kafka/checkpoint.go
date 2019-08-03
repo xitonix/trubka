@@ -9,9 +9,9 @@ import (
 type offsetMode int8
 
 const (
-	undefined offsetMode = iota
-	milliseconds
-	explicit
+	UndefinedOffsetMode offsetMode = iota
+	MillisecondsOffsetMode
+	ExplicitOffsetMode
 )
 
 type Checkpoint struct {
@@ -20,7 +20,23 @@ type Checkpoint struct {
 	mode   offsetMode
 }
 
-func NewTimeCheckpoint(at time.Time) *Checkpoint {
+func (c *Checkpoint) Offset() int64 {
+	return c.offset
+}
+
+func (c *Checkpoint) SetOffset(offset int64) {
+	if offset < -2 {
+		offset = -2
+	}
+	c.offset = offset
+	c.mode = ExplicitOffsetMode
+}
+
+func (c *Checkpoint) TimeOffset() time.Time {
+	return c.at
+}
+
+func (c *Checkpoint) SetTimeOffset(at time.Time) {
 	var offsetMilliSeconds int64
 	switch {
 	case at.IsZero():
@@ -28,21 +44,16 @@ func NewTimeCheckpoint(at time.Time) *Checkpoint {
 	default:
 		offsetMilliSeconds = at.UnixNano() / 1000000
 	}
-	return &Checkpoint{
-		offset: offsetMilliSeconds,
-		mode:   milliseconds,
-		at:     at,
-	}
+	c.offset = offsetMilliSeconds
+	c.mode = MillisecondsOffsetMode
+	c.at = at
 }
 
-func NewOffsetCheckpoint(offset int64) *Checkpoint {
-	if offset < -2 {
-		offset = -2
+func (c *Checkpoint) Mode() offsetMode {
+	if c == nil {
+		return UndefinedOffsetMode
 	}
-	return &Checkpoint{
-		offset: offset,
-		mode:   explicit,
-	}
+	return c.mode
 }
 
 func NewCheckpoint(rewind bool) *Checkpoint {
@@ -52,6 +63,6 @@ func NewCheckpoint(rewind bool) *Checkpoint {
 	}
 	return &Checkpoint{
 		offset: offset,
-		mode:   undefined,
+		mode:   UndefinedOffsetMode,
 	}
 }
