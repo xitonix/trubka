@@ -3,7 +3,6 @@ package kafka
 import (
 	"bytes"
 	"encoding/gob"
-	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -145,14 +144,10 @@ func (s *localOffsetStore) writeOffsetsToDisk() {
 		if err != nil {
 			s.writeErrors <- errors.Wrapf(err, "Failed to serialise the offsets of topic %s", topic)
 		}
-		var offsetsString string
-		if s.printer.Level() == internal.SuperVerbose {
-			offsetsString = fmt.Sprintf(" %v", toWrite)
-		}
-		s.printer.Logf(internal.VeryVerbose, "Writing the offsets%v of topic %s to the disk", offsetsString, topic)
+		s.printer.Logf(internal.SuperVerbose, "Writing the offset(s) of topic %s to the disk %v.", topic, toWrite)
 		err = s.db.Write(topic, buff.Bytes())
 		if err != nil {
-			s.writeErrors <- errors.Wrapf(err, "Failed to write the offsets %v of topic %s to the disk", toWrite, topic)
+			s.writeErrors <- errors.Wrapf(err, "Failed to write the offsets of topic %s to the disk %v", topic, toWrite)
 		}
 	}
 }

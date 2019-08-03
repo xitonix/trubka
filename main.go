@@ -39,7 +39,7 @@ func main() {
 	messageType := flags.String("proto", `The fully qualified name of the protobuf type, stores in the given topic.`).WithShort("p")
 
 	brokers := flags.StringSlice("kafka-endpoints", "The comma separated list of Kafka endpoints in server:port format.").WithShort("k")
-	topicPrefix := flags.String("kafka-prefix", "The optional prefix to add to Kafka topic names.").WithShort("s")
+	topicPrefix := flags.String("kafka-prefix", "The optional prefix to add to Kafka topic names.").WithShort("y")
 	enableAutoTopicCreation := flags.Bool("auto-topic-creation", `Enables automatic Kafka topic creation before consuming (if it is allowed on the server). 
 						Enabling this option in production is not recommended since it may pollute the environment with unwanted topics.`)
 
@@ -59,9 +59,9 @@ func main() {
 	interactive := flags.Bool("interactive", "Runs the tool in interactive mode.").WithShort("i")
 	topicFilter := flags.String("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").WithShort("n")
 	typeFilter := flags.String("type-filter", "The optional regular expression to filter the proto types with (Interactive mode only).").WithShort("m")
-	searchQuery := flags.String("search-query", "The optional regular expression to filter the message content by.").WithShort("q")
 	reverse := flags.Bool("reverse", "If set, the messages of which the content matches the search query will be ignored.")
-	includeTimeStamp := flags.Bool("include-timestamp", "Prints the message timestamp before the message content.")
+	searchQuery := flags.String("search-query", "The optional regular expression to filter the message content by.").WithShort("q")
+	includeTimeStamp := flags.Bool("include-timestamp", "Prints the message timestamp before the content if it's been provided by Kafka.").WithShort("T")
 	v := flags.Verbosity("The verbosity level of the tool.").WithKey("-")
 	version := flags.Bool("version", "Prints the current version of Trubka.").WithKey("-")
 
@@ -323,7 +323,7 @@ func getMarshaller(format string, includeTimestamp bool) marshaller {
 				fm = "% X"
 			}
 			m := []byte(fmt.Sprintf(fm, output))
-			if includeTimestamp {
+			if includeTimestamp && !ts.IsZero() {
 				return prependTimestamp(ts, m), nil
 			}
 			return m, nil
@@ -334,7 +334,7 @@ func getMarshaller(format string, includeTimestamp bool) marshaller {
 			if err != nil {
 				return nil, err
 			}
-			if includeTimestamp {
+			if includeTimestamp && !ts.IsZero() {
 				return prependTimestamp(ts, m), nil
 			}
 			return m, nil
@@ -345,7 +345,7 @@ func getMarshaller(format string, includeTimestamp bool) marshaller {
 			if err != nil {
 				return nil, err
 			}
-			if includeTimestamp {
+			if includeTimestamp && !ts.IsZero() {
 				return prependTimestamp(ts, m), nil
 			}
 			return m, nil
@@ -356,7 +356,7 @@ func getMarshaller(format string, includeTimestamp bool) marshaller {
 			if err != nil {
 				return nil, err
 			}
-			if includeTimestamp {
+			if includeTimestamp && !ts.IsZero() {
 				return prependTimestamp(ts, m), nil
 			}
 			return m, nil
@@ -367,7 +367,7 @@ func getMarshaller(format string, includeTimestamp bool) marshaller {
 			if err != nil {
 				return nil, err
 			}
-			if includeTimestamp {
+			if includeTimestamp && !ts.IsZero() {
 				return prependTimestamp(ts, m), nil
 			}
 			return m, nil
