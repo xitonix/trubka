@@ -1,11 +1,13 @@
 package kafka
 
 import (
+	"github.com/Shopify/sarama"
+
 	"github.com/xitonix/trubka/internal"
 )
 
-const (
-	DefaultClusterVersion = "2.1.1"
+var (
+	DefaultClusterVersion = sarama.MaxVersion.String()
 )
 
 // Options holds the configuration settings for kafka consumer.

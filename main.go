@@ -61,6 +61,7 @@ func main() {
 	typeFilter := flags.String("type-filter", "The optional regular expression to filter the proto types with (Interactive mode only).").WithShort("m")
 	searchQuery := flags.String("search-query", "The optional regular expression to filter the message content by.").WithShort("q")
 	reverse := flags.Bool("reverse", "If set, the messages of which the content matches the search query will be ignored.")
+	includeTimeStamp := flags.Bool("include-timestamp", "Prints the message timestamp before the message content.")
 	v := flags.Verbosity("The verbosity level of the tool.").WithKey("-")
 	version := flags.Bool("version", "Prints the current version of Trubka.").WithKey("-")
 
@@ -148,7 +149,7 @@ func main() {
 	prn.Start(writers)
 
 	var marshal func(msg *dynamic.Message, ts time.Time) ([]byte, error)
-	marshal = getMarshaller(format.Get())
+	marshal = getMarshaller(format.Get(), includeTimeStamp.Get())
 
 	if len(tm) > 0 {
 		prn.Log(internal.Forced, "Consuming from:")
@@ -308,7 +309,7 @@ func closeFile(file *os.File) {
 	}
 }
 
-func getMarshaller(format string) marshaller {
+func getMarshaller(format string, includeTimestamp bool) marshaller {
 	format = strings.TrimSpace(strings.ToLower(format))
 	switch format {
 	case "hex", "hex-indent":
@@ -317,11 +318,15 @@ func getMarshaller(format string) marshaller {
 			if err != nil {
 				return nil, err
 			}
-			fm := "%v: %X"
+			fm := "%X"
 			if format == "hex-indent" {
-				fm = "%v: % X"
+				fm = "% X"
 			}
-			return []byte(fmt.Sprintf(fm, ts, output)), nil
+			m := []byte(fmt.Sprintf(fm, output))
+			if includeTimestamp {
+				return prependTimestamp(ts, m), nil
+			}
+			return m, nil
 		}
 	case "text":
 		return func(msg *dynamic.Message, ts time.Time) ([]byte, error) {
@@ -329,7 +334,10 @@ func getMarshaller(format string) marshaller {
 			if err != nil {
 				return nil, err
 			}
-			return prependTimestamp(ts, m), nil
+			if includeTimestamp {
+				return prependTimestamp(ts, m), nil
+			}
+			return m, nil
 		}
 	case "text-indent":
 		return func(msg *dynamic.Message, ts time.Time) ([]byte, error) {
@@ -337,7 +345,10 @@ func getMarshaller(format string) marshaller {
 			if err != nil {
 				return nil, err
 			}
-			return prependTimestamp(ts, m), nil
+			if includeTimestamp {
+				return prependTimestamp(ts, m), nil
+			}
+			return m, nil
 		}
 	case "json":
 		return func(msg *dynamic.Message, ts time.Time) ([]byte, error) {
@@ -345,7 +356,10 @@ func getMarshaller(format string) marshaller {
 			if err != nil {
 				return nil, err
 			}
-			return prependTimestamp(ts, m), nil
+			if includeTimestamp {
+				return prependTimestamp(ts, m), nil
+			}
+			return m, nil
 		}
 	default:
 		return func(msg *dynamic.Message, ts time.Time) ([]byte, error) {
@@ -353,11 +367,14 @@ func getMarshaller(format string) marshaller {
 			if err != nil {
 				return nil, err
 			}
-			return prependTimestamp(ts, m), nil
+			if includeTimestamp {
+				return prependTimestamp(ts, m), nil
+			}
+			return m, nil
 		}
 	}
 }
 
 func prependTimestamp(ts time.Time, in []byte) []byte {
-	return append([]byte(fmt.Sprintf("[%v]\n", ts)), in...)
+	return append([]byte(fmt.Sprintf("[%s]\n", internal.FormatTime(ts))), in...)
 }

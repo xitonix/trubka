@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/kirsle/configdir"
@@ -72,7 +71,7 @@ func (c *Consumer) GetTopics(filter string) ([]string, error) {
 		}
 		search = s
 	}
-	c.printer.Log(internal.SuperVerbose, "Fetching the topic list from the server.")
+
 	topics, err := c.internalConsumer.Topics()
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to fetch the topic list from the server")
@@ -216,7 +215,7 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 	go func(pc sarama.PartitionConsumer) {
 		defer c.wg.Done()
 		for m := range pc.Messages() {
-			err := cb(m.Topic, m.Partition, m.Offset, m.Timestamp, m.Key, m.Value)
+			err := cb(m.Topic, m.Partition, m.Offset, m.Timestamp.UTC(), m.Key, m.Value)
 			if err == nil && c.config.OffsetStore != nil {
 				err := c.config.OffsetStore.Store(m.Topic, m.Partition, m.Offset+1)
 				if err != nil {
@@ -281,16 +280,28 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) error {
 					return errors.Wrapf(err, "failed to retrieve the current offset value for partition %d of topic %s", partition, topic)
 				}
 				offset = int64(math.Min(float64(cp.offset), float64(currentOffset)))
+				c.printer.Logf(internal.SuperVerbose,
+					"Most recent offset for partition %d of topic %s: %d -> %d.",
+					partition,
+					topic,
+					cp.offset,
+					offset)
 			case MillisecondsOffsetMode:
 				c.printer.Logf(internal.SuperVerbose,
 					"Reading the most recent offset value for partition %d of topic %s at %v from the server.",
 					partition,
 					topic,
-					cp.at.Format(time.RFC3339Nano))
+					internal.FormatTime(cp.at))
 				offset, err = c.internalClient.GetOffset(topic, partition, cp.offset)
 				if err != nil {
 					return errors.Wrapf(err, "failed to retrieve the time-based offset for partition %d of topic %s", partition, topic)
 				}
+				c.printer.Logf(internal.SuperVerbose,
+					"Time-based offset for partition %d of topic %s at %v = %v.",
+					partition,
+					topic,
+					internal.FormatTime(cp.at),
+					offset)
 			default:
 				if cp.offset == sarama.OffsetOldest {
 					offset = cp.offset

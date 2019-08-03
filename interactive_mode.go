@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"os"
 	"sort"
 	"strconv"
@@ -61,7 +60,7 @@ func readUserData(consumer *kafka.Consumer, loader proto.Loader, topicFilter str
 		}
 		cp.SetOffset(offset.(int64))
 	case kafka.MillisecondsOffsetMode:
-		msg := fmt.Sprintf("Enter a time to start consuming from or press ENTER to select %v", cp.TimeOffset())
+		msg := fmt.Sprintf("Enter a time to start consuming from or press ENTER to select %s", internal.FormatTime(cp.TimeOffset()))
 		offset, proceed := readInput(msg, "time offset", func(input string) (interface{}, error) {
 			if internal.IsEmpty(input) {
 				return cp.TimeOffset(), nil
@@ -80,7 +79,7 @@ func readUserData(consumer *kafka.Consumer, loader proto.Loader, topicFilter str
 
 	topics[topic] = cp
 
-	proceed := askForConfirmation("Start consuming?")
+	proceed := askForConfirmation(fmt.Sprintf("Start consuming from %s?", topic))
 	if !proceed {
 		return nil, nil, nil
 	}
@@ -97,18 +96,11 @@ func pickAnIndex(message, entryName string, input []string) int {
 	for i, t := range input {
 		fmt.Printf("%2d: %v\n", i+1, t)
 	}
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Printf("%s (Q to quit): ", message)
-		inputStr, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			fmt.Printf("Could not read the input. %s\n", err)
-			continue
-		}
-		trimmed := strings.TrimSpace(inputStr)
+	scanner := bufio.NewScanner(os.Stdin)
+	msg := fmt.Sprintf("%s (Q to quit): ", message)
+	for fmt.Print(msg); scanner.Scan(); fmt.Print(msg) {
+
+		trimmed := strings.TrimSpace(scanner.Text())
 		if len(trimmed) == 0 {
 			fmt.Printf("One %s should be selected.\n", entryName)
 			continue
@@ -131,18 +123,10 @@ func pickAnIndex(message, entryName string, input []string) int {
 }
 
 func readInput(message, entryName string, parse func(input string) (interface{}, error)) (interface{}, bool) {
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Printf("%s (Q to quit): ", message)
-		inputStr, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			fmt.Printf("Could not read %s. %s\n", entryName, err)
-			continue
-		}
-		trimmed := strings.TrimSpace(inputStr)
+	scanner := bufio.NewScanner(os.Stdin)
+	msg := fmt.Sprintf("%s (Q to quit): ", message)
+	for fmt.Print(msg); scanner.Scan(); fmt.Print(msg) {
+		trimmed := strings.TrimSpace(scanner.Text())
 
 		if strings.EqualFold(trimmed, "Q") ||
 			strings.EqualFold(trimmed, "Quit") ||
