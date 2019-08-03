@@ -39,6 +39,7 @@ func main() {
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Return.Successes = true
 	config.Producer.Partitioner = sarama.NewHashPartitioner
+	config.Version = sarama.MaxVersion
 
 	producer, err := sarama.NewSyncProducer(brokers.Get(), config)
 	if err != nil {
