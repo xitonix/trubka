@@ -376,5 +376,5 @@ func getMarshaller(format string, includeTimestamp bool) marshaller {
 }
 
 func prependTimestamp(ts time.Time, in []byte) []byte {
-	return append([]byte(fmt.Sprintf("[%s]\n", internal.FormatTime(ts))), in...)
+	return append([]byte(fmt.Sprintf("[%s]\n", internal.FormatTimeUTC(ts))), in...)
 }

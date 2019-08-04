@@ -109,7 +109,7 @@ func (c *Consumer) Start(ctx context.Context, topics map[string]*Checkpoint, cb 
 			return err
 		}
 		c.config.OffsetStore = store
-		defer store.Close()
+		defer store.close()
 	}
 
 	c.printer.Logf(internal.VeryVerbose, "Starting Kafka consumers.")
@@ -138,12 +138,12 @@ func (c *Consumer) initialiseLocalOffsetStore() (*localOffsetStore, error) {
 	}
 
 	go func() {
-		for err := range ls.Errors() {
+		for err := range ls.errors() {
 			c.printer.Logf(internal.Forced, "Err: %s", err)
 		}
 	}()
 
-	ls.Start()
+	ls.start()
 
 	return ls, nil
 }
@@ -281,17 +281,17 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) error {
 				}
 				offset = int64(math.Min(float64(cp.offset), float64(currentOffset)))
 				c.printer.Logf(internal.SuperVerbose,
-					"Most recent offset for partition %d of topic %s: %d -> %d.",
+					"The most recent offset for partition %d of topic %s: %d -> %d.",
 					partition,
 					topic,
 					cp.offset,
 					offset)
 			case MillisecondsOffsetMode:
 				c.printer.Logf(internal.SuperVerbose,
-					"Reading the most recent offset value for partition %d of topic %s at %v from the server.",
+					"Reading the most recent offset value for partition %d of topic %s at %s from the server.",
 					partition,
 					topic,
-					internal.FormatTime(cp.at))
+					cp.OffsetString())
 				offset, err = c.internalClient.GetOffset(topic, partition, cp.offset)
 				if err != nil {
 					return errors.Wrapf(err, "failed to retrieve the time-based offset for partition %d of topic %s", partition, topic)
@@ -300,11 +300,12 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) error {
 					"Time-based offset for partition %d of topic %s at %v = %v.",
 					partition,
 					topic,
-					internal.FormatTime(cp.at),
-					offset)
+					internal.FormatTimeUTC(cp.at),
+					getOffsetString(offset))
 			default:
 				if cp.offset == sarama.OffsetOldest {
 					offset = cp.offset
+					// We are in rewind mode. No need to read the locally stored offset value.
 					break
 				}
 				if storedOffset, ok := offsets[partition]; ok {
