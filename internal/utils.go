@@ -11,5 +11,9 @@ func IsEmpty(val string) bool {
 }
 
 func FormatTime(t time.Time) string {
-	return t.Format("02-01-2006T15:04:05.999999999") + " UTC"
+	return t.Format("02-01-2006T15:04:05.999999999")
+}
+
+func FormatTimeUTC(t time.Time) string {
+	return FormatTime(t) + " UTC"
 }

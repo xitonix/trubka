@@ -50,7 +50,7 @@ func newLocalOffsetStore(printer internal.Printer, base string) (*localOffsetSto
 	}, nil
 }
 
-func (s *localOffsetStore) Start() {
+func (s *localOffsetStore) start() {
 	s.wg.Add(1)
 	ticker := time.NewTicker(3 * time.Second)
 	go func() {
@@ -76,13 +76,13 @@ func (s *localOffsetStore) Start() {
 	}()
 }
 
-// Errors returns the channel on which the write errors will be received.
-//
+// Returns the channel on which the write errors will be received.
 // You must listen to this channel to avoid deadlock.
-func (s *localOffsetStore) Errors() <-chan error {
+func (s *localOffsetStore) errors() <-chan error {
 	return s.writeErrors
 }
 
+// Store saves the topic offset to the local disk.
 func (s *localOffsetStore) Store(topic string, partition int32, offset int64) error {
 	if offset == sarama.OffsetOldest || offset == sarama.OffsetNewest {
 		return nil
@@ -95,6 +95,7 @@ func (s *localOffsetStore) Store(topic string, partition int32, offset int64) er
 	return nil
 }
 
+// Query loads the offsets of all the available partitions from the local disk.
 func (s *localOffsetStore) Query(topic string) (map[int32]int64, error) {
 	offsets := make(map[int32]int64)
 	val, err := s.db.Read(topic)
@@ -116,7 +117,7 @@ func (s *localOffsetStore) Query(topic string) (map[int32]int64, error) {
 	return offsets, nil
 }
 
-func (s *localOffsetStore) Close() {
+func (s *localOffsetStore) close() {
 	if s == nil || s.db == nil {
 		return
 	}

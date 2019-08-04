@@ -7,11 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/pkg/errors"
-
-	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 	"github.com/xitonix/trubka/proto"
 )
@@ -42,44 +38,19 @@ func readUserData(consumer *kafka.Consumer, loader proto.Loader, topicFilter str
 	}
 	tm[topic] = types[typeIndex]
 
+	var msg string
 	switch cp.Mode() {
-	case kafka.ExplicitOffsetMode:
-		msg := fmt.Sprintf("Enter an offset to start consuming from or press ENTER to select %d", cp.Offset())
-		offset, proceed := readInput(msg, "offset", func(input string) (interface{}, error) {
-			if internal.IsEmpty(input) {
-				return cp.Offset(), nil
-			}
-			result, err := strconv.ParseInt(input, 10, 64)
-			if err != nil {
-				return nil, errors.New("The offset must be a valid integer.")
-			}
-			return result, nil
-		})
-		if !proceed {
-			return nil, nil, nil
-		}
-		cp.SetOffset(offset.(int64))
 	case kafka.MillisecondsOffsetMode:
-		msg := fmt.Sprintf("Enter a time to start consuming from or press ENTER to select %s", internal.FormatTime(cp.TimeOffset()))
-		offset, proceed := readInput(msg, "time offset", func(input string) (interface{}, error) {
-			if internal.IsEmpty(input) {
-				return cp.TimeOffset(), nil
-			}
-			result, err := parseTime(input)
-			if err != nil {
-				return nil, err
-			}
-			return result, nil
-		})
-		if !proceed {
-			return nil, nil, nil
-		}
-		cp.SetTimeOffset(offset.(time.Time))
+		msg = fmt.Sprintf("Start consuming from the closest offset available at %s of topic %s?", cp.OffsetString(), topic)
+	case kafka.ExplicitOffsetMode:
+		msg = fmt.Sprintf("Start consuming from offset %s of %s topic?", cp.OffsetString(), topic)
+	default:
+		msg = "Start consuming from '%s' topic?"
 	}
 
 	topics[topic] = cp
 
-	proceed := askForConfirmation(fmt.Sprintf("Start consuming from %s?", topic))
+	proceed := askForConfirmation(msg)
 	if !proceed {
 		return nil, nil, nil
 	}
@@ -120,28 +91,6 @@ func pickAnIndex(message, entryName string, input []string) int {
 		return i - 1
 	}
 	return -1
-}
-
-func readInput(message, entryName string, parse func(input string) (interface{}, error)) (interface{}, bool) {
-	scanner := bufio.NewScanner(os.Stdin)
-	msg := fmt.Sprintf("%s (Q to quit): ", message)
-	for fmt.Print(msg); scanner.Scan(); fmt.Print(msg) {
-		trimmed := strings.TrimSpace(scanner.Text())
-
-		if strings.EqualFold(trimmed, "Q") ||
-			strings.EqualFold(trimmed, "Quit") ||
-			strings.EqualFold(trimmed, "Exit") {
-			return nil, false
-		}
-
-		result, err := parse(trimmed)
-		if err != nil {
-			fmt.Printf("Invalid %s value. %s\n", entryName, err)
-			continue
-		}
-		return result, true
-	}
-	return nil, false
 }
 
 // askForConfirmation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"
