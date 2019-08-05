@@ -45,7 +45,7 @@ func readUserData(consumer *kafka.Consumer, loader proto.Loader, topicFilter str
 	case kafka.ExplicitOffsetMode:
 		msg = fmt.Sprintf("Start consuming from offset %s of %s topic?", cp.OffsetString(), topic)
 	default:
-		msg = "Start consuming from '%s' topic?"
+		msg = fmt.Sprintf("Start consuming from %s topic?", topic)
 	}
 
 	topics[topic] = cp
