@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Shopify/sarama"
 	"github.com/peterbourgon/diskv"
 	"github.com/pkg/errors"
 
@@ -27,7 +26,8 @@ type localOffsetStore struct {
 	writeErrors chan error
 	in          chan *progress
 
-	offsets map[string]map[int32]int64
+	offsets  map[string]PartitionOffsets
+	checksum map[string]interface{}
 }
 
 func newLocalOffsetStore(printer internal.Printer, base string) (*localOffsetStore, error) {
@@ -46,7 +46,8 @@ func newLocalOffsetStore(printer internal.Printer, base string) (*localOffsetSto
 		printer:     printer,
 		writeErrors: make(chan error),
 		in:          make(chan *progress, 100),
-		offsets:     make(map[string]map[int32]int64),
+		offsets:     make(map[string]PartitionOffsets),
+		checksum:    make(map[string]interface{}),
 	}, nil
 }
 
@@ -68,7 +69,7 @@ func (s *localOffsetStore) start() {
 				}
 				_, ok := s.offsets[p.topic]
 				if !ok {
-					s.offsets[p.topic] = make(map[int32]int64)
+					s.offsets[p.topic] = make(PartitionOffsets)
 				}
 				s.offsets[p.topic][p.partition] = p.offset
 			}
@@ -84,9 +85,6 @@ func (s *localOffsetStore) errors() <-chan error {
 
 // Store saves the topic offset to the local disk.
 func (s *localOffsetStore) Store(topic string, partition int32, offset int64) error {
-	if offset == sarama.OffsetOldest || offset == sarama.OffsetNewest {
-		return nil
-	}
 	s.in <- &progress{
 		topic:     topic,
 		partition: partition,
@@ -96,8 +94,8 @@ func (s *localOffsetStore) Store(topic string, partition int32, offset int64) er
 }
 
 // Query loads the offsets of all the available partitions from the local disk.
-func (s *localOffsetStore) Query(topic string) (map[int32]int64, error) {
-	offsets := make(map[int32]int64)
+func (s *localOffsetStore) Query(topic string) (PartitionOffsets, error) {
+	offsets := make(PartitionOffsets)
 	val, err := s.db.Read(topic)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -130,25 +128,22 @@ func (s *localOffsetStore) close() {
 
 func (s *localOffsetStore) writeOffsetsToDisk() {
 	for topic, offsets := range s.offsets {
-		buff := bytes.Buffer{}
-		enc := gob.NewEncoder(&buff)
-		toWrite := make(map[int32]int64)
-		for p, o := range offsets {
-			if o != sarama.OffsetNewest && o != sarama.OffsetOldest {
-				toWrite[p] = o
-			}
-		}
-		if len(toWrite) == 0 {
-			return
-		}
-		err := enc.Encode(toWrite)
+		cs, buff, err := offsets.marshal()
 		if err != nil {
 			s.writeErrors <- errors.Wrapf(err, "Failed to serialise the offsets of topic %s", topic)
+			return
 		}
-		s.printer.Logf(internal.SuperVerbose, "Writing the offset(s) of topic %s to the disk %v.", topic, toWrite)
-		err = s.db.Write(topic, buff.Bytes())
+		if cs == "" {
+			return
+		}
+		if _, ok := s.checksum[cs]; ok {
+			return
+		}
+		s.checksum[cs] = nil
+		s.printer.Logf(internal.SuperVerbose, "Writing the offset(s) of topic %s to the disk %s.", topic, cs)
+		err = s.db.Write(topic, buff)
 		if err != nil {
-			s.writeErrors <- errors.Wrapf(err, "Failed to write the offsets of topic %s to the disk %v", topic, toWrite)
+			s.writeErrors <- errors.Wrapf(err, "Failed to write the offsets of topic %s to the disk %s", topic, cs)
 		}
 	}
 }

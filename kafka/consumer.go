@@ -21,7 +21,7 @@ type Consumer struct {
 	printer                 internal.Printer
 	internalConsumer        sarama.Consumer
 	internalClient          sarama.Client
-	topicPartitionOffsets   map[string]map[int32]int64
+	topicPartitionOffsets   map[string]PartitionOffsets
 	wg                      sync.WaitGroup
 	remoteTopics            []string
 	enableAutoTopicCreation bool
@@ -52,7 +52,7 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 		printer:                 printer,
 		internalConsumer:        consumer,
 		internalClient:          client,
-		topicPartitionOffsets:   make(map[string]map[int32]int64),
+		topicPartitionOffsets:   make(map[string]PartitionOffsets),
 		enableAutoTopicCreation: enableAutoTopicCreation,
 		environment:             environment,
 	}, nil
@@ -258,7 +258,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) error {
 		}
 		c.printer.Logf(internal.SuperVerbose, "Fetching partitions for topic %s.", topic)
 		var err error
-		offsets := make(map[int32]int64)
+		offsets := make(PartitionOffsets)
 		if c.config.OffsetStore != nil {
 			offsets, err = c.config.OffsetStore.Query(topic)
 			if err != nil {

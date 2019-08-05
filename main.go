@@ -32,36 +32,36 @@ func main() {
 	flags.SetKeyPrefix("TBK")
 	profilingMode := flags.String("profile", "Enables profiling.").WithValidRange(true, "cpu", "mem", "block", "mutex").Hide()
 
+	brokers := flags.StringSlice("brokers", "The comma separated list of Kafka brokers in server:port format.").WithShort("b")
 	protoDir := flags.String("proto-root", "The path to the folder where your *.proto files live.").WithShort("R")
-	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`)
-	protoPrefix := flags.String("proto-prefix", "The optional prefix to prepend to proto message types.").WithShort("x")
 	topic := flags.String("topic", `The Kafka topic to consume from.`).WithShort("t")
-	messageType := flags.String("proto", `The fully qualified name of the protobuf type, stores in the given topic.`).WithShort("p")
-
-	brokers := flags.StringSlice("kafka-endpoints", "The comma separated list of Kafka endpoints in server:port format.").WithShort("k")
-	topicPrefix := flags.String("kafka-prefix", "The optional prefix to add to Kafka topic names.").WithShort("y")
-	enableAutoTopicCreation := flags.Bool("auto-topic-creation", `Enables automatic Kafka topic creation before consuming (if it is allowed on the server). 
-						Enabling this option in production is not recommended since it may pollute the environment with unwanted topics.`)
-
+	messageType := flags.String("proto", `The fully qualified name of the protobuf type, stored in the given topic.`).WithShort("p")
 	format := flags.String("format", "The format in which the Kafka messages will be written to the output.").
 		WithValidRange(true, "json", "json-indent", "text", "text-indent", "hex", "hex-indent").
 		WithDefault("json-indent")
+	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`)
+
+	interactive := flags.Bool("interactive", "Runs the tool in interactive mode.").WithShort("i")
+	protoPrefix := flags.String("proto-prefix", "The optional prefix to prepend to proto message names.")
+	topicPrefix := flags.String("topic-prefix", "The optional prefix to add to Kafka topic names.")
 
 	logFilePath := flags.String("log-file", "The `file` to write the logs to. Set to '' to discard (Default: stdout).").WithShort("l")
 	outputDir := flags.String("output-dir", "The `directory` to write the Kafka messages to. Set to '' to discard (Default: Stdout).").WithShort("d")
+
 	kafkaVersion := flags.String("kafka-version", "Kafka cluster version.").WithDefault(kafka.DefaultClusterVersion)
 	rewind := flags.Bool("rewind", `Starts consuming from the beginning of the stream.`).WithShort("w")
 	timeCheckpoint := flags.Time("from", `Starts consuming from the most recent available offset at the given time. This will override --rewind.`).WithShort("f")
 	offsetCheckpoint := flags.Int64("from-offset", `Starts consuming from the specified offset (if applicable). This will override --rewind and --from.
 						If the most recent offset value of a partition is less than the specified value, this flag will be ignored.`).WithShort("o")
-	environment := flags.String("environment", `This is to store the local offsets in different files for different environments. It's This is only required
-						if you use trubka to consume from different Kafka clusters on the same machine (eg. dev/prod).`).WithShort("E").Required()
-	interactive := flags.Bool("interactive", "Runs the tool in interactive mode.").WithShort("i")
+	environment := flags.String("environment", `To store the offsets on the disk in environment specific paths. It's only required
+						if you use Trubka to consume from different Kafka clusters on the same machine (eg. dev/prod).`).WithShort("E").WithDefault("offsets")
 	topicFilter := flags.String("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").WithShort("n")
 	typeFilter := flags.String("type-filter", "The optional regular expression to filter the proto types with (Interactive mode only).").WithShort("m")
-	reverse := flags.Bool("reverse", "If set, the messages of which the content matches the search query will be ignored.")
+	reverse := flags.Bool("reverse", "If set, the messages which match the --search-query will be filtered out.")
 	searchQuery := flags.String("search-query", "The optional regular expression to filter the message content by.").WithShort("q")
 	includeTimeStamp := flags.Bool("include-timestamp", "Prints the message timestamp before the content if it's been provided by Kafka.").WithShort("T")
+	enableAutoTopicCreation := flags.Bool("auto-topic-creation", `Enables automatic Kafka topic creation before consuming (if it is allowed on the server). 
+						Enabling this option in production is not recommended since it may pollute the environment with unwanted topics.`)
 	v := flags.Verbosity("The verbosity level of the tool.").WithKey("-")
 	version := flags.Bool("version", "Prints the current version of Trubka.").WithKey("-")
 
@@ -70,6 +70,10 @@ func main() {
 	if version.Get() {
 		printVersion()
 		return
+	}
+
+	if internal.IsEmpty(environment.Get()) {
+		exit(errors.New("The environment cannot be empty."))
 	}
 
 	var searchExpression *regexp.Regexp
