@@ -26,8 +26,8 @@ Download the pre-built binaries for the platform of your choice from the [releas
 ## Usage
 
 ```shell
-trubka --proto-root /protocol_buffers_dir --kafka-endpoints localhost:9092 \
---topic-map "TopicA:MessageA, TopicB:MessageB"
+trubka --proto-root /protocol_buffers_dir --brokers localhost:9092 \
+--topic TopicA --proto MessageA
 ```
 
 
@@ -37,8 +37,8 @@ trubka --proto-root /protocol_buffers_dir --kafka-endpoints localhost:9092 \
 Trubka can also be executed in interactive mode using the `-i` flag. Interactive mode walks you though the steps of picking topic(s) and proto message type(s) from provided lists of exising topics, fetched from the server, and a list of protocol buffer messages, living in the  `--proto-root` directory. If you have too many topics on the server, the list can be narrowed down using `--topic-filter` flag. The message type list could also be filtered using `—type-filter` flag.
 
 ```shell
-trubka --proto-root /protocol_buffers_dir --kafka-endpoints localhost:9092 \
--i --topic-filter Notifications --type-filter EmailSent
+trubka --proto-root /protocol_buffers_dir --brokers localhost:9092 \ 
+--topic-filter Notifications --type-filter EmailSent
 ```
 
 ##### Note
