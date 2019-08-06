@@ -71,8 +71,8 @@ func main() {
 	saslUsername := flags.String("sasl-username", "SASL authentication username. Will be ignored if --sasl-mechanism is set to none.").WithShort("U")
 	saslPassword := flags.String("sasl-password", "SASL authentication password. Will be ignored if --sasl-mechanism is set to none.").WithShort("P")
 
-	enableTLS := flags.Bool("tls", "Enables TLS for communicating with the Kafka cluster.")
-	certCA := flags.String("tls-ca", "An optional certificate authority file for TLS client authentication.")
+	certCA := flags.String("tls", `The certificate authority file to enable TLS for communicating with the Kafka cluster. 
+						If set to an empty string, TLS will be switched to unverified mode (not recommended).`)
 
 	v := flags.Verbosity("The verbosity level of the tool.").WithKey("-")
 	version := flags.Bool("version", "Prints the current version of Trubka.").WithKey("-")
@@ -122,12 +122,9 @@ func main() {
 		exit(err)
 	}
 
-	var tlsConfig *tls.Config
-	if enableTLS.Get() {
-		tlsConfig, err = configureTLS(certCA.Get())
-		if err != nil {
-			exit(err)
-		}
+	tlsConfig, err := configureTLS(certCA.Get())
+	if err != nil {
+		exit(err)
 	}
 
 	consumer, err := kafka.NewConsumer(

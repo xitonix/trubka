@@ -69,6 +69,9 @@ Trubka also supports verified (and unverified) TLS communication to the given Ka
 
 ```bash
 trubka --proto-root /protocol_buffers_dir --brokers localhost:9092 \ 
---topic TopicA --proto MessageA --tls \
---tls-ca ~/certs/kafka.pem # To enable TLS handshake
+--topic TopicA --proto MessageA --tls ~/certs/kafka.pem
 ```
+
+**ATTENTION**
+
+In unverified mode (when no CA file has been provided), Trubka accepts any certificate presented by the cluster and any host name in that certificate. Please be mindful that TLS will be open to man-in-the-middle attacks in this mode and **this should be used for testing purposes only**.
