@@ -37,14 +37,19 @@ func TestToVerbosityLevel(t *testing.T) {
 			expected: SuperVerbose,
 		},
 		{
-			title:    "greater than three",
+			title:    "four",
 			counter:  4,
-			expected: SuperVerbose,
+			expected: Chatty,
+		},
+		{
+			title:    "greater than four",
+			counter:  5,
+			expected: Chatty,
 		},
 		{
 			title:    "max int",
 			counter:  int(math.MaxInt64),
-			expected: SuperVerbose,
+			expected: Chatty,
 		},
 	}
 
