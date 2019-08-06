@@ -12,6 +12,8 @@ const (
 	VeryVerbose
 	// SuperVerbose super verbose mode (-vvv)
 	SuperVerbose
+	// Chatty extremely verbose mode (-vvvv)
+	Chatty
 )
 
 // ToVerbosityLevel converts an integer to verbosity level.
@@ -21,8 +23,10 @@ func ToVerbosityLevel(counter int) VerbosityLevel {
 		return Verbose
 	case counter == 2:
 		return VeryVerbose
-	case counter >= 3:
+	case counter == 3:
 		return SuperVerbose
+	case counter >= 4:
+		return Chatty
 	default:
 		return Forced
 	}

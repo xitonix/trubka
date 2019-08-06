@@ -2,7 +2,9 @@ package kafka
 
 import (
 	"context"
+	"log"
 	"math"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -41,9 +43,13 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 		option(ops)
 	}
 
+	if printer.Level() == internal.Chatty {
+		sarama.Logger = log.New(os.Stdout, "KAFKA Client: ", log.LstdFlags)
+	}
+
 	client, consumer, err := initClient(brokers, ops)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to initialise kafka client")
+		return nil, err
 	}
 
 	return &Consumer{
@@ -343,6 +349,19 @@ func initClient(brokers []string, ops *Options) (sarama.Client, sarama.Consumer,
 	config := sarama.NewConfig()
 	config.Version = version
 	config.Consumer.Return.Errors = true
+	config.ClientID = "Trubka"
+	if ops.sasl != nil {
+		config.Net.SASL.Enable = true
+		config.Net.SASL.Mechanism = ops.sasl.mechanism
+		config.Net.SASL.User = ops.sasl.username
+		config.Net.SASL.Password = ops.sasl.password
+		config.Net.SASL.SCRAMClientGeneratorFunc = ops.sasl.client
+	}
+
+	if ops.TLS != nil {
+		config.Net.TLS.Enable = true
+		config.Net.TLS.Config = ops.TLS
+	}
 
 	client, err := sarama.NewClient(brokers, config)
 	if err != nil {

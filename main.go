@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -62,6 +64,16 @@ func main() {
 	includeTimeStamp := flags.Bool("include-timestamp", "Prints the message timestamp before the content if it's been provided by Kafka.").WithShort("T")
 	enableAutoTopicCreation := flags.Bool("auto-topic-creation", `Enables automatic Kafka topic creation before consuming (if it is allowed on the server). 
 						Enabling this option in production is not recommended since it may pollute the environment with unwanted topics.`)
+	saslMechanism := flags.String("sasl-mechanism", "SASL authentication mechanism.").
+		WithValidRange(true, kafka.SASLMechanismNone, kafka.SASLMechanismPlain, kafka.SASLMechanismSCRAM256, kafka.SASLMechanismSCRAM512).
+		WithDefault(kafka.SASLMechanismNone)
+
+	saslUsername := flags.String("sasl-username", "SASL authentication username. Will be ignored if --sasl-mechanism is set to none.").WithShort("U")
+	saslPassword := flags.String("sasl-password", "SASL authentication password. Will be ignored if --sasl-mechanism is set to none.").WithShort("P")
+
+	enableTLS := flags.Bool("tls", "Enables TLS for communicating with the Kafka cluster.")
+	certCA := flags.String("tls-ca", "An optional certificate authority file for TLS client authentication.")
+
 	v := flags.Verbosity("The verbosity level of the tool.").WithKey("-")
 	version := flags.Bool("version", "Prints the current version of Trubka.").WithKey("-")
 
@@ -110,11 +122,21 @@ func main() {
 		exit(err)
 	}
 
+	var tlsConfig *tls.Config
+	if enableTLS.Get() {
+		tlsConfig, err = configureTLS(certCA.Get())
+		if err != nil {
+			exit(err)
+		}
+	}
+
 	consumer, err := kafka.NewConsumer(
 		brokers.Get(), prn,
 		environment.Get(),
 		enableAutoTopicCreation.Get(),
-		kafka.WithClusterVersion(kafkaVersion.Get()))
+		kafka.WithClusterVersion(kafkaVersion.Get()),
+		kafka.WithTLS(tlsConfig),
+		kafka.WithSASL(saslMechanism.Get(), saslUsername.Get(), saslPassword.Get()))
 
 	if err != nil {
 		exit(err)
@@ -187,6 +209,25 @@ func main() {
 			closeFile(w.(*os.File))
 		}
 	}
+}
+
+func configureTLS(caFilePath string) (*tls.Config, error) {
+	caFilePath = strings.TrimSpace(caFilePath)
+	if len(caFilePath) == 0 {
+		return &tls.Config{
+			InsecureSkipVerify: true,
+		}, nil
+	}
+	caCert, err := ioutil.ReadFile(caFilePath)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to load the certificate authority file")
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+	return &tls.Config{
+		RootCAs:            caCertPool,
+		InsecureSkipVerify: false,
+	}, nil
 }
 
 func getCheckpoint(rewind bool, timeCheckpoint *core.TimeFlag, offsetCheckpoint *core.Int64Flag) *kafka.Checkpoint {

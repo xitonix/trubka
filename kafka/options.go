@@ -1,6 +1,8 @@
 package kafka
 
 import (
+	"crypto/tls"
+
 	"github.com/Shopify/sarama"
 
 	"github.com/xitonix/trubka/internal"
@@ -18,6 +20,9 @@ type Options struct {
 	ClusterVersion string
 	// OffsetStore the type responsible to store consumer offsets
 	OffsetStore OffsetStore
+	// TLS configuration to connect to Kafka cluster.
+	TLS  *tls.Config
+	sasl *sasl
 }
 
 // NewOptions creates a new Options object with default values.
@@ -45,5 +50,19 @@ func WithClusterVersion(version string) Option {
 func WithOffsetStore(store OffsetStore) Option {
 	return func(options *Options) {
 		options.OffsetStore = store
+	}
+}
+
+// WithSASL enables SASL authentication.
+func WithSASL(mechanism, username, password string) Option {
+	return func(options *Options) {
+		options.sasl = newSASL(mechanism, username, password)
+	}
+}
+
+// WithTLS enables TLS.
+func WithTLS(tls *tls.Config) Option {
+	return func(options *Options) {
+		options.TLS = tls
 	}
 }
