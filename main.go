@@ -122,9 +122,12 @@ func main() {
 		exit(err)
 	}
 
-	tlsConfig, err := configureTLS(certCA.Get())
-	if err != nil {
-		exit(err)
+	var tlsConfig *tls.Config
+	if certCA.IsSet() {
+		tlsConfig, err = configureTLS(certCA.Get())
+		if err != nil {
+			exit(err)
+		}
 	}
 
 	consumer, err := kafka.NewConsumer(
