@@ -1,4 +1,4 @@
-package proto
+package protobuf
 
 import (
 	"path/filepath"
@@ -17,7 +17,8 @@ import (
 
 // Loader the interface to load and list the protocol buffer message types.
 type Loader interface {
-	Load(messageName string) (*dynamic.Message, error)
+	Load(messageName string) error
+	Get(messageName string) (*dynamic.Message, error)
 	List(filter string) ([]string, error)
 }
 
@@ -72,7 +73,8 @@ func NewFileLoader(root string, prefix string, files ...string) (*FileLoader, er
 	}
 
 	parser := protoparse.Parser{
-		ImportPaths: importPaths,
+		ImportPaths:           importPaths,
+		IncludeSourceCodeInfo: true,
 	}
 
 	// Temporary workaround for: https://github.com/jhump/protoreflect/issues/254
@@ -96,27 +98,38 @@ func NewFileLoader(root string, prefix string, files ...string) (*FileLoader, er
 	}, nil
 }
 
-// Load creates a new instance of the specified protocol buffer message.
+// Load loads the specified message type into the local cache.
 //
 // The input parameter must be the fully qualified name of the message type.
 // The method will return an error if the specified message type does not exist in the path.
-func (f *FileLoader) Load(messageName string) (*dynamic.Message, error) {
-	if f.hasPrefix && !strings.HasPrefix(messageName, f.prefix) {
-		messageName = f.prefix + messageName
-	}
-	if md, ok := f.cache[messageName]; ok {
-		return dynamic.NewMessage(md), nil
+//
+// Calling load is not thread safe.
+func (f *FileLoader) Load(messageName string) error {
+	messageName = f.prefixIfNeeded(messageName)
+	_, ok := f.cache[messageName]
+	if ok {
+		return nil
 	}
 	for _, fd := range f.files {
 		md := fd.FindMessage(messageName)
 		if md != nil {
-			f.mux.Lock()
 			f.cache[messageName] = md
-			f.mux.Unlock()
-			return dynamic.NewMessage(md), nil
+			return nil
 		}
 	}
-	return nil, errors.Errorf("%s not found. Make sure you use the fully qualified name of the message", messageName)
+	return errors.Errorf("%s not found. Make sure you use the fully qualified name of the message", messageName)
+}
+
+// Get creates a new instance of the specified protocol buffer message.
+//
+// The input parameter must be the fully qualified name of the message type.
+// The method will return an error if the specified message type does not exist in the path.
+func (f *FileLoader) Get(messageName string) (*dynamic.Message, error) {
+	messageName = f.prefixIfNeeded(messageName)
+	if md, ok := f.cache[messageName]; ok {
+		return dynamic.NewMessage(md), nil
+	}
+	return nil, errors.Errorf("%s not found. Make sure you Load the message first.", messageName)
 }
 
 // List returns a list of all the protocol buffer messages exist in the path.
@@ -144,4 +157,11 @@ func (f *FileLoader) List(filter string) ([]string, error) {
 		}
 	}
 	return result, nil
+}
+
+func (f *FileLoader) prefixIfNeeded(messageName string) string {
+	if f.hasPrefix && !strings.HasPrefix(messageName, f.prefix) {
+		return f.prefix + messageName
+	}
+	return messageName
 }
