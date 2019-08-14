@@ -12,6 +12,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/kirsle/configdir"
 	"github.com/pkg/errors"
+	"github.com/rcrowley/go-metrics"
 
 	"github.com/xitonix/trubka/internal"
 )
@@ -23,7 +24,6 @@ type Consumer struct {
 	printer                 internal.Printer
 	internalConsumer        sarama.Consumer
 	internalClient          sarama.Client
-	topicPartitionOffsets   map[string]PartitionOffsets
 	wg                      sync.WaitGroup
 	remoteTopics            []string
 	enableAutoTopicCreation bool
@@ -58,7 +58,6 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 		printer:                 printer,
 		internalConsumer:        consumer,
 		internalClient:          client,
-		topicPartitionOffsets:   make(map[string]PartitionOffsets),
 		enableAutoTopicCreation: enableAutoTopicCreation,
 		environment:             environment,
 	}, nil
@@ -119,11 +118,11 @@ func (c *Consumer) Start(ctx context.Context, topics map[string]*Checkpoint, cb 
 	}
 
 	c.printer.Logf(internal.VeryVerbose, "Starting Kafka consumers.")
-	err := c.fetchTopicPartitions(topics)
+	topicPartitionOffsets, err := c.fetchTopicPartitions(topics)
 	if err != nil {
 		return err
 	}
-	c.consumeTopics(ctx, cb)
+	c.consumeTopics(ctx, cb, topicPartitionOffsets)
 	return nil
 }
 
@@ -154,10 +153,10 @@ func (c *Consumer) initialiseLocalOffsetStore() (*localOffsetStore, error) {
 	return ls, nil
 }
 
-func (c *Consumer) consumeTopics(ctx context.Context, cb Callback) {
+func (c *Consumer) consumeTopics(ctx context.Context, cb Callback, topicPartitionOffsets map[string]PartitionOffsets) {
 	cn, cancel := context.WithCancel(ctx)
 	defer cancel()
-	for topic, partitionOffsets := range c.topicPartitionOffsets {
+	for topic, partitionOffsets := range topicPartitionOffsets {
 		select {
 		case <-ctx.Done():
 			break
@@ -212,20 +211,22 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 		return errors.Wrapf(err, "Failed to start consuming partition %d of topic %s", partition, topic)
 	}
 
-	go func(pc sarama.PartitionConsumer) {
-		<-ctx.Done()
-		pc.AsyncClose()
-	}(pc)
-
 	c.wg.Add(1)
 	go func(pc sarama.PartitionConsumer) {
 		defer c.wg.Done()
 		for m := range pc.Messages() {
-			err := cb(m.Topic, m.Partition, m.Offset, m.Timestamp.UTC(), m.Key, m.Value)
-			if err == nil && c.config.OffsetStore != nil {
-				err := c.config.OffsetStore.Store(m.Topic, m.Partition, m.Offset+1)
-				if err != nil {
-					c.printer.Logf(internal.Forced, "Failed to store the offset: %s.", err)
+			select {
+			case <-ctx.Done():
+				pc.AsyncClose()
+				return
+			default:
+				_ = m
+				err := cb(m.Topic, m.Partition, m.Offset, m.Timestamp.UTC(), m.Key, m.Value)
+				if err == nil && c.config.OffsetStore != nil {
+					err := c.config.OffsetStore.Store(m.Topic, m.Partition, m.Offset+1)
+					if err != nil {
+						c.printer.Logf(internal.Forced, "Failed to store the offset: %s.", err)
+					}
 				}
 			}
 		}
@@ -242,24 +243,26 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 	return nil
 }
 
-func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) error {
+func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (map[string]PartitionOffsets, error) {
 	existing := make(map[string]interface{})
 	if !c.enableAutoTopicCreation {
 		// We need to check if the requested topic(s) exist on the server
 		// That's why we need to get the list of the existing topics from the brokers.
 		remote, err := c.GetTopics("")
 		if err != nil {
-			return errors.Wrapf(err, "Failed to fetch the topic list from the broker(s)")
+			return nil, errors.Wrapf(err, "Failed to fetch the topic list from the broker(s)")
 		}
 		for _, t := range remote {
 			existing[t] = nil
 		}
 	}
 
+	topicPartitionOffsets := make(map[string]PartitionOffsets)
+
 	for topic, cp := range topics {
 		if !c.enableAutoTopicCreation {
 			if _, ok := existing[topic]; !ok {
-				return errors.Errorf("failed to find the topic %s on the server. You must create the topic manually or enable automatic topic creation both on the server and in trubka", topic)
+				return nil, errors.Errorf("failed to find the topic %s on the server. You must create the topic manually or enable automatic topic creation both on the server and in trubka", topic)
 			}
 		}
 		c.printer.Logf(internal.SuperVerbose, "Fetching partitions for topic %s.", topic)
@@ -268,13 +271,13 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) error {
 		if c.config.OffsetStore != nil {
 			offsets, err = c.config.OffsetStore.Query(topic)
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
 
 		partitions, err := c.internalConsumer.Partitions(topic)
 		if err != nil {
-			return errors.Wrapf(err, "failed to fetch the partition offsets for topic %s", topic)
+			return nil, errors.Wrapf(err, "failed to fetch the partition offsets for topic %s", topic)
 		}
 		for _, partition := range partitions {
 			offset := sarama.OffsetNewest
@@ -283,7 +286,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) error {
 				c.printer.Logf(internal.SuperVerbose, "Reading the most recent offset of partition %d for topic %s from the server.", partition, topic)
 				currentOffset, err := c.internalClient.GetOffset(topic, partition, sarama.OffsetNewest)
 				if err != nil {
-					return errors.Wrapf(err, "failed to retrieve the current offset value for partition %d of topic %s", partition, topic)
+					return nil, errors.Wrapf(err, "failed to retrieve the current offset value for partition %d of topic %s", partition, topic)
 				}
 				offset = int64(math.Min(float64(cp.offset), float64(currentOffset)))
 				c.printer.Logf(internal.SuperVerbose,
@@ -300,7 +303,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) error {
 					cp.OffsetString())
 				offset, err = c.internalClient.GetOffset(topic, partition, cp.offset)
 				if err != nil {
-					return errors.Wrapf(err, "failed to retrieve the time-based offset for partition %d of topic %s", partition, topic)
+					return nil, errors.Wrapf(err, "failed to retrieve the time-based offset for partition %d of topic %s", partition, topic)
 				}
 				c.printer.Logf(internal.SuperVerbose,
 					"Time-based offset for partition %d of topic %s at %v = %v.",
@@ -325,9 +328,9 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) error {
 				topic)
 			offsets[partition] = offset
 		}
-		c.topicPartitionOffsets[topic] = offsets
+		topicPartitionOffsets[topic] = offsets
 	}
-	return nil
+	return topicPartitionOffsets, nil
 }
 
 func getOffsetString(offset int64) interface{} {
@@ -350,6 +353,7 @@ func initClient(brokers []string, ops *Options) (sarama.Client, sarama.Consumer,
 	config.Version = version
 	config.Consumer.Return.Errors = true
 	config.ClientID = "Trubka"
+	metrics.UseNilMetrics = true
 	if ops.sasl != nil {
 		config.Net.SASL.Enable = true
 		config.Net.SASL.Mechanism = ops.sasl.mechanism

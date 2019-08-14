@@ -45,7 +45,7 @@ func newLocalOffsetStore(printer internal.Printer, base string) (*localOffsetSto
 		db:          db,
 		printer:     printer,
 		writeErrors: make(chan error),
-		in:          make(chan *progress, 100),
+		in:          make(chan *progress, 10),
 		offsets:     make(map[string]PartitionOffsets),
 		checksum:    make(map[string]interface{}),
 	}, nil

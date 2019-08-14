@@ -32,7 +32,7 @@ type marshaller func(msg *dynamic.Message, ts time.Time) ([]byte, error)
 func main() {
 	flags.EnableAutoKeyGeneration()
 	flags.SetKeyPrefix("TBK")
-	profilingMode := flags.String("profile", "Enables profiling.").WithValidRange(true, "cpu", "mem", "block", "mutex").Hide()
+	profilingMode := flags.String("profile", "Enables profiling.").WithValidRange(true, "cpu", "mem", "block", "mutex", "thread").Hide()
 
 	brokers := flags.StringSlice("brokers", "The comma separated list of Kafka brokers in server:port format.").WithShort("b")
 	protoDir := flags.String("proto-root", "The path to the folder where your *.proto files live.").WithShort("R")
@@ -107,6 +107,8 @@ func main() {
 			defer profile.Start(profile.MutexProfile, profile.ProfilePath(".")).Stop()
 		case "block":
 			defer profile.Start(profile.BlockProfile, profile.ProfilePath(".")).Stop()
+		case "thread":
+			defer profile.Start(profile.ThreadcreationProfile, profile.ProfilePath(".")).Stop()
 		}
 	}
 
@@ -184,7 +186,7 @@ func main() {
 		}
 		reversed := reverse.Get()
 		err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, ts time.Time, key, value []byte) error {
-			return consume(tm, topic, loader, value, ts, marshal, prn, searchExpression, reversed)
+			return process(tm, topic, loader, value, ts, marshal, prn, searchExpression, reversed)
 		})
 	} else {
 		prn.Log(internal.Forced, "Nothing to process. Terminating Trubka.")
@@ -248,7 +250,7 @@ func printVersion() {
 	fmt.Printf("Trubka %s\n", version)
 }
 
-func consume(tm map[string]string,
+func process(tm map[string]string,
 	topic string,
 	loader *proto.FileLoader,
 	value []byte,
@@ -265,6 +267,7 @@ func consume(tm map[string]string,
 	if err != nil {
 		return err
 	}
+
 	err = msg.Unmarshal(value)
 	if err != nil {
 		return err
