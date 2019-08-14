@@ -220,9 +220,17 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 				pc.AsyncClose()
 				return
 			default:
-				_ = m
 				err := cb(m.Topic, m.Partition, m.Offset, m.Timestamp.UTC(), m.Key, m.Value)
-				if err == nil && c.config.OffsetStore != nil {
+				if err != nil {
+					c.printer.Logf(internal.Forced,
+						"Failed to process the message from partition %d of topic %s at offset %d: %s.",
+						m.Topic,
+						m.Partition,
+						m.Offset,
+						err)
+					continue
+				}
+				if c.config.OffsetStore != nil {
 					err := c.config.OffsetStore.Store(m.Topic, m.Partition, m.Offset+1)
 					if err != nil {
 						c.printer.Logf(internal.Forced, "Failed to store the offset: %s.", err)

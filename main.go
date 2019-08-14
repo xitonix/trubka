@@ -22,7 +22,7 @@ import (
 
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
-	"github.com/xitonix/trubka/proto"
+	"github.com/xitonix/trubka/protobuf"
 )
 
 var version string
@@ -119,7 +119,7 @@ func main() {
 
 	prn := internal.NewPrinter(internal.ToVerbosityLevel(v.Get()), logFile)
 
-	loader, err := proto.NewFileLoader(protoDir.Get(), protoPrefix.Get(), protoFiles.Get()...)
+	loader, err := protobuf.NewFileLoader(protoDir.Get(), protoPrefix.Get(), protoFiles.Get()...)
 	if err != nil {
 		exit(err)
 	}
@@ -169,6 +169,13 @@ func main() {
 		topics = getTopics(prefix, tm, cp)
 	}
 
+	for _, messageType := range tm {
+		err := loader.Load(messageType)
+		if err != nil {
+			exit(err)
+		}
+	}
+
 	writers, closable, err := getOutputWriters(outputDir, topics)
 	if err != nil {
 		exit(err)
@@ -185,8 +192,13 @@ func main() {
 			prn.Logf(internal.Forced, "    %s: %s", t, m)
 		}
 		reversed := reverse.Get()
+
 		err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, ts time.Time, key, value []byte) error {
-			return process(tm, topic, loader, value, ts, marshal, prn, searchExpression, reversed)
+			messageType, ok := tm[topic]
+			if !ok || internal.IsEmpty(messageType) {
+				return errors.New("the message type cannot be empty")
+			}
+			return process(topic, messageType, loader, value, ts, marshal, prn, searchExpression, reversed)
 		})
 	} else {
 		prn.Log(internal.Forced, "Nothing to process. Terminating Trubka.")
@@ -250,28 +262,26 @@ func printVersion() {
 	fmt.Printf("Trubka %s\n", version)
 }
 
-func process(tm map[string]string,
-	topic string,
-	loader *proto.FileLoader,
+func process(topic string,
+	messageType string,
+	loader *protobuf.FileLoader,
 	value []byte,
 	ts time.Time,
 	serialise marshaller,
 	prn *internal.SyncPrinter,
 	search *regexp.Regexp,
 	reverse bool) error {
-	messageType, ok := tm[topic]
-	if !ok || internal.IsEmpty(messageType) {
-		return errors.New("the message type cannot be empty")
-	}
-	msg, err := loader.Load(messageType)
+
+	msg, err := loader.Get(messageType)
 	if err != nil {
 		return err
 	}
-
+	
 	err = msg.Unmarshal(value)
 	if err != nil {
 		return err
 	}
+
 	output, err := serialise(msg, ts)
 	if err != nil {
 		return err

@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/xitonix/trubka/kafka"
-	"github.com/xitonix/trubka/proto"
+	"github.com/xitonix/trubka/protobuf"
 )
 
-func readUserData(consumer *kafka.Consumer, loader proto.Loader, topicFilter string, typeFilter string, cp *kafka.Checkpoint) (map[string]*kafka.Checkpoint, map[string]string, error) {
+func readUserData(consumer *kafka.Consumer, loader protobuf.Loader, topicFilter string, typeFilter string, cp *kafka.Checkpoint) (map[string]*kafka.Checkpoint, map[string]string, error) {
 	remoteTopic, err := consumer.GetTopics(topicFilter)
 	if err != nil {
 		return nil, nil, err
