@@ -12,8 +12,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/pkg/errors"
 	"github.com/pkg/profile"
@@ -186,20 +188,31 @@ func main() {
 	var marshal func(msg *dynamic.Message, ts time.Time) ([]byte, error)
 	marshal = getMarshaller(format.Get(), includeTimeStamp.Get())
 
-	if len(tm) > 0 {
-		prn.Log(internal.Forced, "Consuming from:")
-		for t, m := range tm {
-			prn.Logf(internal.Forced, "    %s: %s", t, m)
-		}
-		reversed := reverse.Get()
+	wg := sync.WaitGroup{}
 
-		err = consumer.Start(ctx, topics, func(topic string, partition int32, offset int64, ts time.Time, key, value []byte) error {
-			messageType, ok := tm[topic]
-			if !ok || internal.IsEmpty(messageType) {
-				return errors.New("the message type cannot be empty")
+	if len(tm) > 0 {
+		wg.Add(1)
+		go func() {
+			wg.Done()
+			reversed := reverse.Get()
+			for msg := range consumer.Events() {
+				output, err := process(tm[msg.Topic], loader, msg, marshal, searchExpression, reversed)
+				if err == nil {
+					prn.WriteMessage(msg.Topic, output)
+					continue
+				}
+				prn.Logf(internal.Forced,
+					"Failed to process the message at offset %d of partition %d, topic %s: %s",
+					msg.Offset,
+					msg.Partition,
+					msg.Topic,
+					err)
 			}
-			return process(topic, messageType, loader, value, ts, marshal, prn, searchExpression, reversed)
-		})
+		}()
+		err = consumer.Start(ctx, topics)
+		if err != nil {
+			prn.Logf(internal.Forced, "Failed to start the consumer: %s", err)
+		}
 	} else {
 		prn.Log(internal.Forced, "Nothing to process. Terminating Trubka.")
 	}
@@ -207,7 +220,7 @@ func main() {
 	// We still need to explicitly close the underlying Kafka client, in case `consumer.Start` has not been called.
 	// It is safe to close the consumer twice.
 	consumer.Close()
-
+	wg.Wait()
 	prn.Close()
 
 	if err != nil {
@@ -262,35 +275,33 @@ func printVersion() {
 	fmt.Printf("Trubka %s\n", version)
 }
 
-func process(topic string,
-	messageType string,
+func process(messageType string,
 	loader *protobuf.FileLoader,
-	value []byte,
-	ts time.Time,
+	event *kafka.Event,
 	serialise marshaller,
-	prn *internal.SyncPrinter,
 	search *regexp.Regexp,
-	reverse bool) error {
+	reverse bool) ([]byte, error) {
 
 	msg, err := loader.Get(messageType)
 	if err != nil {
-		return err
-	}
-	
-	err = msg.Unmarshal(value)
-	if err != nil {
-		return err
+		return nil, err
 	}
 
-	output, err := serialise(msg, ts)
+	err = proto.Unmarshal(event.Value, msg)
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	output, err := serialise(msg, event.Timestamp)
+	if err != nil {
+		return nil, err
+	}
+
 	if search != nil && search.Match(output) == reverse {
-		return nil
+		return nil, nil
 	}
-	prn.WriteMessage(topic, output)
-	return nil
+
+	return output, nil
 }
 
 func getTopics(prefix string, topicMap map[string]string, cp *kafka.Checkpoint) map[string]*kafka.Checkpoint {

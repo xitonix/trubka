@@ -28,6 +28,7 @@ type Consumer struct {
 	remoteTopics            []string
 	enableAutoTopicCreation bool
 	environment             string
+	events                  chan *Event
 
 	mux      sync.Mutex
 	isClosed bool
@@ -60,6 +61,7 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 		internalClient:          client,
 		enableAutoTopicCreation: enableAutoTopicCreation,
 		environment:             environment,
+		events:                  make(chan *Event, 128),
 	}, nil
 }
 
@@ -96,16 +98,20 @@ func (c *Consumer) GetTopics(filter string) ([]string, error) {
 	return c.remoteTopics, nil
 }
 
+// Events the channel to which the Kafka events will be published.
+//
+// You MUST listen to this channel before you start the consumer to avoid deadlock.
+func (c *Consumer) Events() <-chan *Event {
+	return c.events
+}
+
 // Start starts consuming from the specified topics and executes the callback function on each message.
 //
 // This is a blocking call which will be terminated on cancellation of the context parameter.
 // The method returns error if the topic list is empty or the callback function is nil.
-func (c *Consumer) Start(ctx context.Context, topics map[string]*Checkpoint, cb Callback) error {
+func (c *Consumer) Start(ctx context.Context, topics map[string]*Checkpoint) error {
 	if len(topics) == 0 {
 		return errors.New("the topic list cannot be empty")
-	}
-	if cb == nil {
-		return errors.New("consumer callback function cannot be nil")
 	}
 
 	if c.config.OffsetStore == nil {
@@ -127,7 +133,7 @@ func (c *Consumer) Start(ctx context.Context, topics map[string]*Checkpoint, cb 
 		store.start(topicPartitionOffsets)
 	}
 
-	c.consumeTopics(ctx, cb, topicPartitionOffsets)
+	c.consumeTopics(ctx, topicPartitionOffsets)
 	return nil
 }
 
@@ -156,7 +162,7 @@ func (c *Consumer) initialiseLocalOffsetStore() (*localOffsetStore, error) {
 	return ls, nil
 }
 
-func (c *Consumer) consumeTopics(ctx context.Context, cb Callback, topicPartitionOffsets map[string]PartitionOffsets) {
+func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets map[string]PartitionOffsets) {
 	cn, cancel := context.WithCancel(ctx)
 	defer cancel()
 	for topic, partitionOffsets := range topicPartitionOffsets {
@@ -176,7 +182,7 @@ func (c *Consumer) consumeTopics(ctx context.Context, cb Callback, topicPartitio
 					cancelled = true
 					break
 				default:
-					err := c.consumePartition(cn, cb, topic, partition, offset)
+					err := c.consumePartition(cn, topic, partition, offset)
 					if err != nil {
 						c.printer.Logf(internal.Forced, "Failed to start consuming from %s offset of topic %s, partition %d: %s", getOffsetString(offset), topic, partition, err)
 						cancel()
@@ -205,9 +211,10 @@ func (c *Consumer) Close() {
 	} else {
 		c.printer.Log(internal.VeryVerbose, "The Kafka client has been closed successfully.")
 	}
+	close(c.events)
 }
 
-func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic string, partition int32, offset int64) error {
+func (c *Consumer) consumePartition(ctx context.Context, topic string, partition int32, offset int64) error {
 	c.printer.Logf(internal.VeryVerbose, "Start consuming from partition %d of topic %s (offset: %v).", partition, topic, getOffsetString(offset))
 	pc, err := c.internalConsumer.ConsumePartition(topic, partition, offset)
 	if err != nil {
@@ -223,15 +230,13 @@ func (c *Consumer) consumePartition(ctx context.Context, cb Callback, topic stri
 				pc.AsyncClose()
 				return
 			default:
-				err := cb(m.Topic, m.Partition, m.Offset, m.Timestamp.UTC(), m.Key, m.Value)
-				if err != nil {
-					c.printer.Logf(internal.Forced,
-						"Failed to process the message from partition %d of topic %s at offset %d: %s.",
-						m.Topic,
-						m.Partition,
-						m.Offset,
-						err)
-					continue
+				c.events <- &Event{
+					Topic:     m.Topic,
+					Key:       m.Key,
+					Value:     m.Value,
+					Timestamp: m.Timestamp,
+					Partition: m.Partition,
+					Offset:    m.Offset,
 				}
 				if c.config.OffsetStore != nil {
 					err := c.config.OffsetStore.Store(m.Topic, m.Partition, m.Offset+1)
