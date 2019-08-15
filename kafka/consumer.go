@@ -114,7 +114,6 @@ func (c *Consumer) Start(ctx context.Context, topics map[string]*Checkpoint, cb 
 			return err
 		}
 		c.config.OffsetStore = store
-		defer store.close()
 	}
 
 	c.printer.Logf(internal.VeryVerbose, "Starting Kafka consumers.")
@@ -122,6 +121,12 @@ func (c *Consumer) Start(ctx context.Context, topics map[string]*Checkpoint, cb 
 	if err != nil {
 		return err
 	}
+
+	if store, ok := c.config.OffsetStore.(*localOffsetStore); ok {
+		defer store.close()
+		store.start(topicPartitionOffsets)
+	}
+
 	c.consumeTopics(ctx, cb, topicPartitionOffsets)
 	return nil
 }
@@ -147,8 +152,6 @@ func (c *Consumer) initialiseLocalOffsetStore() (*localOffsetStore, error) {
 			c.printer.Logf(internal.Forced, "Err: %s", err)
 		}
 	}()
-
-	ls.start()
 
 	return ls, nil
 }

@@ -25,9 +25,7 @@ type localOffsetStore struct {
 	wg          sync.WaitGroup
 	writeErrors chan error
 	in          chan *progress
-
-	offsets  map[string]PartitionOffsets
-	checksum map[string]interface{}
+	checksum    map[string]interface{}
 }
 
 func newLocalOffsetStore(printer internal.Printer, base string) (*localOffsetStore, error) {
@@ -46,32 +44,37 @@ func newLocalOffsetStore(printer internal.Printer, base string) (*localOffsetSto
 		printer:     printer,
 		writeErrors: make(chan error),
 		in:          make(chan *progress, 10),
-		offsets:     make(map[string]PartitionOffsets),
 		checksum:    make(map[string]interface{}),
 	}, nil
 }
 
-func (s *localOffsetStore) start() {
+func (s *localOffsetStore) start(loaded map[string]PartitionOffsets) {
 	s.wg.Add(1)
 	ticker := time.NewTicker(3 * time.Second)
+	offsets := make(map[string]PartitionOffsets)
+	for t, lpo := range loaded {
+		partOffsets := make(PartitionOffsets)
+		lpo.copyTo(partOffsets)
+		offsets[t] = partOffsets
+	}
 	go func() {
 		defer s.wg.Done()
 		for {
 			select {
 			case <-ticker.C:
-				s.writeOffsetsToDisk()
+				s.writeOffsetsToDisk(offsets)
 			case p, more := <-s.in:
 				if !more {
 					ticker.Stop()
 					s.printer.Log(internal.Verbose, "Flushing the offsets to disk.")
-					s.writeOffsetsToDisk()
+					s.writeOffsetsToDisk(offsets)
 					return
 				}
-				_, ok := s.offsets[p.topic]
+				_, ok := offsets[p.topic]
 				if !ok {
-					s.offsets[p.topic] = make(PartitionOffsets)
+					offsets[p.topic] = make(PartitionOffsets)
 				}
-				s.offsets[p.topic][p.partition] = p.offset
+				offsets[p.topic][p.partition] = p.offset
 			}
 		}
 	}()
@@ -99,7 +102,6 @@ func (s *localOffsetStore) Query(topic string) (PartitionOffsets, error) {
 	val, err := s.db.Read(topic)
 	if err != nil {
 		if os.IsNotExist(err) {
-			s.offsets[topic] = offsets
 			return offsets, nil
 		}
 		return nil, err
@@ -111,7 +113,6 @@ func (s *localOffsetStore) Query(topic string) (PartitionOffsets, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to deserialize the value from local offset store for topic %s", topic)
 	}
-	s.offsets[topic] = offsets
 	return offsets, nil
 }
 
@@ -126,8 +127,8 @@ func (s *localOffsetStore) close() {
 	s.printer.Log(internal.SuperVerbose, "The offset store has been closed successfully.")
 }
 
-func (s *localOffsetStore) writeOffsetsToDisk() {
-	for topic, offsets := range s.offsets {
+func (s *localOffsetStore) writeOffsetsToDisk(offsets map[string]PartitionOffsets) {
+	for topic, offsets := range offsets {
 		cs, buff, err := offsets.marshal()
 		if err != nil {
 			s.writeErrors <- errors.Wrapf(err, "Failed to serialise the offsets of topic %s", topic)

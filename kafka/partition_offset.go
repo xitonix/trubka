@@ -32,3 +32,17 @@ func (p PartitionOffsets) marshal() (string, []byte, error) {
 	}
 	return strings.Replace(fmt.Sprintf("%v", toWrite), "map", "", 1), buff.Bytes(), nil
 }
+
+func (p PartitionOffsets) copyTo(dest PartitionOffsets) {
+	if len(p) == 0 {
+		return
+	}
+	if dest == nil {
+		dest = make(PartitionOffsets)
+	}
+	for partition, offset := range p {
+		if offset >= 0 {
+			dest[partition] = offset
+		}
+	}
+}
