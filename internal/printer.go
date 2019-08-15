@@ -95,6 +95,9 @@ func (p *SyncPrinter) Level() VerbosityLevel {
 
 // WriteMessage writes the message to the relevant message io.Writer.
 func (p *SyncPrinter) WriteMessage(topic string, bytes []byte) {
+	if len(bytes) == 0 {
+		return
+	}
 	p.targets[topic] <- string(bytes) + "\n"
 }
 

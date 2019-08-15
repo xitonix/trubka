@@ -5,7 +5,6 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
@@ -29,9 +28,8 @@ type FileLoader struct {
 	files     []*desc.FileDescriptor
 	prefix    string
 	hasPrefix bool
-
-	mux   sync.Mutex
-	cache map[string]*desc.MessageDescriptor
+	cache     map[string]*desc.MessageDescriptor
+	factory   *dynamic.MessageFactory
 }
 
 // NewFileLoader creates a new instance of local file loader.
@@ -89,12 +87,18 @@ func NewFileLoader(root string, prefix string, files ...string) (*FileLoader, er
 		return nil, errors.Wrap(err, "failed to parse the protocol buffer (*.proto) files")
 	}
 
+	er := &dynamic.ExtensionRegistry{}
+	for _, fd := range fileDescriptors {
+		er.AddExtensionsFromFile(fd)
+	}
+
 	prefix = strings.TrimSpace(prefix)
 	return &FileLoader{
 		files:     fileDescriptors,
 		cache:     make(map[string]*desc.MessageDescriptor),
 		prefix:    prefix,
 		hasPrefix: len(prefix) > 0,
+		factory:   dynamic.NewMessageFactoryWithExtensionRegistry(er),
 	}, nil
 }
 
@@ -127,7 +131,7 @@ func (f *FileLoader) Load(messageName string) error {
 func (f *FileLoader) Get(messageName string) (*dynamic.Message, error) {
 	messageName = f.prefixIfNeeded(messageName)
 	if md, ok := f.cache[messageName]; ok {
-		return dynamic.NewMessage(md), nil
+		return f.factory.NewDynamicMessage(md), nil
 	}
 	return nil, errors.Errorf("%s not found. Make sure you Load the message first.", messageName)
 }
