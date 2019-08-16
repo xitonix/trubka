@@ -70,7 +70,7 @@ func main() {
 
 	prn := internal.NewPrinter(internal.ToVerbosityLevel(verbosity.Get()), logFile)
 
-	loader, err := protobuf.NewFileLoader(protoDir.Get(), protoPrefix.Get(), protoFiles.Get()...)
+	loader, err := protobuf.NewFileLoader(protoDir.Get(), protoFiles.Get()...)
 	if err != nil {
 		exit(err)
 	}
@@ -116,8 +116,7 @@ func main() {
 		}
 	} else {
 		tm[topic.Get()] = messageType.Get()
-		prefix := strings.TrimSpace(topicPrefix.Get())
-		topics = getTopics(prefix, tm, cp)
+		topics = getTopics(tm, cp)
 	}
 
 	for _, messageType := range tm {
@@ -272,12 +271,9 @@ func process(messageType string,
 	return output, nil
 }
 
-func getTopics(prefix string, topicMap map[string]string, cp *kafka.Checkpoint) map[string]*kafka.Checkpoint {
+func getTopics(topicMap map[string]string, cp *kafka.Checkpoint) map[string]*kafka.Checkpoint {
 	topics := make(map[string]*kafka.Checkpoint)
 	for topic := range topicMap {
-		if len(prefix) > 0 && !strings.HasPrefix(topic, prefix) {
-			topic = prefix + topic
-		}
 		topics[topic] = cp
 	}
 	return topics
