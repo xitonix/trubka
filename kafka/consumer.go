@@ -159,23 +159,49 @@ func (c *Consumer) initialiseLocalOffsetStore() (*localOffsetStore, error) {
 	return ls, nil
 }
 
+// StoreOffset stores the offset of the successfully processed message into the offset store.
+func (c *Consumer) StoreOffset(event *Event) {
+	if c.config.OffsetStore != nil {
+		err := c.config.OffsetStore.Store(event.Topic, event.Partition, event.Offset+1)
+		if err != nil {
+			c.printer.Logf(internal.Forced, "Failed to store the offset: %s.", err)
+		}
+	}
+}
+
+// Close closes the Kafka consumer.
+func (c *Consumer) Close() {
+	c.closeOnce.Do(func() {
+		c.printer.Log(internal.Verbose, "Closing Kafka consumer.")
+		err := c.internalConsumer.Close()
+		if err != nil {
+			c.printer.Logf(internal.Forced, "Failed to close Kafka client: %s.", err)
+		} else {
+			c.printer.Log(internal.VeryVerbose, "The Kafka client has been closed successfully.")
+		}
+		close(c.events)
+	})
+}
+
 func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets map[string]PartitionOffsets) {
 	cn, cancel := context.WithCancel(ctx)
 	defer cancel()
+	var cancelled bool
 	for topic, partitionOffsets := range topicPartitionOffsets {
+		if cancelled {
+			break
+		}
 		select {
 		case <-ctx.Done():
-			break
-		case <-cn.Done():
+			cancelled = true
 			break
 		default:
-			var cancelled bool
 			for partition, offset := range partitionOffsets {
 				if cancelled {
 					break
 				}
 				select {
-				case <-ctx.Done():
+				case <-cn.Done():
 					cancelled = true
 					break
 				default:
@@ -193,68 +219,53 @@ func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets map[
 	c.Close()
 }
 
-// Close closes the Kafka consumer.
-func (c *Consumer) Close() {
-	c.closeOnce.Do(func() {
-		c.printer.Log(internal.Verbose, "Closing Kafka consumer.")
-		err := c.internalConsumer.Close()
-		if err != nil {
-			c.printer.Logf(internal.Forced, "Failed to close Kafka client: %s.", err)
-		} else {
-			c.printer.Log(internal.VeryVerbose, "The Kafka client has been closed successfully.")
-		}
-		close(c.events)
-	})
-}
-
-// StoreOffset stores the offset of the successfully processed message into the offset store.
-func (c *Consumer) StoreOffset(event *Event) {
-	if c.config.OffsetStore != nil {
-		err := c.config.OffsetStore.Store(event.Topic, event.Partition, event.Offset+1)
-		if err != nil {
-			c.printer.Logf(internal.Forced, "Failed to store the offset: %s.", err)
-		}
-	}
-}
-
 func (c *Consumer) consumePartition(ctx context.Context, topic string, partition int32, offset int64) error {
-	c.printer.Logf(internal.VeryVerbose, "Start consuming from partition %d of topic %s (offset: %v).", partition, topic, getOffsetString(offset))
-	pc, err := c.internalConsumer.ConsumePartition(topic, partition, offset)
-	if err != nil {
-		return errors.Wrapf(err, "Failed to start consuming partition %d of topic %s", partition, topic)
-	}
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+		c.printer.Logf(internal.VeryVerbose, "Start consuming from partition %d of topic %s (offset: %v).", partition, topic, getOffsetString(offset))
+		pc, err := c.internalConsumer.ConsumePartition(topic, partition, offset)
+		if err != nil {
+			return errors.Wrapf(err, "Failed to start consuming partition %d of topic %s", partition, topic)
+		}
 
-	c.wg.Add(1)
-	go func(pc sarama.PartitionConsumer) {
-		defer func() {
-			pc.AsyncClose()
-			c.wg.Done()
-		}()
-		for m := range pc.Messages() {
-			select {
-			case <-ctx.Done():
-				return
-			case c.events <- &Event{
-				Topic:     m.Topic,
-				Key:       m.Key,
-				Value:     m.Value,
-				Timestamp: m.Timestamp,
-				Partition: m.Partition,
-				Offset:    m.Offset,
-			}:
+		c.wg.Add(1)
+		go func(pc sarama.PartitionConsumer) {
+			defer func() {
+				pc.AsyncClose()
+				c.wg.Done()
+			}()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case m, more := <-pc.Messages():
+					if !more {
+						return
+					}
+					c.events <- &Event{
+						Topic:     m.Topic,
+						Key:       m.Key,
+						Value:     m.Value,
+						Timestamp: m.Timestamp,
+						Partition: m.Partition,
+						Offset:    m.Offset,
+					}
+				}
 			}
-		}
-	}(pc)
+		}(pc)
 
-	c.wg.Add(1)
-	go func(pc sarama.PartitionConsumer) {
-		defer c.wg.Done()
-		for err := range pc.Errors() {
-			c.printer.Logf(internal.Forced, "Failed to consume message: %s.", err)
-		}
-	}(pc)
+		c.wg.Add(1)
+		go func(pc sarama.PartitionConsumer) {
+			defer c.wg.Done()
+			for err := range pc.Errors() {
+				c.printer.Logf(internal.Forced, "Failed to consume message: %s.", err)
+			}
+		}(pc)
 
-	return nil
+		return nil
+	}
 }
 
 func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (map[string]PartitionOffsets, error) {
