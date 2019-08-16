@@ -144,12 +144,23 @@ func main() {
 			defer wg.Done()
 			reversed := reverse.Get()
 			marshaller := protobuf.NewMarshaller(format.Get(), includeTimeStamp.Get())
-			for event := range consumer.Events() {
+			var cancelled bool
+			for {
 				select {
 				case <-ctx.Done():
-					stopConsumer()
-					return
-				default:
+					if !cancelled {
+						stopConsumer()
+						cancelled = true
+					}
+				case event, more := <-consumer.Events():
+					if !more {
+						return
+					}
+					if cancelled {
+						// We keep consuming and let the Events channel to drain
+						// Otherwise the consumer will deadlock
+						continue
+					}
 					output, err := process(tm[event.Topic], loader, event, marshaller, searchExpression, reversed)
 					if err == nil {
 						prn.WriteEvent(event.Topic, output)
@@ -177,7 +188,6 @@ func main() {
 	// It is safe to close the consumer twice.
 	consumer.Close()
 	wg.Wait()
-	prn.Close()
 
 	if err != nil {
 		exit(err)
@@ -192,6 +202,8 @@ func main() {
 			closeFile(w.(*os.File))
 		}
 	}
+	prn.Log(internal.SuperVerbose, "Trubka has been terminated successfully.")
+	prn.Close()
 }
 
 func configureTLS(caFilePath string) (*tls.Config, error) {
