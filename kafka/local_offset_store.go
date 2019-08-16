@@ -80,12 +80,6 @@ func (s *localOffsetStore) start(loaded map[string]PartitionOffsets) {
 	}()
 }
 
-// Returns the channel on which the write errors will be received.
-// You must listen to this channel to avoid deadlock.
-func (s *localOffsetStore) errors() <-chan error {
-	return s.writeErrors
-}
-
 // Store saves the topic offset to the local disk.
 func (s *localOffsetStore) Store(topic string, partition int32, offset int64) error {
 	s.in <- &progress{
@@ -116,6 +110,12 @@ func (s *localOffsetStore) Query(topic string) (PartitionOffsets, error) {
 	return offsets, nil
 }
 
+// Returns the channel on which the write errors will be received.
+// You must listen to this channel to avoid deadlock.
+func (s *localOffsetStore) errors() <-chan error {
+	return s.writeErrors
+}
+
 func (s *localOffsetStore) close() {
 	if s == nil || s.db == nil {
 		return
@@ -141,7 +141,12 @@ func (s *localOffsetStore) writeOffsetsToDisk(offsets map[string]PartitionOffset
 			return
 		}
 		s.checksum[cs] = nil
-		s.printer.Logf(internal.SuperVerbose, "Writing the offset(s) of topic %s to the disk %s.", topic, cs)
+		s.printer.Logf(internal.SuperVerbose, "Writing the offset(s) of topic %s to the disk.", topic)
+		for p, o := range offsets {
+			if o >= 0 {
+				s.printer.Logf(internal.Chatty, " P%02d: %d", p, o)
+			}
+		}
 		err = s.db.Write(topic, buff)
 		if err != nil {
 			s.writeErrors <- errors.Wrapf(err, "Failed to write the offsets of topic %s to the disk %s", topic, cs)

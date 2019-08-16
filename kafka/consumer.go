@@ -29,9 +29,7 @@ type Consumer struct {
 	enableAutoTopicCreation bool
 	environment             string
 	events                  chan *Event
-
-	mux      sync.Mutex
-	isClosed bool
+	closeOnce               sync.Once
 }
 
 // NewConsumer creates a new instance of Kafka cluster consumer.
@@ -132,7 +130,6 @@ func (c *Consumer) Start(ctx context.Context, topics map[string]*Checkpoint) err
 		defer store.close()
 		store.start(topicPartitionOffsets)
 	}
-
 	c.consumeTopics(ctx, topicPartitionOffsets)
 	return nil
 }
@@ -198,20 +195,26 @@ func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets map[
 
 // Close closes the Kafka consumer.
 func (c *Consumer) Close() {
-	c.mux.Lock()
-	defer c.mux.Unlock()
-	if c.isClosed || c.internalConsumer == nil {
-		return
+	c.closeOnce.Do(func() {
+		c.printer.Log(internal.Verbose, "Closing Kafka consumer.")
+		err := c.internalConsumer.Close()
+		if err != nil {
+			c.printer.Logf(internal.Forced, "Failed to close Kafka client: %s.", err)
+		} else {
+			c.printer.Log(internal.VeryVerbose, "The Kafka client has been closed successfully.")
+		}
+		close(c.events)
+	})
+}
+
+// StoreOffset stores the offset of the successfully processed message into the offset store.
+func (c *Consumer) StoreOffset(event *Event) {
+	if c.config.OffsetStore != nil {
+		err := c.config.OffsetStore.Store(event.Topic, event.Partition, event.Offset+1)
+		if err != nil {
+			c.printer.Logf(internal.Forced, "Failed to store the offset: %s.", err)
+		}
 	}
-	c.printer.Log(internal.Verbose, "Closing Kafka consumer.")
-	c.isClosed = true
-	err := c.internalConsumer.Close()
-	if err != nil {
-		c.printer.Logf(internal.Forced, "Failed to close Kafka client: %s.", err)
-	} else {
-		c.printer.Log(internal.VeryVerbose, "The Kafka client has been closed successfully.")
-	}
-	close(c.events)
 }
 
 func (c *Consumer) consumePartition(ctx context.Context, topic string, partition int32, offset int64) error {
@@ -223,27 +226,22 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 
 	c.wg.Add(1)
 	go func(pc sarama.PartitionConsumer) {
-		defer c.wg.Done()
+		defer func() {
+			pc.AsyncClose()
+			c.wg.Done()
+		}()
 		for m := range pc.Messages() {
 			select {
 			case <-ctx.Done():
-				pc.AsyncClose()
 				return
-			default:
-				c.events <- &Event{
-					Topic:     m.Topic,
-					Key:       m.Key,
-					Value:     m.Value,
-					Timestamp: m.Timestamp,
-					Partition: m.Partition,
-					Offset:    m.Offset,
-				}
-				if c.config.OffsetStore != nil {
-					err := c.config.OffsetStore.Store(m.Topic, m.Partition, m.Offset+1)
-					if err != nil {
-						c.printer.Logf(internal.Forced, "Failed to store the offset: %s.", err)
-					}
-				}
+			case c.events <- &Event{
+				Topic:     m.Topic,
+				Key:       m.Key,
+				Value:     m.Value,
+				Timestamp: m.Timestamp,
+				Partition: m.Partition,
+				Offset:    m.Offset,
+			}:
 			}
 		}
 	}(pc)

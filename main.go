@@ -13,13 +13,10 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/jhump/protoreflect/dynamic"
 	"github.com/pkg/errors"
 	"github.com/pkg/profile"
-	"github.com/xitonix/flags"
 	"github.com/xitonix/flags/core"
 
 	"github.com/xitonix/trubka/internal"
@@ -29,59 +26,11 @@ import (
 
 var version string
 
-type marshaller func(msg *dynamic.Message, ts time.Time) ([]byte, error)
-
 func main() {
-	flags.EnableAutoKeyGeneration()
-	flags.SetKeyPrefix("TBK")
-	profilingMode := flags.String("profile", "Enables profiling.").WithValidRange(true, "cpu", "mem", "block", "mutex", "thread").Hide()
 
-	brokers := flags.StringSlice("brokers", "The comma separated list of Kafka brokers in server:port format.").WithShort("b")
-	protoDir := flags.String("proto-root", "The path to the folder where your *.proto files live.").WithShort("R")
-	topic := flags.String("topic", `The Kafka topic to consume from.`).WithShort("t")
-	messageType := flags.String("proto", `The fully qualified name of the protobuf type, stored in the given topic.`).WithShort("p")
-	format := flags.String("format", "The format in which the Kafka messages will be written to the output.").
-		WithValidRange(true, "json", "json-indent", "text", "text-indent", "hex", "hex-indent").
-		WithDefault("json-indent")
-	protoFiles := flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`)
+	initFlags()
 
-	interactive := flags.Bool("interactive", "Runs the tool in interactive mode.").WithShort("i")
-	protoPrefix := flags.String("proto-prefix", "The optional prefix to prepend to proto message names.")
-	topicPrefix := flags.String("topic-prefix", "The optional prefix to add to Kafka topic names.")
-
-	logFilePath := flags.String("log-file", "The `file` to write the logs to. Set to '' to discard (Default: stdout).").WithShort("l")
-	outputDir := flags.String("output-dir", "The `directory` to write the Kafka messages to. Set to '' to discard (Default: Stdout).").WithShort("d")
-
-	kafkaVersion := flags.String("kafka-version", "Kafka cluster version.").WithDefault(kafka.DefaultClusterVersion)
-	rewind := flags.Bool("rewind", `Starts consuming from the beginning of the stream.`).WithShort("w")
-	timeCheckpoint := flags.Time("from", `Starts consuming from the most recent available offset at the given time. This will override --rewind.`).WithShort("f")
-	offsetCheckpoint := flags.Int64("from-offset", `Starts consuming from the specified offset (if applicable). This will override --rewind and --from.
-						If the most recent offset value of a partition is less than the specified value, this flag will be ignored.`).WithShort("o")
-	environment := flags.String("environment", `To store the offsets on the disk in environment specific paths. It's only required
-						if you use Trubka to consume from different Kafka clusters on the same machine (eg. dev/prod).`).WithShort("E").WithDefault("offsets")
-	topicFilter := flags.String("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").WithShort("n")
-	typeFilter := flags.String("type-filter", "The optional regular expression to filter the proto types with (Interactive mode only).").WithShort("m")
-	reverse := flags.Bool("reverse", "If set, the messages which match the --search-query will be filtered out.")
-	searchQuery := flags.String("search-query", "The optional regular expression to filter the message content by.").WithShort("q")
-	includeTimeStamp := flags.Bool("include-timestamp", "Prints the message timestamp before the content if it's been provided by Kafka.").WithShort("T")
-	enableAutoTopicCreation := flags.Bool("auto-topic-creation", `Enables automatic Kafka topic creation before consuming (if it is allowed on the server). 
-						Enabling this option in production is not recommended since it may pollute the environment with unwanted topics.`)
-	saslMechanism := flags.String("sasl-mechanism", "SASL authentication mechanism.").
-		WithValidRange(true, kafka.SASLMechanismNone, kafka.SASLMechanismPlain, kafka.SASLMechanismSCRAM256, kafka.SASLMechanismSCRAM512).
-		WithDefault(kafka.SASLMechanismNone)
-
-	saslUsername := flags.String("sasl-username", "SASL authentication username. Will be ignored if --sasl-mechanism is set to none.").WithShort("U")
-	saslPassword := flags.String("sasl-password", "SASL authentication password. Will be ignored if --sasl-mechanism is set to none.").WithShort("P")
-
-	certCA := flags.String("tls", `The certificate authority file to enable TLS for communicating with the Kafka cluster. 
-						If set to an empty string, TLS will be switched to unverified mode (not recommended).`)
-
-	v := flags.Verbosity("The verbosity level of the tool.").WithKey("-")
-	version := flags.Bool("version", "Prints the current version of Trubka.").WithKey("-")
-
-	flags.Parse()
-
-	if version.Get() {
+	if versionRequest.Get() {
 		printVersion()
 		return
 	}
@@ -119,7 +68,7 @@ func main() {
 		exit(err)
 	}
 
-	prn := internal.NewPrinter(internal.ToVerbosityLevel(v.Get()), logFile)
+	prn := internal.NewPrinter(internal.ToVerbosityLevel(verbosity.Get()), logFile)
 
 	loader, err := protobuf.NewFileLoader(protoDir.Get(), protoPrefix.Get(), protoFiles.Get()...)
 	if err != nil {
@@ -185,31 +134,38 @@ func main() {
 
 	prn.Start(writers)
 
-	var marshal func(msg *dynamic.Message, ts time.Time) ([]byte, error)
-	marshal = getMarshaller(format.Get(), includeTimeStamp.Get())
-
 	wg := sync.WaitGroup{}
 
 	if len(tm) > 0 {
 		wg.Add(1)
+		consumerCtx, stopConsumer := context.WithCancel(context.Background())
+		defer stopConsumer()
 		go func() {
-			wg.Done()
+			defer wg.Done()
 			reversed := reverse.Get()
-			for msg := range consumer.Events() {
-				output, err := process(tm[msg.Topic], loader, msg, marshal, searchExpression, reversed)
-				if err == nil {
-					prn.WriteMessage(msg.Topic, output)
-					continue
+			marshaller := protobuf.NewMarshaller(format.Get(), includeTimeStamp.Get())
+			for event := range consumer.Events() {
+				select {
+				case <-ctx.Done():
+					stopConsumer()
+					return
+				default:
+					output, err := process(tm[event.Topic], loader, event, marshaller, searchExpression, reversed)
+					if err == nil {
+						prn.WriteEvent(event.Topic, output)
+						consumer.StoreOffset(event)
+						continue
+					}
+					prn.Logf(internal.Forced,
+						"Failed to process the message at offset %d of partition %d, topic %s: %s",
+						event.Offset,
+						event.Partition,
+						event.Topic,
+						err)
 				}
-				prn.Logf(internal.Forced,
-					"Failed to process the message at offset %d of partition %d, topic %s: %s",
-					msg.Offset,
-					msg.Partition,
-					msg.Topic,
-					err)
 			}
 		}()
-		err = consumer.Start(ctx, topics)
+		err = consumer.Start(consumerCtx, topics)
 		if err != nil {
 			prn.Logf(internal.Forced, "Failed to start the consumer: %s", err)
 		}
@@ -270,7 +226,7 @@ func getCheckpoint(rewind bool, timeCheckpoint *core.TimeFlag, offsetCheckpoint 
 
 func printVersion() {
 	if version == "" {
-		version = "[build from source]"
+		version = "[built from source]"
 	}
 	fmt.Printf("Trubka %s\n", version)
 }
@@ -278,7 +234,7 @@ func printVersion() {
 func process(messageType string,
 	loader *protobuf.FileLoader,
 	event *kafka.Event,
-	serialise marshaller,
+	marshaller *protobuf.Marshaller,
 	search *regexp.Regexp,
 	reverse bool) ([]byte, error) {
 
@@ -292,7 +248,7 @@ func process(messageType string,
 		return nil, err
 	}
 
-	output, err := serialise(msg, event.Timestamp)
+	output, err := marshaller.Marshal(msg, event.Timestamp)
 	if err != nil {
 		return nil, err
 	}
@@ -376,74 +332,4 @@ func closeFile(file *os.File) {
 	if err := file.Close(); err != nil {
 		fmt.Printf("Failed to close the file: %s\n", err)
 	}
-}
-
-func getMarshaller(format string, includeTimestamp bool) marshaller {
-	format = strings.TrimSpace(strings.ToLower(format))
-	switch format {
-	case "hex", "hex-indent":
-		return func(msg *dynamic.Message, ts time.Time) ([]byte, error) {
-			output, err := msg.Marshal()
-			if err != nil {
-				return nil, err
-			}
-			fm := "%X"
-			if format == "hex-indent" {
-				fm = "% X"
-			}
-			m := []byte(fmt.Sprintf(fm, output))
-			if includeTimestamp && !ts.IsZero() {
-				return prependTimestamp(ts, m), nil
-			}
-			return m, nil
-		}
-	case "text":
-		return func(msg *dynamic.Message, ts time.Time) ([]byte, error) {
-			m, err := msg.MarshalText()
-			if err != nil {
-				return nil, err
-			}
-			if includeTimestamp && !ts.IsZero() {
-				return prependTimestamp(ts, m), nil
-			}
-			return m, nil
-		}
-	case "text-indent":
-		return func(msg *dynamic.Message, ts time.Time) ([]byte, error) {
-			m, err := msg.MarshalTextIndent()
-			if err != nil {
-				return nil, err
-			}
-			if includeTimestamp && !ts.IsZero() {
-				return prependTimestamp(ts, m), nil
-			}
-			return m, nil
-		}
-	case "json":
-		return func(msg *dynamic.Message, ts time.Time) ([]byte, error) {
-			m, err := msg.MarshalJSON()
-			if err != nil {
-				return nil, err
-			}
-			if includeTimestamp && !ts.IsZero() {
-				return prependTimestamp(ts, m), nil
-			}
-			return m, nil
-		}
-	default:
-		return func(msg *dynamic.Message, ts time.Time) ([]byte, error) {
-			m, err := msg.MarshalJSONIndent()
-			if err != nil {
-				return nil, err
-			}
-			if includeTimestamp && !ts.IsZero() {
-				return prependTimestamp(ts, m), nil
-			}
-			return m, nil
-		}
-	}
-}
-
-func prependTimestamp(ts time.Time, in []byte) []byte {
-	return append([]byte(fmt.Sprintf("[%s]\n", internal.FormatTimeUTC(ts))), in...)
 }
