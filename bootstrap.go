@@ -11,8 +11,6 @@ import (
 var (
 	profilingMode           *core.StringFlag
 	protoDir                *core.StringFlag
-	protoPrefix             *core.StringFlag
-	topicPrefix             *core.StringFlag
 	logFilePath             *core.StringFlag
 	outputDir               *core.StringFlag
 	topic                   *core.StringFlag
@@ -55,8 +53,6 @@ func initFlags() {
 	protoFiles = flags.StringSlice("proto-files", `An optional list of the proto files to load. If not specified all the files in --proto-root will be processed.`)
 
 	interactive = flags.Bool("interactive", "Runs the tool in interactive mode.").WithShort("i")
-	protoPrefix = flags.String("proto-prefix", "The optional prefix to prepend to proto message names.")
-	topicPrefix = flags.String("topic-prefix", "The optional prefix to add to Kafka topic names.")
 
 	logFilePath = flags.String("log-file", "The `file` to write the logs to. Set to '' to discard (Default: stdout).").WithShort("l")
 	outputDir = flags.String("output-dir", "The `directory` to write the Kafka messages to. Set to '' to discard (Default: Stdout).").WithShort("d")

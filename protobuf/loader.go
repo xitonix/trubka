@@ -25,15 +25,13 @@ const protoExtension = ".proto"
 
 // FileLoader is an implementation of Loader interface to load the proto files from the disk.
 type FileLoader struct {
-	files     []*desc.FileDescriptor
-	prefix    string
-	hasPrefix bool
-	cache     map[string]*desc.MessageDescriptor
-	factory   *dynamic.MessageFactory
+	files   []*desc.FileDescriptor
+	cache   map[string]*desc.MessageDescriptor
+	factory *dynamic.MessageFactory
 }
 
 // NewFileLoader creates a new instance of local file loader.
-func NewFileLoader(root string, prefix string, files ...string) (*FileLoader, error) {
+func NewFileLoader(root string, files ...string) (*FileLoader, error) {
 	finder, err := newFileFinder(root)
 	if err != nil {
 		return nil, err
@@ -92,13 +90,10 @@ func NewFileLoader(root string, prefix string, files ...string) (*FileLoader, er
 		er.AddExtensionsFromFile(fd)
 	}
 
-	prefix = strings.TrimSpace(prefix)
 	return &FileLoader{
-		files:     fileDescriptors,
-		cache:     make(map[string]*desc.MessageDescriptor),
-		prefix:    prefix,
-		hasPrefix: len(prefix) > 0,
-		factory:   dynamic.NewMessageFactoryWithExtensionRegistry(er),
+		files:   fileDescriptors,
+		cache:   make(map[string]*desc.MessageDescriptor),
+		factory: dynamic.NewMessageFactoryWithExtensionRegistry(er),
 	}, nil
 }
 
@@ -109,7 +104,6 @@ func NewFileLoader(root string, prefix string, files ...string) (*FileLoader, er
 //
 // Calling load is not thread safe.
 func (f *FileLoader) Load(messageName string) error {
-	messageName = f.prefixIfNeeded(messageName)
 	_, ok := f.cache[messageName]
 	if ok {
 		return nil
@@ -129,7 +123,6 @@ func (f *FileLoader) Load(messageName string) error {
 // The input parameter must be the fully qualified name of the message type.
 // The method will return an error if the specified message type does not exist in the path.
 func (f *FileLoader) Get(messageName string) (*dynamic.Message, error) {
-	messageName = f.prefixIfNeeded(messageName)
 	if md, ok := f.cache[messageName]; ok {
 		return f.factory.NewDynamicMessage(md), nil
 	}
@@ -161,11 +154,4 @@ func (f *FileLoader) List(filter string) ([]string, error) {
 		}
 	}
 	return result, nil
-}
-
-func (f *FileLoader) prefixIfNeeded(messageName string) string {
-	if f.hasPrefix && !strings.HasPrefix(messageName, f.prefix) {
-		return f.prefix + messageName
-	}
-	return messageName
 }
