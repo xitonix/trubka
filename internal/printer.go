@@ -14,7 +14,7 @@ const (
 type Printer interface {
 	Logf(level VerbosityLevel, format string, args ...interface{})
 	Log(level VerbosityLevel, msg string)
-	WriteMessage(topic string, bytes []byte)
+	WriteEvent(topic string, bytes []byte)
 	Level() VerbosityLevel
 	Close()
 }
@@ -93,8 +93,8 @@ func (p *SyncPrinter) Level() VerbosityLevel {
 	return p.currentLevel
 }
 
-// WriteMessage writes the message to the relevant message io.Writer.
-func (p *SyncPrinter) WriteMessage(topic string, bytes []byte) {
+// WriteEvent writes the event content to the relevant message io.Writer.
+func (p *SyncPrinter) WriteEvent(topic string, bytes []byte) {
 	if len(bytes) == 0 {
 		return
 	}
