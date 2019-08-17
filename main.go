@@ -76,8 +76,8 @@ func main() {
 	}
 
 	var tlsConfig *tls.Config
-	if certCA.IsSet() {
-		tlsConfig, err = configureTLS(certCA.Get())
+	if enableTLS.Get() {
+		tlsConfig, err = configureTLS()
 		if err != nil {
 			exit(err)
 		}
@@ -205,23 +205,45 @@ func main() {
 	prn.Close()
 }
 
-func configureTLS(caFilePath string) (*tls.Config, error) {
-	caFilePath = strings.TrimSpace(caFilePath)
-	if len(caFilePath) == 0 {
-		return &tls.Config{
-			InsecureSkipVerify: true,
-		}, nil
+func configureTLS() (*tls.Config, error) {
+	var tlsConf tls.Config
+
+	clientCert := tlsClientCert.Get()
+	clientKey := tlsClientKey.Get()
+
+	// Mutual authentication is enabled. Both client key and certificate are needed.
+	if !internal.IsEmpty(clientCert) {
+		if internal.IsEmpty(clientKey) {
+			return nil, errors.New("TLS client key is missing. Mutual authentication cannot be used")
+		}
+		certificate, err := tls.LoadX509KeyPair(clientCert, clientKey)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to load the client TLS key pair")
+		}
+		tlsConf.Certificates = []tls.Certificate{certificate}
 	}
-	caCert, err := ioutil.ReadFile(caFilePath)
+
+	caCert := tlsCACert.Get()
+
+	if internal.IsEmpty(caCert) {
+		// Server cert verification will be disabled.
+		// Only standard trusted certificates are used to verify the server certs.
+		tlsConf.InsecureSkipVerify = true
+		return &tlsConf, nil
+	}
+	certPool := x509.NewCertPool()
+	ca, err := ioutil.ReadFile(caCert)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to load the certificate authority file")
+		return nil, errors.Wrap(err, "Failed to read the CA certificate")
 	}
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
-	return &tls.Config{
-		RootCAs:            caCertPool,
-		InsecureSkipVerify: false,
-	}, nil
+
+	if ok := certPool.AppendCertsFromPEM(ca); !ok {
+		return nil, errors.New("failed to append the CA certificate to the pool")
+	}
+
+	tlsConf.RootCAs = certPool
+
+	return &tlsConf, nil
 }
 
 func getCheckpoint(rewind bool, timeCheckpoint *core.TimeFlag, offsetCheckpoint *core.Int64Flag) *kafka.Checkpoint {
