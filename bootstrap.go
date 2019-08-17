@@ -24,13 +24,16 @@ var (
 	saslUsername            *core.StringFlag
 	saslPassword            *core.StringFlag
 	saslMechanism           *core.StringFlag
-	certCA                  *core.StringFlag
+	tlsCACert               *core.StringFlag
+	tlsClientKey            *core.StringFlag
+	tlsClientCert           *core.StringFlag
 	brokers                 *core.StringSliceFlag
 	protoFiles              *core.StringSliceFlag
 	interactive             *core.BoolFlag
 	reverse                 *core.BoolFlag
 	includeTimeStamp        *core.BoolFlag
 	rewind                  *core.BoolFlag
+	enableTLS               *core.BoolFlag
 	enableAutoTopicCreation *core.BoolFlag
 	versionRequest          *core.BoolFlag
 	timeCheckpoint          *core.TimeFlag
@@ -78,8 +81,10 @@ func initFlags() {
 	saslUsername = flags.String("sasl-username", "SASL authentication username. Will be ignored if --sasl-mechanism is set to none.").WithShort("U")
 	saslPassword = flags.String("sasl-password", "SASL authentication password. Will be ignored if --sasl-mechanism is set to none.").WithShort("P")
 
-	certCA = flags.String("tls", `The certificate authority file to enable TLS for communicating with the Kafka cluster. 
-						If set to an empty string, TLS will be switched to unverified mode (not recommended).`)
+	enableTLS = flags.Bool("tls", "Enables TLS (Unverified by default). Mutual authentication can also be enabled by providing client key and certificate.")
+	tlsCACert = flags.String("ca-cert", `Trusted root certificates for verifying the server. If not set, Trubka will skip server certificate and domain verification.`)
+	tlsClientCert = flags.String("client-cert", `Client certification file to enable mutual TLS authentication. Client key must also be provided.`)
+	tlsClientKey = flags.String("client-key", `Client private key file to enable mutual TLS authentication. Client certificate must also be provided.`)
 
 	verbosity = flags.Verbosity("The verbosity level of the tool.").WithKey("-")
 	versionRequest = flags.Bool("version", "Prints the current version of Trubka.").WithKey("-")
