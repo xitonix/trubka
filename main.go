@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/fatih/color"
 	"github.com/golang/protobuf/proto"
@@ -106,7 +107,7 @@ func main() {
 
 	go func() {
 		signals := make(chan os.Signal, 1)
-		signal.Notify(signals, os.Kill, os.Interrupt)
+		signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
 		<-signals
 		prn.Info(internal.Verbose, "Stopping Trubka.")
 		cancel()
