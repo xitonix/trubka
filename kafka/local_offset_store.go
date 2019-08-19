@@ -29,7 +29,7 @@ type localOffsetStore struct {
 }
 
 func newLocalOffsetStore(printer internal.Printer, base string) (*localOffsetStore, error) {
-	printer.Logf(internal.Verbose, "Initialising local offset store at %s", base)
+	printer.Infof(internal.Verbose, "Initialising local offset store at %s", base)
 
 	flatTransform := func(s string) []string { return []string{} }
 
@@ -66,7 +66,7 @@ func (s *localOffsetStore) start(loaded map[string]PartitionOffsets) {
 			case p, more := <-s.in:
 				if !more {
 					ticker.Stop()
-					s.printer.Log(internal.Verbose, "Flushing the offsets to disk.")
+					s.printer.Info(internal.Verbose, "Flushing the offsets to disk.")
 					s.writeOffsetsToDisk(offsets)
 					return
 				}
@@ -120,11 +120,11 @@ func (s *localOffsetStore) close() {
 	if s == nil || s.db == nil {
 		return
 	}
-	s.printer.Log(internal.SuperVerbose, "Closing the offset store.")
+	s.printer.Info(internal.SuperVerbose, "Closing the offset store.")
 	close(s.in)
 	s.wg.Wait()
 	close(s.writeErrors)
-	s.printer.Log(internal.SuperVerbose, "The offset store has been closed successfully.")
+	s.printer.Info(internal.SuperVerbose, "The offset store has been closed successfully.")
 }
 
 func (s *localOffsetStore) writeOffsetsToDisk(offsets map[string]PartitionOffsets) {
@@ -141,7 +141,7 @@ func (s *localOffsetStore) writeOffsetsToDisk(offsets map[string]PartitionOffset
 			return
 		}
 		s.checksum[cs] = nil
-		s.printer.Logf(internal.SuperVerbose, "Writing the offset(s) of topic %s to the disk.", topic)
+		s.printer.Infof(internal.SuperVerbose, "Writing the offset(s) of topic %s to the disk.", topic)
 		for p, o := range offsets {
 			if o >= 0 {
 				s.printer.Logf(internal.Chatty, " P%02d: %d", p, o)

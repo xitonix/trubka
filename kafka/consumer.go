@@ -120,7 +120,7 @@ func (c *Consumer) Start(ctx context.Context, topics map[string]*Checkpoint) err
 		c.config.OffsetStore = store
 	}
 
-	c.printer.Logf(internal.VeryVerbose, "Starting Kafka consumers.")
+	c.printer.Infof(internal.VeryVerbose, "Starting Kafka consumers.")
 	topicPartitionOffsets, err := c.fetchTopicPartitions(topics)
 	if err != nil {
 		return err
@@ -152,7 +152,7 @@ func (c *Consumer) initialiseLocalOffsetStore() (*localOffsetStore, error) {
 
 	go func() {
 		for err := range ls.errors() {
-			c.printer.Logf(internal.Forced, "Err: %s", err)
+			c.printer.Errorf(internal.Forced, "Err: %s", err)
 		}
 	}()
 
@@ -164,7 +164,7 @@ func (c *Consumer) StoreOffset(event *Event) {
 	if c.config.OffsetStore != nil {
 		err := c.config.OffsetStore.Store(event.Topic, event.Partition, event.Offset+1)
 		if err != nil {
-			c.printer.Logf(internal.Forced, "Failed to store the offset: %s.", err)
+			c.printer.Errorf(internal.Forced, "Failed to store the offset: %s.", err)
 		}
 	}
 }
@@ -172,12 +172,12 @@ func (c *Consumer) StoreOffset(event *Event) {
 // Close closes the Kafka consumer.
 func (c *Consumer) Close() {
 	c.closeOnce.Do(func() {
-		c.printer.Log(internal.Verbose, "Closing Kafka consumer.")
+		c.printer.Info(internal.Verbose, "Closing Kafka consumer.")
 		err := c.internalConsumer.Close()
 		if err != nil {
-			c.printer.Logf(internal.Forced, "Failed to close Kafka client: %s.", err)
+			c.printer.Errorf(internal.Forced, "Failed to close Kafka client: %s.", err)
 		} else {
-			c.printer.Log(internal.VeryVerbose, "The Kafka client has been closed successfully.")
+			c.printer.Info(internal.VeryVerbose, "The Kafka client has been closed successfully.")
 		}
 		close(c.events)
 	})
@@ -207,7 +207,7 @@ func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets map[
 				default:
 					err := c.consumePartition(cn, topic, partition, offset)
 					if err != nil {
-						c.printer.Logf(internal.Forced, "Failed to start consuming from %s offset of topic %s, partition %d: %s", getOffsetString(offset), topic, partition, err)
+						c.printer.Errorf(internal.Forced, "Failed to start consuming from %s offset of topic %s, partition %d: %s", getOffsetString(offset), topic, partition, err)
 						cancel()
 						cancelled = true
 					}
@@ -260,7 +260,7 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 		go func(pc sarama.PartitionConsumer) {
 			defer c.wg.Done()
 			for err := range pc.Errors() {
-				c.printer.Logf(internal.Forced, "Failed to consume message: %s.", err)
+				c.printer.Errorf(internal.Forced, "Failed to consume message: %s.", err)
 			}
 		}(pc)
 

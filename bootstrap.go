@@ -27,6 +27,7 @@ var (
 	tlsCACert               *core.StringFlag
 	tlsClientKey            *core.StringFlag
 	tlsClientCert           *core.StringFlag
+	terminalMode            *core.StringFlag
 	brokers                 *core.StringSliceFlag
 	protoFiles              *core.StringSliceFlag
 	interactive             *core.BoolFlag
@@ -85,7 +86,9 @@ func initFlags() {
 	tlsCACert = flags.String("ca-cert", `Trusted root certificates for verifying the server. If not set, Trubka will skip server certificate and domain verification.`)
 	tlsClientCert = flags.String("client-cert", `Client certification file to enable mutual TLS authentication. Client key must also be provided.`)
 	tlsClientKey = flags.String("client-key", `Client private key file to enable mutual TLS authentication. Client certificate must also be provided.`)
-
+	terminalMode = flags.String("terminal-mode", `Sets the color mode of your terminal to adjust colors and highlights. Set to none to disable colors.`).
+		WithValidRange(true, "none", "dark", "light").
+		WithDefault("dark")
 	verbosity = flags.Verbosity("The verbosity level of the tool.").WithKey("-")
 	versionRequest = flags.Bool("version", "Prints the current version of Trubka.").WithKey("-")
 

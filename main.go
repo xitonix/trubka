@@ -11,9 +11,11 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 
+	"github.com/fatih/color"
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	"github.com/pkg/profile"
@@ -63,12 +65,16 @@ func main() {
 		}
 	}
 
-	logFile, closableLog, err := getLogWriter(logFilePath)
+	colorMode := strings.ToLower(terminalMode.Get())
+	colorEnabled := !internal.IsEmpty(colorMode) && colorMode != "none"
+	logFile, closableLog, err := getLogWriter(logFilePath, colorEnabled)
 	if err != nil {
 		exit(err)
 	}
 
-	prn := internal.NewPrinter(internal.ToVerbosityLevel(verbosity.Get()), logFile)
+	theme := getColorTheme(colorMode, closableLog)
+
+	prn := internal.NewPrinter(internal.ToVerbosityLevel(verbosity.Get()), logFile, theme)
 
 	loader, err := protobuf.NewFileLoader(protoDir.Get(), protoFiles.Get()...)
 	if err != nil {
@@ -102,7 +108,7 @@ func main() {
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, os.Kill, os.Interrupt)
 		<-signals
-		prn.Log(internal.Verbose, "Stopping Trubka.")
+		prn.Info(internal.Verbose, "Stopping Trubka.")
 		cancel()
 	}()
 
@@ -126,7 +132,7 @@ func main() {
 		}
 	}
 
-	writers, closable, err := getOutputWriters(outputDir, topics)
+	writers, closable, err := getOutputWriters(outputDir, topics, colorEnabled)
 	if err != nil {
 		exit(err)
 	}
@@ -143,6 +149,10 @@ func main() {
 			defer wg.Done()
 			reversed := reverse.Get()
 			marshaller := protobuf.NewMarshaller(format.Get(), includeTimeStamp.Get())
+			var searchColor *color.Color
+			if !closable {
+				searchColor = getSearchColor(colorMode)
+			}
 			var cancelled bool
 			for {
 				select {
@@ -160,13 +170,13 @@ func main() {
 						// Otherwise the consumer will deadlock
 						continue
 					}
-					output, err := process(tm[event.Topic], loader, event, marshaller, searchExpression, reversed)
+					output, err := process(tm[event.Topic], loader, event, marshaller, searchExpression, reversed, searchColor)
 					if err == nil {
 						prn.WriteEvent(event.Topic, output)
 						consumer.StoreOffset(event)
 						continue
 					}
-					prn.Logf(internal.Forced,
+					prn.Errorf(internal.Forced,
 						"Failed to process the message at offset %d of partition %d, topic %s: %s",
 						event.Offset,
 						event.Partition,
@@ -177,10 +187,10 @@ func main() {
 		}()
 		err = consumer.Start(consumerCtx, topics)
 		if err != nil {
-			prn.Logf(internal.Forced, "Failed to start the consumer: %s", err)
+			prn.Errorf(internal.Forced, "Failed to start the consumer: %s", err)
 		}
 	} else {
-		prn.Log(internal.Forced, "Nothing to process. Terminating Trubka.")
+		prn.Warning(internal.Forced, "Nothing to process. Terminating Trubka.")
 	}
 
 	// We still need to explicitly close the underlying Kafka client, in case `consumer.Start` has not been called.
@@ -201,8 +211,39 @@ func main() {
 			closeFile(w.(*os.File))
 		}
 	}
-	prn.Log(internal.SuperVerbose, "Trubka has been terminated successfully.")
+	prn.Info(internal.Verbose, "Trubka has been terminated successfully.")
 	prn.Close()
+}
+
+func getSearchColor(mode string) *color.Color {
+	switch mode {
+	case "none":
+		return nil
+	case "dark":
+		return color.New(color.FgYellow, color.Bold)
+	case "light":
+		return color.New(color.FgHiBlue, color.Bold)
+	default:
+		return nil
+	}
+}
+
+func getColorTheme(mode string, toFile bool) internal.ColorTheme {
+	theme := internal.ColorTheme{}
+	if toFile {
+		return theme
+	}
+	switch mode {
+	case "dark":
+		theme.Error = color.New(color.FgHiRed)
+		theme.Info = color.New(color.FgHiGreen)
+		theme.Warning = color.New(color.FgHiYellow)
+	case "light":
+		theme.Error = color.New(color.FgRed)
+		theme.Info = color.New(color.FgGreen)
+		theme.Warning = color.New(color.FgYellow)
+	}
+	return theme
 }
 
 func configureTLS() (*tls.Config, error) {
@@ -269,7 +310,8 @@ func process(messageType string,
 	event *kafka.Event,
 	marshaller *protobuf.Marshaller,
 	search *regexp.Regexp,
-	reverse bool) ([]byte, error) {
+	reverse bool,
+	highlightColor *color.Color) ([]byte, error) {
 
 	msg, err := loader.Get(messageType)
 	if err != nil {
@@ -286,8 +328,14 @@ func process(messageType string,
 		return nil, err
 	}
 
-	if search != nil && search.Match(output) == reverse {
-		return nil, nil
+	if search != nil {
+		match := search.Find(output)
+		if (match != nil) == reverse {
+			return nil, nil
+		}
+		if highlightColor != nil {
+			output = search.ReplaceAll(output, []byte(highlightColor.Sprint(string(match))))
+		}
 	}
 
 	return output, nil
@@ -306,13 +354,13 @@ func exit(err error) {
 	os.Exit(1)
 }
 
-func getLogWriter(f *core.StringFlag) (io.Writer, bool, error) {
+func getLogWriter(f *core.StringFlag, colorEnabled bool) (io.Writer, bool, error) {
 	file := f.Get()
 	if internal.IsEmpty(file) {
 		if f.IsSet() {
 			return ioutil.Discard, false, nil
 		}
-		return os.Stdout, false, nil
+		return getStdOut(colorEnabled), false, nil
 	}
 	lf, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 	if err != nil {
@@ -321,7 +369,7 @@ func getLogWriter(f *core.StringFlag) (io.Writer, bool, error) {
 	return lf, true, nil
 }
 
-func getOutputWriters(dir *core.StringFlag, topics map[string]*kafka.Checkpoint) (map[string]io.Writer, bool, error) {
+func getOutputWriters(dir *core.StringFlag, topics map[string]*kafka.Checkpoint, colorEnabled bool) (map[string]io.Writer, bool, error) {
 	root := dir.Get()
 	result := make(map[string]io.Writer)
 
@@ -332,7 +380,7 @@ func getOutputWriters(dir *core.StringFlag, topics map[string]*kafka.Checkpoint)
 				result[topic] = ioutil.Discard
 				continue
 			}
-			result[topic] = os.Stdout
+			result[topic] = getStdOut(colorEnabled)
 		}
 		return result, false, nil
 	}
@@ -352,6 +400,13 @@ func getOutputWriters(dir *core.StringFlag, topics map[string]*kafka.Checkpoint)
 	}
 
 	return result, true, nil
+}
+
+func getStdOut(colorEnabled bool) io.Writer {
+	if !colorEnabled || runtime.GOOS != "windows" {
+		return os.Stdout
+	}
+	return color.Output
 }
 
 func closeFile(file *os.File) {
