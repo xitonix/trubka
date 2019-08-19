@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"sync"
+
+	"github.com/fatih/color"
 )
 
 const (
@@ -14,9 +16,21 @@ const (
 type Printer interface {
 	Logf(level VerbosityLevel, format string, args ...interface{})
 	Log(level VerbosityLevel, msg string)
+	Errorf(level VerbosityLevel, format string, args ...interface{})
+	Error(level VerbosityLevel, msg string)
+	Infof(level VerbosityLevel, format string, args ...interface{})
+	Info(level VerbosityLevel, msg string)
+	Warningf(level VerbosityLevel, format string, args ...interface{})
+	Warning(level VerbosityLevel, msg string)
 	WriteEvent(topic string, bytes []byte)
 	Level() VerbosityLevel
 	Close()
+}
+
+type ColorTheme struct {
+	Error   *color.Color
+	Info    *color.Color
+	Warning *color.Color
 }
 
 // SyncPrinter is an implementation of Printer interface to synchronously write to specified io.Writer instances.
@@ -25,12 +39,14 @@ type SyncPrinter struct {
 	wg            sync.WaitGroup
 	targets       map[string]chan interface{}
 	uniqueTargets map[io.Writer]chan interface{}
+	theme         ColorTheme
 }
 
 // NewPrinter creates a new synchronised writer.
-func NewPrinter(currentLevel VerbosityLevel, logOutput io.Writer) *SyncPrinter {
+func NewPrinter(currentLevel VerbosityLevel, logOutput io.Writer, theme ColorTheme) *SyncPrinter {
 	logInput := make(chan interface{}, 100)
 	return &SyncPrinter{
+		theme:        theme,
 		currentLevel: currentLevel,
 		uniqueTargets: map[io.Writer]chan interface{}{
 			logOutput: logInput,
@@ -79,13 +95,46 @@ func (p *SyncPrinter) Close() {
 
 // Log writes a new line to the Logging io.Writer synchronously if the verbosity level is greater than or equal to the current level.
 func (p *SyncPrinter) Log(level VerbosityLevel, msg string) {
-	p.log(level, msg)
+	p.log(level, msg, nil)
 }
 
 // Logf formats according to a format specifier and writes a new line to the Logging io.Writer synchronously,
 // if the verbosity level is greater than or equal to the current level.
 func (p *SyncPrinter) Logf(level VerbosityLevel, format string, a ...interface{}) {
-	p.log(level, fmt.Sprintf(format, a...))
+	p.log(level, fmt.Sprintf(format, a...), nil)
+}
+
+// Info writes a new line to the Logging io.Writer synchronously if the verbosity level is greater than or equal to the current level.
+func (p *SyncPrinter) Info(level VerbosityLevel, msg string) {
+	p.log(level, msg, p.theme.Info)
+}
+
+// Infof formats according to a format specifier and writes a new line to the Logging io.Writer synchronously,
+// if the verbosity level is greater than or equal to the current level.
+func (p *SyncPrinter) Infof(level VerbosityLevel, format string, a ...interface{}) {
+	p.log(level, fmt.Sprintf(format, a...), p.theme.Info)
+}
+
+// Warning writes a new line to the Logging io.Writer synchronously if the verbosity level is greater than or equal to the current level.
+func (p *SyncPrinter) Warning(level VerbosityLevel, msg string) {
+	p.log(level, msg, p.theme.Warning)
+}
+
+// WarningF formats according to a format specifier and writes a new line to the Logging io.Writer synchronously,
+// if the verbosity level is greater than or equal to the current level.
+func (p *SyncPrinter) Warningf(level VerbosityLevel, format string, a ...interface{}) {
+	p.log(level, fmt.Sprintf(format, a...), p.theme.Warning)
+}
+
+// Error writes a new line to the Logging io.Writer synchronously if the verbosity level is greater than or equal to the current level.
+func (p *SyncPrinter) Error(level VerbosityLevel, msg string, ) {
+	p.log(level, msg, p.theme.Error)
+}
+
+// Errorf formats according to a format specifier and writes a new line to the Logging io.Writer synchronously,
+// if the verbosity level is greater than or equal to the current level.
+func (p *SyncPrinter) Errorf(level VerbosityLevel, format string, a ...interface{}) {
+	p.log(level, fmt.Sprintf(format, a...), p.theme.Error)
 }
 
 // Level returns the current verbosity level.
@@ -101,9 +150,14 @@ func (p *SyncPrinter) WriteEvent(topic string, bytes []byte) {
 	p.targets[topic] <- string(bytes) + "\n"
 }
 
-func (p *SyncPrinter) log(level VerbosityLevel, msg string) {
+func (p *SyncPrinter) log(level VerbosityLevel, msg string, color *color.Color) {
 	if p.currentLevel < level {
 		return
 	}
-	p.targets[loggingWriterKey] <- msg + "\n"
+	if color == nil {
+		p.targets[loggingWriterKey] <- msg + "\n"
+	} else {
+		p.targets[loggingWriterKey] <- color.Sprintf("%s\n", msg)
+	}
+
 }
