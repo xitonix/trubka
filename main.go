@@ -3,13 +3,9 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -66,12 +62,12 @@ func main() {
 	}
 
 	colorMode := strings.ToLower(terminalMode.Get())
-	logFile, closableLog, err := getLogWriter(logFilePath)
+	logFile, writeLogToFile, err := getLogWriter(logFilePath)
 	if err != nil {
 		exit(err)
 	}
 
-	theme := getColorTheme(colorMode, closableLog)
+	theme := getColorTheme(colorMode, writeLogToFile)
 
 	prn := internal.NewPrinter(internal.ToVerbosityLevel(verbosity.Get()), logFile, theme)
 
@@ -131,7 +127,7 @@ func main() {
 		}
 	}
 
-	writers, closable, err := getOutputWriters(outputDir, topics)
+	writers, writeEventsToFile, err := getOutputWriters(outputDir, topics)
 	if err != nil {
 		exit(err)
 	}
@@ -149,7 +145,7 @@ func main() {
 			reversed := reverse.Get()
 			marshaller := protobuf.NewMarshaller(format.Get(), includeTimeStamp.Get())
 			var searchColor color.Style
-			if !closable {
+			if !writeEventsToFile {
 				searchColor = getSearchColor(colorMode)
 			}
 			var cancelled bool
@@ -201,89 +197,17 @@ func main() {
 		exit(err)
 	}
 
-	if closableLog {
+	if writeLogToFile {
 		closeFile(logFile.(*os.File))
 	}
 
-	if closable {
+	if writeEventsToFile {
 		for _, w := range writers {
 			closeFile(w.(*os.File))
 		}
 	}
 	prn.Info(internal.Verbose, "Trubka has been terminated successfully.")
 	prn.Close()
-}
-
-func getSearchColor(mode string) color.Style {
-	switch mode {
-	case "none":
-		return nil
-	case "dark":
-		return color.New(color.FgYellow, color.Bold)
-	case "light":
-		return color.New(color.FgBlue, color.Bold)
-	default:
-		return nil
-	}
-}
-
-func getColorTheme(mode string, toFile bool) internal.ColorTheme {
-	theme := internal.ColorTheme{}
-	if toFile {
-		return theme
-	}
-	switch mode {
-	case "dark":
-		theme.Error = color.New(color.LightRed)
-		theme.Info = color.New(color.LightGreen)
-		theme.Warning = color.New(color.LightYellow)
-	case "light":
-		theme.Error = color.New(color.FgRed)
-		theme.Info = color.New(color.FgGreen)
-		theme.Warning = color.New(color.FgYellow)
-	}
-	return theme
-}
-
-func configureTLS() (*tls.Config, error) {
-	var tlsConf tls.Config
-
-	clientCert := tlsClientCert.Get()
-	clientKey := tlsClientKey.Get()
-
-	// Mutual authentication is enabled. Both client key and certificate are needed.
-	if !internal.IsEmpty(clientCert) {
-		if internal.IsEmpty(clientKey) {
-			return nil, errors.New("TLS client key is missing. Mutual authentication cannot be used")
-		}
-		certificate, err := tls.LoadX509KeyPair(clientCert, clientKey)
-		if err != nil {
-			return nil, errors.Wrap(err, "Failed to load the client TLS key pair")
-		}
-		tlsConf.Certificates = []tls.Certificate{certificate}
-	}
-
-	caCert := tlsCACert.Get()
-
-	if internal.IsEmpty(caCert) {
-		// Server cert verification will be disabled.
-		// Only standard trusted certificates are used to verify the server certs.
-		tlsConf.InsecureSkipVerify = true
-		return &tlsConf, nil
-	}
-	certPool := x509.NewCertPool()
-	ca, err := ioutil.ReadFile(caCert)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to read the CA certificate")
-	}
-
-	if ok := certPool.AppendCertsFromPEM(ca); !ok {
-		return nil, errors.New("failed to append the CA certificate to the pool")
-	}
-
-	tlsConf.RootCAs = certPool
-
-	return &tlsConf, nil
 }
 
 func getCheckpoint(rewind bool, timeCheckpoint *core.TimeFlag, offsetCheckpoint *core.Int64Flag) *kafka.Checkpoint {
@@ -349,56 +273,8 @@ func getTopics(topicMap map[string]string, cp *kafka.Checkpoint) map[string]*kaf
 }
 
 func exit(err error) {
-	fmt.Printf("FATAL: %s\n", err)
+	color.Error.Printf("FATAL: %s\n", err)
 	os.Exit(1)
-}
-
-func getLogWriter(f *core.StringFlag) (io.Writer, bool, error) {
-	file := f.Get()
-	if internal.IsEmpty(file) {
-		if f.IsSet() {
-			return ioutil.Discard, false, nil
-		}
-		return os.Stdout, false, nil
-	}
-	lf, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
-	if err != nil {
-		return nil, false, errors.Wrapf(err, "Failed to create: %s", file)
-	}
-	return lf, true, nil
-}
-
-func getOutputWriters(dir *core.StringFlag, topics map[string]*kafka.Checkpoint) (map[string]io.Writer, bool, error) {
-	root := dir.Get()
-	result := make(map[string]io.Writer)
-
-	if internal.IsEmpty(root) {
-		discard := dir.IsSet()
-		for topic := range topics {
-			if discard {
-				result[topic] = ioutil.Discard
-				continue
-			}
-			result[topic] = os.Stdout
-		}
-		return result, false, nil
-	}
-
-	err := os.MkdirAll(root, 0755)
-	if err != nil {
-		return nil, false, errors.Wrap(err, "Failed to create the output directory")
-	}
-
-	for topic := range topics {
-		file := filepath.Join(root, topic)
-		lf, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
-		if err != nil {
-			return nil, false, errors.Wrapf(err, "Failed to create: %s", file)
-		}
-		result[topic] = lf
-	}
-
-	return result, true, nil
 }
 
 func closeFile(file *os.File) {
