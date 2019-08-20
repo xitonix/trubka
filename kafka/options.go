@@ -20,8 +20,6 @@ type Options struct {
 	DisableErrorReporting bool
 	// ClusterVersion kafka cluster version.
 	ClusterVersion string
-	// OffsetStore the type responsible to store consumer offsets
-	OffsetStore OffsetStore
 	// TLS configuration to connect to Kafka cluster.
 	TLS       *tls.Config
 	sasl      *sasl
@@ -47,13 +45,6 @@ func WithClusterVersion(version string) Option {
 			version = DefaultClusterVersion
 		}
 		options.ClusterVersion = version
-	}
-}
-
-// WithOffsetStore sets the consumer offset store.
-func WithOffsetStore(store OffsetStore) Option {
-	return func(options *Options) {
-		options.OffsetStore = store
 	}
 }
 
