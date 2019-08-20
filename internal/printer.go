@@ -5,7 +5,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/fatih/color"
+	"github.com/gookit/color"
 )
 
 const (
@@ -28,9 +28,9 @@ type Printer interface {
 }
 
 type ColorTheme struct {
-	Error   *color.Color
-	Info    *color.Color
-	Warning *color.Color
+	Error   color.Style
+	Info    color.Style
+	Warning color.Style
 }
 
 // SyncPrinter is an implementation of Printer interface to synchronously write to specified io.Writer instances.
@@ -150,7 +150,7 @@ func (p *SyncPrinter) WriteEvent(topic string, bytes []byte) {
 	p.targets[topic] <- string(bytes) + "\n"
 }
 
-func (p *SyncPrinter) log(level VerbosityLevel, msg string, color *color.Color) {
+func (p *SyncPrinter) log(level VerbosityLevel, msg string, color color.Style) {
 	if p.currentLevel < level {
 		return
 	}

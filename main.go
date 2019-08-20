@@ -11,13 +11,12 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"sync"
 	"syscall"
 
-	"github.com/fatih/color"
 	"github.com/golang/protobuf/proto"
+	"github.com/gookit/color"
 	"github.com/pkg/errors"
 	"github.com/pkg/profile"
 	"github.com/xitonix/flags/core"
@@ -67,8 +66,7 @@ func main() {
 	}
 
 	colorMode := strings.ToLower(terminalMode.Get())
-	colorEnabled := !internal.IsEmpty(colorMode) && colorMode != "none"
-	logFile, closableLog, err := getLogWriter(logFilePath, colorEnabled)
+	logFile, closableLog, err := getLogWriter(logFilePath)
 	if err != nil {
 		exit(err)
 	}
@@ -133,7 +131,7 @@ func main() {
 		}
 	}
 
-	writers, closable, err := getOutputWriters(outputDir, topics, colorEnabled)
+	writers, closable, err := getOutputWriters(outputDir, topics)
 	if err != nil {
 		exit(err)
 	}
@@ -150,7 +148,7 @@ func main() {
 			defer wg.Done()
 			reversed := reverse.Get()
 			marshaller := protobuf.NewMarshaller(format.Get(), includeTimeStamp.Get())
-			var searchColor *color.Color
+			var searchColor color.Style
 			if !closable {
 				searchColor = getSearchColor(colorMode)
 			}
@@ -216,14 +214,14 @@ func main() {
 	prn.Close()
 }
 
-func getSearchColor(mode string) *color.Color {
+func getSearchColor(mode string) color.Style {
 	switch mode {
 	case "none":
 		return nil
 	case "dark":
 		return color.New(color.FgYellow, color.Bold)
 	case "light":
-		return color.New(color.FgHiBlue, color.Bold)
+		return color.New(color.FgBlue, color.Bold)
 	default:
 		return nil
 	}
@@ -236,9 +234,9 @@ func getColorTheme(mode string, toFile bool) internal.ColorTheme {
 	}
 	switch mode {
 	case "dark":
-		theme.Error = color.New(color.FgHiRed)
-		theme.Info = color.New(color.FgHiGreen)
-		theme.Warning = color.New(color.FgHiYellow)
+		theme.Error = color.New(color.LightRed)
+		theme.Info = color.New(color.LightGreen)
+		theme.Warning = color.New(color.LightYellow)
 	case "light":
 		theme.Error = color.New(color.FgRed)
 		theme.Info = color.New(color.FgGreen)
@@ -312,7 +310,7 @@ func process(messageType string,
 	marshaller *protobuf.Marshaller,
 	search *regexp.Regexp,
 	reverse bool,
-	highlightColor *color.Color) ([]byte, error) {
+	highlightColor color.Style) ([]byte, error) {
 
 	msg, err := loader.Get(messageType)
 	if err != nil {
@@ -355,13 +353,13 @@ func exit(err error) {
 	os.Exit(1)
 }
 
-func getLogWriter(f *core.StringFlag, colorEnabled bool) (io.Writer, bool, error) {
+func getLogWriter(f *core.StringFlag) (io.Writer, bool, error) {
 	file := f.Get()
 	if internal.IsEmpty(file) {
 		if f.IsSet() {
 			return ioutil.Discard, false, nil
 		}
-		return getStdOut(colorEnabled), false, nil
+		return os.Stdout, false, nil
 	}
 	lf, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 	if err != nil {
@@ -370,7 +368,7 @@ func getLogWriter(f *core.StringFlag, colorEnabled bool) (io.Writer, bool, error
 	return lf, true, nil
 }
 
-func getOutputWriters(dir *core.StringFlag, topics map[string]*kafka.Checkpoint, colorEnabled bool) (map[string]io.Writer, bool, error) {
+func getOutputWriters(dir *core.StringFlag, topics map[string]*kafka.Checkpoint) (map[string]io.Writer, bool, error) {
 	root := dir.Get()
 	result := make(map[string]io.Writer)
 
@@ -381,7 +379,7 @@ func getOutputWriters(dir *core.StringFlag, topics map[string]*kafka.Checkpoint,
 				result[topic] = ioutil.Discard
 				continue
 			}
-			result[topic] = getStdOut(colorEnabled)
+			result[topic] = os.Stdout
 		}
 		return result, false, nil
 	}
@@ -401,13 +399,6 @@ func getOutputWriters(dir *core.StringFlag, topics map[string]*kafka.Checkpoint,
 	}
 
 	return result, true, nil
-}
-
-func getStdOut(colorEnabled bool) io.Writer {
-	if !colorEnabled || runtime.GOOS != "windows" {
-		return os.Stdout
-	}
-	return color.Output
 }
 
 func closeFile(file *os.File) {
