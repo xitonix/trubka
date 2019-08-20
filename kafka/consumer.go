@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"math"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -42,10 +41,8 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 		option(ops)
 	}
 
-	if printer.Level() == internal.Chatty {
-		sarama.Logger = log.New(os.Stdout, "KAFKA Client: ", log.LstdFlags)
-	}
-
+	sarama.Logger = log.New(ops.logWriter, "KAFKA Client: ", log.LstdFlags)
+	
 	client, consumer, err := initClient(brokers, ops)
 	if err != nil {
 		return nil, err

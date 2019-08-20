@@ -23,7 +23,6 @@ type Printer interface {
 	Warningf(level VerbosityLevel, format string, args ...interface{})
 	Warning(level VerbosityLevel, msg string)
 	WriteEvent(topic string, bytes []byte)
-	Level() VerbosityLevel
 	Close()
 }
 
@@ -145,11 +144,6 @@ func (p *SyncPrinter) Error(level VerbosityLevel, msg string, ) {
 // if the verbosity level is greater than or equal to the current level.
 func (p *SyncPrinter) Errorf(level VerbosityLevel, format string, a ...interface{}) {
 	p.log(level, fmt.Sprintf(format, a...), p.theme.Error)
-}
-
-// Level returns the current verbosity level.
-func (p *SyncPrinter) Level() VerbosityLevel {
-	return p.currentLevel
 }
 
 // WriteEvent writes the event content to the relevant message io.Writer.
