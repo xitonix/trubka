@@ -5,11 +5,9 @@ import (
 	"log"
 	"math"
 	"regexp"
-	"strings"
 	"sync"
 
 	"github.com/Shopify/sarama"
-	"github.com/kirsle/configdir"
 	"github.com/pkg/errors"
 	"github.com/rcrowley/go-metrics"
 
@@ -29,6 +27,7 @@ type Consumer struct {
 	environment             string
 	events                  chan *Event
 	closeOnce               sync.Once
+	store                   *offsetStore
 }
 
 // NewConsumer creates a new instance of Kafka cluster consumer.
@@ -42,8 +41,13 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 	}
 
 	sarama.Logger = log.New(ops.logWriter, "KAFKA Client: ", log.LstdFlags)
-	
+
 	client, consumer, err := initClient(brokers, ops)
+	if err != nil {
+		return nil, err
+	}
+
+	store, err := newOffsetStore(printer, environment)
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +61,7 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 		enableAutoTopicCreation: enableAutoTopicCreation,
 		environment:             environment,
 		events:                  make(chan *Event, 128),
+		store:                   store,
 	}, nil
 }
 
@@ -109,60 +114,29 @@ func (c *Consumer) Start(ctx context.Context, topics map[string]*Checkpoint) err
 		return errors.New("the topic list cannot be empty")
 	}
 
-	if c.config.OffsetStore == nil {
-		store, err := c.initialiseLocalOffsetStore()
-		if err != nil {
-			return err
+	go func() {
+		for err := range c.store.errors() {
+			c.printer.Errorf(internal.Forced, "Offset Storage Error: %s", err)
 		}
-		c.config.OffsetStore = store
-	}
+	}()
 
 	c.printer.Infof(internal.VeryVerbose, "Starting Kafka consumers.")
 	topicPartitionOffsets, err := c.fetchTopicPartitions(topics)
 	if err != nil {
 		return err
 	}
+	c.store.start(topicPartitionOffsets)
+	defer c.store.close()
 
-	if store, ok := c.config.OffsetStore.(*localOffsetStore); ok {
-		defer store.close()
-		store.start(topicPartitionOffsets)
-	}
 	c.consumeTopics(ctx, topicPartitionOffsets)
 	return nil
 }
 
-func (c *Consumer) initialiseLocalOffsetStore() (*localOffsetStore, error) {
-	var environment string
-	if !internal.IsEmpty(c.environment) {
-		environment = strings.ToLower(strings.TrimSpace(c.environment))
-	}
-	configPath := configdir.LocalConfig("trubka", environment)
-	err := configdir.MakePath(configPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to create the application cache folder")
-	}
-
-	ls, err := newLocalOffsetStore(c.printer, configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		for err := range ls.errors() {
-			c.printer.Errorf(internal.Forced, "Err: %s", err)
-		}
-	}()
-
-	return ls, nil
-}
-
 // StoreOffset stores the offset of the successfully processed message into the offset store.
 func (c *Consumer) StoreOffset(event *Event) {
-	if c.config.OffsetStore != nil {
-		err := c.config.OffsetStore.Store(event.Topic, event.Partition, event.Offset+1)
-		if err != nil {
-			c.printer.Errorf(internal.Forced, "Failed to store the offset: %s.", err)
-		}
+	err := c.store.Store(event.Topic, event.Partition, event.Offset+1)
+	if err != nil {
+		c.printer.Errorf(internal.Forced, "Failed to store the offset: %s.", err)
 	}
 }
 
@@ -288,13 +262,9 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (map[stri
 			}
 		}
 		c.printer.Logf(internal.SuperVerbose, "Fetching partitions for topic %s.", topic)
-		var err error
-		offsets := make(PartitionOffsets)
-		if c.config.OffsetStore != nil {
-			offsets, err = c.config.OffsetStore.Query(topic)
-			if err != nil {
-				return nil, err
-			}
+		offsets, err := c.store.Query(topic)
+		if err != nil {
+			return nil, err
 		}
 
 		partitions, err := c.internalConsumer.Partitions(topic)
