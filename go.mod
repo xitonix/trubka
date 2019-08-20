@@ -6,14 +6,12 @@ require (
 	github.com/DataDog/zstd v1.4.0 // indirect
 	github.com/Shopify/sarama v1.23.0
 	github.com/eapache/go-resiliency v1.2.0 // indirect
-	github.com/fatih/color v1.7.0
 	github.com/golang/protobuf v1.3.2
 	github.com/google/btree v1.0.0 // indirect
+	github.com/gookit/color v1.1.10
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/jhump/protoreflect v1.5.0
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
-	github.com/mattn/go-colorable v0.1.2 // indirect
-	github.com/mattn/go-isatty v0.0.9 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible
 	github.com/pkg/errors v0.8.1
 	github.com/pkg/profile v1.3.0
@@ -22,8 +20,8 @@ require (
 	github.com/xitonix/flags v0.1.1
 	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4 // indirect
 	golang.org/x/net v0.0.0-20190724013045-ca1201d0de80 // indirect
+	golang.org/x/sys v0.0.0-20190813064441-fde4db37ae7a // indirect
 	golang.org/x/text v0.3.2 // indirect
-	google.golang.org/appengine v1.4.0 // indirect
 	google.golang.org/genproto v0.0.0-20190801165951-fa694d86fc64 // indirect
 	google.golang.org/grpc v1.22.1 // indirect
 	gopkg.in/jcmturner/goidentity.v3 v3.0.0 // indirect
