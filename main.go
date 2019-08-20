@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"regexp"
@@ -69,7 +71,8 @@ func main() {
 
 	theme := getColorTheme(colorMode, writeLogToFile)
 
-	prn := internal.NewPrinter(internal.ToVerbosityLevel(verbosity.Get()), logFile, theme)
+	level := internal.ToVerbosityLevel(verbosity.Get())
+	prn := internal.NewPrinter(level, logFile, theme)
 
 	loader, err := protobuf.NewFileLoader(protoDir.Get(), protoFiles.Get()...)
 	if err != nil {
@@ -84,12 +87,18 @@ func main() {
 		}
 	}
 
+	saramLogWriter := ioutil.Discard
+	if level >= internal.Chatty {
+		saramLogWriter = logFile
+	}
+
 	consumer, err := kafka.NewConsumer(
 		brokers.Get(), prn,
 		environment.Get(),
 		enableAutoTopicCreation.Get(),
 		kafka.WithClusterVersion(kafkaVersion.Get()),
 		kafka.WithTLS(tlsConfig),
+		kafka.WithLogWriter(saramLogWriter),
 		kafka.WithSASL(saslMechanism.Get(), saslUsername.Get(), saslPassword.Get()))
 
 	if err != nil {
@@ -197,6 +206,7 @@ func main() {
 		exit(err)
 	}
 
+	// Do not write to Printer after this point
 	if writeLogToFile {
 		closeFile(logFile.(*os.File))
 	}
@@ -206,7 +216,6 @@ func main() {
 			closeFile(w.(*os.File))
 		}
 	}
-	prn.Info(internal.Verbose, "Trubka has been terminated successfully.")
 	prn.Close()
 }
 
@@ -252,12 +261,14 @@ func process(messageType string,
 	}
 
 	if search != nil {
-		match := search.Find(output)
-		if (match != nil) == reverse {
+		matches := search.FindAll(output, -1)
+		if (matches != nil) == reverse {
 			return nil, nil
 		}
-		if highlightColor != nil {
-			output = search.ReplaceAll(output, []byte(highlightColor.Sprint(string(match))))
+		for _, match := range matches {
+			if highlightColor != nil {
+				output = bytes.ReplaceAll(output, match, []byte(highlightColor.Sprint(string(match))))
+			}
 		}
 	}
 

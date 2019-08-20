@@ -97,8 +97,8 @@ func initFlags() {
 	tlsClientCert = flags.String("client-cert", `Client certification file to enable mutual TLS authentication. Client key must also be provided.`)
 	tlsClientKey = flags.String("client-key", `Client private key file to enable mutual TLS authentication. Client certificate must also be provided.`)
 	terminalMode = flags.String("terminal-mode", `Sets the color mode of your terminal to adjust colors and highlights. Set to none to disable colors.`).
-		WithValidRange(true, "none", "dark", "light").
-		WithDefault("dark")
+		WithValidRange(true, internal.NoTheme, internal.DarkTheme, internal.LightTheme).
+		WithDefault(internal.DarkTheme)
 	verbosity = flags.Verbosity("The verbosity level of the tool.").WithKey("-")
 	versionRequest = flags.Bool("version", "Prints the current version of Trubka.").WithKey("-")
 
@@ -196,11 +196,11 @@ func configureTLS() (*tls.Config, error) {
 
 func getSearchColor(mode string) color.Style {
 	switch mode {
-	case "none":
+	case internal.NoTheme:
 		return nil
-	case "dark":
+	case internal.DarkTheme:
 		return color.New(color.FgYellow, color.Bold)
-	case "light":
+	case internal.LightTheme:
 		return color.New(color.FgBlue, color.Bold)
 	default:
 		return nil
@@ -213,11 +213,11 @@ func getColorTheme(mode string, toFile bool) internal.ColorTheme {
 		return theme
 	}
 	switch mode {
-	case "dark":
+	case internal.DarkTheme:
 		theme.Error = color.New(color.LightRed)
 		theme.Info = color.New(color.LightGreen)
 		theme.Warning = color.New(color.LightYellow)
-	case "light":
+	case internal.LightTheme:
 		theme.Error = color.New(color.FgRed)
 		theme.Info = color.New(color.FgGreen)
 		theme.Warning = color.New(color.FgYellow)

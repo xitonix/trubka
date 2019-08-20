@@ -2,6 +2,8 @@ package kafka
 
 import (
 	"crypto/tls"
+	"io"
+	"io/ioutil"
 
 	"github.com/Shopify/sarama"
 
@@ -21,8 +23,9 @@ type Options struct {
 	// OffsetStore the type responsible to store consumer offsets
 	OffsetStore OffsetStore
 	// TLS configuration to connect to Kafka cluster.
-	TLS  *tls.Config
-	sasl *sasl
+	TLS       *tls.Config
+	sasl      *sasl
+	logWriter io.Writer
 }
 
 // NewOptions creates a new Options object with default values.
@@ -30,6 +33,7 @@ func NewOptions() *Options {
 	return &Options{
 		DisableErrorReporting: false,
 		ClusterVersion:        DefaultClusterVersion,
+		logWriter:             ioutil.Discard,
 	}
 }
 
@@ -57,6 +61,13 @@ func WithOffsetStore(store OffsetStore) Option {
 func WithSASL(mechanism, username, password string) Option {
 	return func(options *Options) {
 		options.sasl = newSASL(mechanism, username, password)
+	}
+}
+
+// WithLogWriter sets the writer to write the internal Sarama logs to.
+func WithLogWriter(writer io.Writer) Option {
+	return func(options *Options) {
+		options.logWriter = writer
 	}
 }
 
