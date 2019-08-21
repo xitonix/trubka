@@ -28,7 +28,10 @@ var version string
 
 func main() {
 
-	initFlags()
+	err := newApplication()
+	if err != nil {
+		exit(err)
+	}
 
 	if versionRequest.Get() {
 		printVersion()
