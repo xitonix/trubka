@@ -42,9 +42,14 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 
 	sarama.Logger = log.New(ops.logWriter, "KAFKA Client: ", log.LstdFlags)
 
-	client, consumer, err := initClient(brokers, ops)
+	client, err := initClient(brokers, ops)
 	if err != nil {
 		return nil, err
+	}
+
+	consumer, err := sarama.NewConsumerFromClient(client)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to initialise the Kafka consumer")
 	}
 
 	store, err := newOffsetStore(printer, environment)
@@ -328,10 +333,10 @@ func getOffsetString(offset int64) interface{} {
 	}
 }
 
-func initClient(brokers []string, ops *Options) (sarama.Client, sarama.Consumer, error) {
+func initClient(brokers []string, ops *Options) (sarama.Client, error) {
 	version, err := sarama.ParseKafkaVersion(ops.ClusterVersion)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	config := sarama.NewConfig()
 	config.Version = version
@@ -353,13 +358,8 @@ func initClient(brokers []string, ops *Options) (sarama.Client, sarama.Consumer,
 
 	client, err := sarama.NewClient(brokers, config)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to initialise the Kafka client")
+		return nil, errors.Wrap(err, "failed to initialise the Kafka client")
 	}
 
-	consumer, err := sarama.NewConsumerFromClient(client)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to initialise the Kafka consumer")
-	}
-
-	return client, consumer, nil
+	return client, nil
 }

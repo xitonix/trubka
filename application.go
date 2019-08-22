@@ -44,6 +44,7 @@ func newApplication() error {
 
 	commands.AddVersion(app, version)
 	commands.AddConsume(app, params)
+	commands.AddList(app, params)
 	_, err := app.Parse(os.Args[1:])
 	return err
 }
@@ -52,6 +53,7 @@ func bindAppFlags(app *kingpin.Application, params *commands.Parameters) {
 	var verbosity int
 	app.Flag("verbose", "The verbosity level of Trubka.").
 		Short('v').
+		NoEnvar().
 		PreAction(func(context *kingpin.ParseContext) error {
 			params.Verbosity = internal.ToVerbosityLevel(verbosity)
 			return nil
