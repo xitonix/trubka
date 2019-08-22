@@ -1,18 +1,17 @@
 package commands
 
-import "github.com/xitonix/trubka/internal"
+import (
+	"crypto/tls"
+
+	"github.com/xitonix/trubka/internal"
+)
 
 type Parameters struct {
 	Brokers       []string
 	KafkaVersion  string
-	LogFile       string
+	TLS           *tls.Config
+	Verbosity     internal.VerbosityLevel
+	SASLMechanism string
 	SASLUsername  string
 	SASLPassword  string
-	SASLMechanism string
-	TLS           bool
-	CACert        string
-	ClientCert    string
-	ClientKey     string
-	Theme         string
-	Verbosity     internal.VerbosityLevel
 }

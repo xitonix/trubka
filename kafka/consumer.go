@@ -66,17 +66,9 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 }
 
 // GetTopics fetches the topics from the server.
-func (c *Consumer) GetTopics(filter string) ([]string, error) {
+func (c *Consumer) GetTopics(search *regexp.Regexp) ([]string, error) {
 	if c.remoteTopics != nil {
 		return c.remoteTopics, nil
-	}
-	var search *regexp.Regexp
-	if !internal.IsEmpty(filter) {
-		s, err := regexp.Compile(filter)
-		if err != nil {
-			return nil, errors.Wrap(err, "Invalid topic filter regular expression")
-		}
-		search = s
 	}
 
 	topics, err := c.internalConsumer.Topics()
@@ -244,7 +236,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (map[stri
 	if !c.enableAutoTopicCreation {
 		// We need to check if the requested topic(s) exist on the server
 		// That's why we need to get the list of the existing topics from the brokers.
-		remote, err := c.GetTopics("")
+		remote, err := c.GetTopics(nil)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Failed to fetch the topic list from the broker(s)")
 		}
