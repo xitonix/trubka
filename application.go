@@ -42,9 +42,9 @@ func newApplication() error {
 		return nil
 	})
 
-	commands.AddVersion(app, version)
-	commands.AddConsume(app, params)
-	commands.AddList(app, params)
+	commands.AddVersionCommand(app, version)
+	commands.AddConsumeCommand(app, params)
+	commands.AddQueryCommand(app, params)
 	_, err := app.Parse(os.Args[1:])
 	return err
 }

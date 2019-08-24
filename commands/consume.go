@@ -45,8 +45,8 @@ type consume struct {
 	offsetCheckpoint        int64
 }
 
-// AddConsume initialises the consume command and adds it to the application.
-func AddConsume(app *kingpin.Application, params *Parameters) {
+// AddConsumeCommand initialises the consume command and adds it to the application.
+func AddConsumeCommand(app *kingpin.Application, params *Parameters) {
 	cmd := &consume{
 		params: params,
 	}

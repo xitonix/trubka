@@ -11,7 +11,7 @@ type version struct {
 	app     *kingpin.Application
 }
 
-func AddVersion(app *kingpin.Application, appVersion string) {
+func AddVersionCommand(app *kingpin.Application, appVersion string) {
 	cmd := &version{
 		version: appVersion,
 		app:     app,
