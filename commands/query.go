@@ -8,4 +8,5 @@ import (
 func AddQueryCommand(app *kingpin.Application, params *Parameters) {
 	parent := app.Command("query", "Queries the information about the specified entity.")
 	addBrokersSubCommand(parent, params)
+	addTopicsSubCommand(parent, params)
 }

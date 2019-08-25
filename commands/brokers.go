@@ -90,7 +90,7 @@ func (c *brokers) listBrokers(ctx context.Context, manager *kafka.Manager) error
 		if c.includeMetadata && len(broker.Meta.Topics) > 0 {
 			topics := make([]string, len(broker.Meta.Topics))
 			for i, topic := range broker.Meta.Topics {
-				topics[i] = fmt.Sprintf("%s (%d)", topic.Name, topic.Partitions)
+				topics[i] = fmt.Sprintf("%s (%d)", topic.Name, topic.NumberOdPartitions)
 			}
 			row = append(row,
 				strconv.Itoa(broker.Meta.Version),

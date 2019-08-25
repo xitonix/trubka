@@ -3,12 +3,11 @@ package kafka
 import (
 	"context"
 	"log"
+	"regexp"
 	"sort"
 
 	"github.com/Shopify/sarama"
 	"github.com/pkg/errors"
-
-	"github.com/xitonix/trubka/commands/models"
 )
 
 // Manager a type to query Kafka metadata.
@@ -40,19 +39,40 @@ func NewManager(brokers []string, options ...Option) (*Manager, error) {
 	}, nil
 }
 
+// GetTopics loads a list of the available topics from the server.
+func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeOffsets bool) (map[string]PartitionsOffsetPair, error) {
+	topics, err := m.client.Topics()
+	result := make(map[string]PartitionsOffsetPair)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, topic := range topics {
+		select {
+		case <-ctx.Done():
+			return result, nil
+		default:
+			if filter.Match([]byte(topic)) {
+				result = append(result, topic)
+			}
+		}
+	}
+	sort.Strings(result)
+	return result, nil
+}
+
 // GetBrokers returns the current set of active brokers as retrieved from cluster metadata.
-func (m *Manager) GetBrokers(ctx context.Context, includeMetadata bool) ([]models.Broker, error) {
+func (m *Manager) GetBrokers(ctx context.Context, includeMetadata bool) ([]Broker, error) {
 	brokers := m.client.Brokers()
-	result := make([]models.Broker, 0)
+	result := make([]Broker, 0)
 	for _, broker := range brokers {
 		select {
 		case <-ctx.Done():
 			return result, nil
 		default:
-			b := models.Broker{
+			b := Broker{
 				ID:      int(broker.ID()),
 				Address: broker.Addr(),
-				Rack:    broker.Rack(),
 			}
 			if includeMetadata {
 				m, err := m.getMetadata(broker)
@@ -72,9 +92,9 @@ func (m *Manager) Close() error {
 	return m.client.Close()
 }
 
-func (m *Manager) getMetadata(broker *sarama.Broker) (*models.BrokerMetadata, error) {
-	meta := &models.BrokerMetadata{
-		Topics: make([]models.Topic, 0),
+func (m *Manager) getMetadata(broker *sarama.Broker) (*BrokerMetadata, error) {
+	meta := &BrokerMetadata{
+		Topics: make([]Topic, 0),
 	}
 	if err := broker.Open(m.client.Config()); err != nil {
 		return nil, err
@@ -90,12 +110,12 @@ func (m *Manager) getMetadata(broker *sarama.Broker) (*models.BrokerMetadata, er
 	meta.Version = int(mt.Version)
 	for _, topic := range mt.Topics {
 		if topic != nil {
-			meta.Topics = append(meta.Topics, models.Topic{
-				Name:       topic.Name,
-				Partitions: len(topic.Partitions),
+			meta.Topics = append(meta.Topics, Topic{
+				Name:               topic.Name,
+				NumberOdPartitions: len(topic.Partitions),
 			})
 		}
 	}
-	sort.Sort(models.TopicsByName(meta.Topics))
+	sort.Sort(TopicsByName(meta.Topics))
 	return meta, nil
 }

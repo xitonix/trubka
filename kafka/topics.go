@@ -1,4 +1,4 @@
-package models
+package kafka
 
 type TopicsByName []Topic
 
@@ -7,7 +7,7 @@ func (t TopicsByName) Len() int {
 }
 
 func (t TopicsByName) Less(i, j int) bool {
-	return t[i].Name < t[j].Name
+	return Name < Name
 }
 
 func (t TopicsByName) Swap(i, j int) {

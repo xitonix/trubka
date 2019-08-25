@@ -1,4 +1,4 @@
-package models
+package kafka
 
 type Broker struct {
 	Address string
