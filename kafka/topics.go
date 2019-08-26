@@ -7,7 +7,7 @@ func (t TopicsByName) Len() int {
 }
 
 func (t TopicsByName) Less(i, j int) bool {
-	return Name < Name
+	return t[i].Name < t[j].Name
 }
 
 func (t TopicsByName) Swap(i, j int) {

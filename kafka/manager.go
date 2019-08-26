@@ -1,13 +1,20 @@
 package kafka
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"log"
+	"os"
 	"regexp"
 	"sort"
 
 	"github.com/Shopify/sarama"
+	"github.com/kirsle/configdir"
+	"github.com/peterbourgon/diskv"
 	"github.com/pkg/errors"
+
+	"github.com/xitonix/trubka/internal"
 )
 
 // Manager a type to query Kafka metadata.
@@ -40,7 +47,7 @@ func NewManager(brokers []string, options ...Option) (*Manager, error) {
 }
 
 // GetTopics loads a list of the available topics from the server.
-func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeOffsets bool) (map[string]PartitionsOffsetPair, error) {
+func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeOffsets bool, environment string) (map[string]PartitionsOffsetPair, error) {
 	topics, err := m.client.Topics()
 	result := make(map[string]PartitionsOffsetPair)
 	if err != nil {
@@ -52,12 +59,43 @@ func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeO
 		case <-ctx.Done():
 			return result, nil
 		default:
-			if filter.Match([]byte(topic)) {
-				result = append(result, topic)
+			if filter != nil && !filter.Match([]byte(topic)) {
+				continue
+			}
+			result[topic] = make(PartitionsOffsetPair)
+			if !includeOffsets {
+				continue
+			}
+			partitions, err := m.client.Partitions(topic)
+			if err != nil {
+				return nil, err
+			}
+			local := make(PartitionOffsets)
+			loadLocal := !internal.IsEmpty(environment)
+			if loadLocal {
+				local, err = readLocalOffset(topic, environment)
+				if err != nil {
+					return nil, err
+				}
+			}
+			for _, partition := range partitions {
+				op := newOffsetPair()
+				offset, err := m.client.GetOffset(topic, partition, sarama.OffsetNewest)
+				if err != nil {
+					return nil, err
+				}
+				op.Remote = offset
+				lo, ok := local[partition]
+				if !ok && loadLocal {
+					op.Local = offsetNotFound
+				}
+				if ok && lo >= 0 {
+					op.Local = lo
+				}
+				result[topic][partition] = op
 			}
 		}
 	}
-	sort.Strings(result)
 	return result, nil
 }
 
@@ -118,4 +156,33 @@ func (m *Manager) getMetadata(broker *sarama.Broker) (*BrokerMetadata, error) {
 	}
 	sort.Sort(TopicsByName(meta.Topics))
 	return meta, nil
+}
+
+func readLocalOffset(topic string, environment string) (PartitionOffsets, error) {
+	result := make(PartitionOffsets)
+	root := configdir.LocalConfig("trubka", environment)
+	flatTransform := func(s string) []string { return []string{} }
+
+	db := diskv.New(diskv.Options{
+		BasePath:     root,
+		Transform:    flatTransform,
+		CacheSizeMax: 1024 * 1024,
+	})
+
+	val, err := db.Read(topic)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return result, nil
+		}
+		return nil, err
+	}
+
+	buff := bytes.NewBuffer(val)
+	dec := gob.NewDecoder(buff)
+	err = dec.Decode(&result)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to deserialize the value from local offset store for topic %s", topic)
+	}
+
+	return result, nil
 }
