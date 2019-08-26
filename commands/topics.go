@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"regexp"
@@ -15,7 +14,6 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -37,17 +35,12 @@ func addTopicsSubCommand(parent *kingpin.CmdClause, params *Parameters) {
 }
 
 func (c *topics) run(_ *kingpin.ParseContext) error {
-	saramaLogWriter := ioutil.Discard
-	if c.params.Verbosity >= internal.Chatty {
-		saramaLogWriter = os.Stdout
-	}
-
 	manager, err := kafka.NewManager(c.params.Brokers,
+		c.params.Verbosity,
 		kafka.WithClusterVersion(c.params.KafkaVersion),
 		kafka.WithTLS(c.params.TLS),
 		kafka.WithClusterVersion(c.params.KafkaVersion),
 		kafka.WithTLS(c.params.TLS),
-		kafka.WithLogWriter(saramaLogWriter),
 		kafka.WithSASL(c.params.SASLMechanism, c.params.SASLUsername, c.params.SASLPassword))
 
 	if err != nil {

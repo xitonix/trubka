@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/gookit/color"
 )
@@ -136,7 +137,7 @@ func (p *SyncPrinter) Warningf(level VerbosityLevel, format string, a ...interfa
 }
 
 // Error writes a new line to the Logging io.Writer synchronously if the verbosity level is greater than or equal to the current level.
-func (p *SyncPrinter) Error(level VerbosityLevel, msg string, ) {
+func (p *SyncPrinter) Error(level VerbosityLevel, msg string) {
 	p.log(level, msg, p.theme.Error)
 }
 
@@ -161,7 +162,7 @@ func (p *SyncPrinter) log(level VerbosityLevel, msg string, style color.Style) {
 		return
 	}
 	p.targets[loggingWriterKey] <- &printable{
-		msg:   msg,
+		msg:   time.Now().Format("2006/01/02 15:04:05 ") + msg,
 		style: style,
 	}
 }
