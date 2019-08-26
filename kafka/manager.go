@@ -88,7 +88,7 @@ func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeO
 			loadLocal := !internal.IsEmpty(environment)
 			if loadLocal {
 				m.logf(internal.VeryVerbose, "Reading local offsets of %s topic", topic)
-				local, err = readLocalOffset(topic, environment)
+				local, err = m.ReadLocalOffsets(topic, environment)
 				if err != nil {
 					return nil, err
 				}
@@ -189,7 +189,10 @@ func (m *Manager) logf(level internal.VerbosityLevel, format string, a ...interf
 	m.log(level, fmt.Sprintf(format, a...))
 }
 
-func readLocalOffset(topic string, environment string) (PartitionOffsets, error) {
+// ReadLocalOffsets returns the locally stored offsets of the given topic for the specified environment if exists.
+//
+// If there is no local offsets, the method will return an empty partition-offset map.
+func (m *Manager) ReadLocalOffsets(topic string, environment string) (PartitionOffsets, error) {
 	result := make(PartitionOffsets)
 	root := configdir.LocalConfig("trubka", environment)
 	flatTransform := func(s string) []string { return []string{} }
@@ -216,4 +219,16 @@ func readLocalOffset(topic string, environment string) (PartitionOffsets, error)
 	}
 
 	return result, nil
+}
+
+func (m *Manager) DeleteLocalOffsets(topic string, environment string) error {
+	return nil
+}
+
+func (m *Manager) DeleteEnvironmentLocalOffsets(environment string) error {
+	return nil
+}
+
+func (m *Manager) ListLocalOffsets(topicFilter *regexp.Regexp) (PartitionOffsets, error) {
+	return nil, nil
 }
