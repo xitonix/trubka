@@ -1,9 +1,6 @@
 package kafka
 
 import (
-	"bytes"
-	"encoding/gob"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -35,7 +32,7 @@ func newOffsetStore(printer internal.Printer, environment string) (*offsetStore,
 	if len(environment) == 0 {
 		return nil, errors.New("empty environment value is not acceptable")
 	}
-	root := configdir.LocalConfig("trubka", environment)
+	root := configdir.LocalConfig(localOffsetRoot, environment)
 	err := configdir.MakePath(root)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create the application cache folder")
@@ -101,26 +98,6 @@ func (s *offsetStore) Store(topic string, partition int32, offset int64) error {
 	return nil
 }
 
-// Query loads the offsets of all the available partitions from the local disk.
-func (s *offsetStore) Query(topic string) (PartitionOffsets, error) {
-	offsets := make(PartitionOffsets)
-	val, err := s.db.Read(topic)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return offsets, nil
-		}
-		return nil, err
-	}
-
-	buff := bytes.NewBuffer(val)
-	dec := gob.NewDecoder(buff)
-	err = dec.Decode(&offsets)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to deserialize the value from local offset store for topic %s", topic)
-	}
-	return offsets, nil
-}
-
 // Returns the channel on which the write errors will be received.
 // You must listen to this channel to avoid deadlock.
 func (s *offsetStore) errors() <-chan error {
@@ -158,7 +135,7 @@ func (s *offsetStore) writeOffsetsToDisk(offsets map[string]PartitionOffsets) {
 				s.printer.Logf(internal.Chatty, " P%02d: %d", p, o)
 			}
 		}
-		err = s.db.Write(topic, buff)
+		err = s.db.Write(topic+offsetFileExtension, buff)
 		if err != nil {
 			s.writeErrors <- errors.Wrapf(err, "Failed to write the offsets of topic %s to the disk %s", topic, cs)
 		}

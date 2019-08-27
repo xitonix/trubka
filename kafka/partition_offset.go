@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -31,6 +32,32 @@ func (p PartitionOffsets) marshal() (string, []byte, error) {
 		return "", nil, err
 	}
 	return strings.Replace(fmt.Sprintf("%v", toWrite), "map", "", 1), buff.Bytes(), nil
+}
+
+func (p PartitionOffsets) SortedPartitions() []int {
+	sorted := make([]int, 0)
+	if len(p) == 0 {
+		return sorted
+	}
+	for partition := range p {
+		sorted = append(sorted, int(partition))
+	}
+	sort.Ints(sorted)
+	return sorted
+}
+
+type TopicPartitionOffset map[string]PartitionOffsets
+
+func (t TopicPartitionOffset) SortedTopics() []string {
+	sorted := make([]string, 0)
+	if len(t) == 0 {
+		return sorted
+	}
+	for topic := range t {
+		sorted = append(sorted, topic)
+	}
+	sort.Strings(sorted)
+	return sorted
 }
 
 func (p PartitionOffsets) copyTo(dest PartitionOffsets) {

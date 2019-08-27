@@ -45,6 +45,7 @@ func newApplication() error {
 	commands.AddVersionCommand(app, version)
 	commands.AddConsumeCommand(app, params)
 	commands.AddQueryCommand(app, params)
+	commands.AddLocalOffsetCommand(app, params)
 	_, err := app.Parse(os.Args[1:])
 	return err
 }

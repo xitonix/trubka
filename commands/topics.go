@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
-	"sort"
 	"strconv"
 	"syscall"
 
@@ -72,7 +71,7 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
-	sortedTopics := sortTopics(topics)
+	sortedTopics := topics.SortedTopics()
 
 	table := tablewriter.NewWriter(os.Stdout)
 	headers := []string{"Topic"}
@@ -80,7 +79,12 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 		headers = append(headers, "Partition", "Latest Offset", "Local Offset")
 	}
 	table.SetHeader(headers)
-	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	table.SetColumnAlignment([]int{
+		tablewriter.ALIGN_LEFT,
+		tablewriter.ALIGN_CENTER,
+		tablewriter.ALIGN_CENTER,
+		tablewriter.ALIGN_CENTER,
+	})
 	for _, topic := range sortedTopics {
 		partitions := topics[topic]
 		row := []string{topic}
@@ -88,7 +92,7 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 			table.Append(row)
 			continue
 		}
-		keys := sortPartitions(partitions)
+		keys := partitions.SortedPartitions()
 		rows := make([][]string, 0)
 		for i, partition := range keys {
 			firstCell := topic
@@ -107,28 +111,4 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 	}
 	table.Render()
 	return nil
-}
-
-func sortPartitions(partitions kafka.PartitionsOffsetPair) []int {
-	sorted := make([]int, 0)
-	if len(partitions) == 0 {
-		return sorted
-	}
-	for partition := range partitions {
-		sorted = append(sorted, int(partition))
-	}
-	sort.Ints(sorted)
-	return sorted
-}
-
-func sortTopics(topics map[string]kafka.PartitionsOffsetPair) []string {
-	sorted := make([]string, 0)
-	if len(topics) == 0 {
-		return sorted
-	}
-	for topic := range topics {
-		sorted = append(sorted, topic)
-	}
-	sort.Strings(sorted)
-	return sorted
 }

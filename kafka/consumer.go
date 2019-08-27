@@ -252,6 +252,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (map[stri
 
 	topicPartitionOffsets := make(map[string]PartitionOffsets)
 
+	localOffsetManager := NewLocalOffsetManager(c.printer.Level())
 	for topic, cp := range topics {
 		if !c.enableAutoTopicCreation {
 			if _, ok := existing[topic]; !ok {
@@ -259,7 +260,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (map[stri
 			}
 		}
 		c.printer.Logf(internal.SuperVerbose, "Fetching partitions for topic %s.", topic)
-		offsets, err := c.store.Query(topic)
+		offsets, err := localOffsetManager.ReadLocalTopicOffsets(topic, c.environment)
 		if err != nil {
 			return nil, err
 		}

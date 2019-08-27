@@ -1,6 +1,9 @@
 package kafka
 
-import "strconv"
+import (
+	"sort"
+	"strconv"
+)
 
 const unknownOffset int64 = -3
 const offsetNotFound int64 = -4
@@ -37,3 +40,29 @@ func getOffsetText(offset int64) string {
 }
 
 type PartitionsOffsetPair map[int32]OffsetPair
+
+func (p PartitionsOffsetPair) SortedPartitions() []int {
+	sorted := make([]int, 0)
+	if len(p) == 0 {
+		return sorted
+	}
+	for partition := range p {
+		sorted = append(sorted, int(partition))
+	}
+	sort.Ints(sorted)
+	return sorted
+}
+
+type TopicPartitionOffsetPairs map[string]PartitionsOffsetPair
+
+func (t TopicPartitionOffsetPairs) SortedTopics() []string {
+	sorted := make([]string, 0)
+	if len(t) == 0 {
+		return sorted
+	}
+	for topic := range t {
+		sorted = append(sorted, topic)
+	}
+	sort.Strings(sorted)
+	return sorted
+}

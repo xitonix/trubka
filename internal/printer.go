@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	loggingWriterKey = "___trubka__logging__writer__key___"
+	loggingWriterKey       = "___trubka__logging__writer__key___"
+	loggingTimestampLayout = "2006/01/02 15:04:05 "
 )
 
 // Printer represents a printer type.
@@ -25,6 +26,7 @@ type Printer interface {
 	Warning(level VerbosityLevel, msg string)
 	WriteEvent(topic string, bytes []byte)
 	Close()
+	Level() VerbosityLevel
 }
 
 type ColorTheme struct {
@@ -157,12 +159,17 @@ func (p *SyncPrinter) WriteEvent(topic string, bytes []byte) {
 	}
 }
 
+// Level returns the current verbosity level
+func (p *SyncPrinter) Level() VerbosityLevel {
+	return p.currentLevel
+}
+
 func (p *SyncPrinter) log(level VerbosityLevel, msg string, style color.Style) {
 	if p.currentLevel < level {
 		return
 	}
 	p.targets[loggingWriterKey] <- &printable{
-		msg:   time.Now().Format("2006/01/02 15:04:05 ") + msg,
+		msg:   time.Now().Format(loggingTimestampLayout) + msg,
 		style: style,
 	}
 }
