@@ -54,7 +54,7 @@ func (c *consume) bindInteractiveModeFlags(command *kingpin.CmdClause) {
 		RegexpVar(&c.protoFilter)
 }
 
-func (c *consume) bindKafkaFlags(command *kingpin.CmdClause) {
+func (c *consume) bindConsumeCommandFlags(command *kingpin.CmdClause) {
 	command.Arg("topic", "The Kafka topic to consume from.").Required().StringVar(&c.topic)
 	command.Arg("proto", "The fully qualified name of the protocol buffers type, stored in the given topic.").
 		Required().

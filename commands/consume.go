@@ -24,7 +24,9 @@ import (
 )
 
 type consume struct {
-	params                  *Parameters
+	globalParams *GlobalParameters
+	kafkaParams  *kafkaParameters
+
 	protoRoot               string
 	topic                   string
 	messageType             string
@@ -46,12 +48,13 @@ type consume struct {
 }
 
 // AddConsumeCommand initialises the consume command and adds it to the application.
-func AddConsumeCommand(app *kingpin.Application, params *Parameters) {
+func AddConsumeCommand(app *kingpin.Application, global *GlobalParameters) {
 	cmd := &consume{
-		params: params,
+		globalParams: global,
 	}
 	c := app.Command("consume", "Starts consuming from the given Kafka topic.").Action(cmd.run)
-	cmd.bindKafkaFlags(c)
+	cmd.kafkaParams = bindKafkaFlags(c)
+	cmd.bindConsumeCommandFlags(c)
 	cmd.bindInteractiveModeFlags(c)
 	cmd.bindOutputFlags(c)
 }
@@ -66,7 +69,7 @@ func (c *consume) run(_ *kingpin.ParseContext) error {
 		c.setLogColors(&theme)
 	}
 
-	prn := internal.NewPrinter(c.params.Verbosity, logFile, theme)
+	prn := internal.NewPrinter(c.globalParams.Verbosity, logFile, theme)
 
 	loader, err := protobuf.NewFileLoader(c.protoRoot)
 	if err != nil {
@@ -74,18 +77,20 @@ func (c *consume) run(_ *kingpin.ParseContext) error {
 	}
 
 	saramaLogWriter := ioutil.Discard
-	if c.params.Verbosity >= internal.Chatty {
+	if c.globalParams.Verbosity >= internal.Chatty {
 		saramaLogWriter = logFile
 	}
 
 	consumer, err := kafka.NewConsumer(
-		c.params.Brokers, prn,
+		c.kafkaParams.brokers, prn,
 		c.environment,
 		c.enableAutoTopicCreation,
-		kafka.WithClusterVersion(c.params.KafkaVersion),
-		kafka.WithTLS(c.params.TLS),
+		kafka.WithClusterVersion(c.kafkaParams.version),
+		kafka.WithTLS(c.kafkaParams.tls),
 		kafka.WithLogWriter(saramaLogWriter),
-		kafka.WithSASL(c.params.SASLMechanism, c.params.SASLUsername, c.params.SASLPassword))
+		kafka.WithSASL(c.kafkaParams.saslMechanism,
+			c.kafkaParams.saslUsername,
+			c.kafkaParams.saslPassword))
 
 	if err != nil {
 		return err

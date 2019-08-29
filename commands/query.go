@@ -5,8 +5,9 @@ import (
 )
 
 // AddQueryCommand initialises the query top level command and adds it to the application.
-func AddQueryCommand(app *kingpin.Application, params *Parameters) {
+func AddQueryCommand(app *kingpin.Application, global *GlobalParameters) {
 	parent := app.Command("query", "Queries the information about the specified entity.")
-	addBrokersSubCommand(parent, params)
-	addTopicsSubCommand(parent, params)
+	kafkaParams := bindKafkaFlags(parent)
+	addBrokersSubCommand(parent, global, kafkaParams)
+	addTopicsSubCommand(parent, global, kafkaParams)
 }

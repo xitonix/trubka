@@ -17,15 +17,18 @@ import (
 )
 
 type topics struct {
-	params         *Parameters
+	kafkaParams  *kafkaParameters
+	globalParams *GlobalParameters
+
 	filter         *regexp.Regexp
 	includeOffsets bool
 	environment    string
 }
 
-func addTopicsSubCommand(parent *kingpin.CmdClause, params *Parameters) {
+func addTopicsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
 	cmd := &topics{
-		params: params,
+		kafkaParams:  kafkaParams,
+		globalParams: global,
 	}
 	c := parent.Command("topics", "Loads the existing topics from the server.").Action(cmd.run)
 	c.Flag("filter", "An optional regular expression to filter the topics by.").RegexpVar(&cmd.filter)
@@ -34,13 +37,11 @@ func addTopicsSubCommand(parent *kingpin.CmdClause, params *Parameters) {
 }
 
 func (c *topics) run(_ *kingpin.ParseContext) error {
-	manager, err := kafka.NewManager(c.params.Brokers,
-		c.params.Verbosity,
-		kafka.WithClusterVersion(c.params.KafkaVersion),
-		kafka.WithTLS(c.params.TLS),
-		kafka.WithClusterVersion(c.params.KafkaVersion),
-		kafka.WithTLS(c.params.TLS),
-		kafka.WithSASL(c.params.SASLMechanism, c.params.SASLUsername, c.params.SASLPassword))
+	manager, err := kafka.NewManager(c.kafkaParams.brokers,
+		c.globalParams.Verbosity,
+		kafka.WithClusterVersion(c.kafkaParams.version),
+		kafka.WithTLS(c.kafkaParams.tls),
+		kafka.WithSASL(c.kafkaParams.saslMechanism, c.kafkaParams.saslUsername, c.kafkaParams.saslPassword))
 
 	if err != nil {
 		return err

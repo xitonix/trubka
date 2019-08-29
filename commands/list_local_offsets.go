@@ -14,20 +14,20 @@ import (
 )
 
 type listLocalOffsets struct {
-	params       *Parameters
+	globalParams *GlobalParameters
 	topicsFilter *regexp.Regexp
 }
 
-func addListOffsetsSubCommand(parent *kingpin.CmdClause, params *Parameters) {
+func addListOffsetsSubCommand(parent *kingpin.CmdClause, params *GlobalParameters) {
 	cmd := &listLocalOffsets{
-		params: params,
+		globalParams: params,
 	}
 	c := parent.Command("list", "Lists the local offsets for different environments.").Action(cmd.run)
-	c.Flag("topic", "An optional regular expression to filter the topics by.").RegexpVar(&cmd.topicsFilter)
+	c.Flag("filter", "An optional regular expression to filter the topics by.").RegexpVar(&cmd.topicsFilter)
 }
 
 func (c *listLocalOffsets) run(_ *kingpin.ParseContext) error {
-	offsetManager := kafka.NewLocalOffsetManager(c.params.Verbosity)
+	offsetManager := kafka.NewLocalOffsetManager(c.globalParams.Verbosity)
 	offsetMap, err := offsetManager.ListLocalOffsets(c.topicsFilter)
 	if err != nil {
 		return err
@@ -47,7 +47,7 @@ func (c *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 		table := tablewriter.NewWriter(os.Stdout)
 		headers := []string{"Topic", "Partition", "Offset"}
 		table.SetHeader(headers)
-		table.SetColumnAlignment([]int{tablewriter.ALIGN_LEFT, tablewriter.ALIGN_CENTER, tablewriter.ALIGN_LEFT})
+		table.SetColumnAlignment([]int{tablewriter.ALIGN_LEFT, tablewriter.ALIGN_CENTER, tablewriter.ALIGN_CENTER})
 		rows := make([][]string, 0)
 		for _, topic := range sortedTopics {
 			partitionOffsets := topicOffsets[topic]

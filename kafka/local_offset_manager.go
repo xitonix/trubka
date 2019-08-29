@@ -49,8 +49,12 @@ func (l *LocalOffsetManager) ReadLocalTopicOffsets(topic string, environment str
 	}
 	result := make(PartitionOffsets)
 	l.db.BasePath = filepath.Join(l.root, environment)
-	l.Logf(internal.Verbose, "Reading the local offsets of %s topic from %s", topic, l.db.BasePath)
-	val, err := l.db.Read(topic)
+	l.Logf(internal.VeryVerbose, "Reading the local offsets of %s topic from %s", topic, l.db.BasePath)
+	file := topic
+	if !strings.HasSuffix(file, offsetFileExtension) {
+		file += offsetFileExtension
+	}
+	val, err := l.db.Read(file)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return result, nil
@@ -71,7 +75,8 @@ func (l *LocalOffsetManager) ReadLocalTopicOffsets(topic string, environment str
 // ListLocalOffsets lists the locally stored offsets for the the topics of all the available environments.
 func (l *LocalOffsetManager) ListLocalOffsets(topicFilter *regexp.Regexp) (map[string]TopicPartitionOffset, error) {
 	result := make(map[string]TopicPartitionOffset)
-	root := configdir.LocalConfig("trubka")
+	root := configdir.LocalConfig(localOffsetRoot)
+	l.Logf(internal.Verbose, "Searching for local offsets in %s", root)
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -84,6 +89,7 @@ func (l *LocalOffsetManager) ListLocalOffsets(topicFilter *regexp.Regexp) (map[s
 		file := filepath.Base(path)
 		topic := strings.TrimSuffix(file, offsetFileExtension)
 		if topicFilter != nil && !topicFilter.Match([]byte(topic)) {
+			l.Logf(internal.SuperVerbose, "The provided filter (%s) does not match with %s topic", topicFilter.String(), topic)
 			return nil
 		}
 		po, err := l.ReadLocalTopicOffsets(file, environment)
@@ -94,6 +100,7 @@ func (l *LocalOffsetManager) ListLocalOffsets(topicFilter *regexp.Regexp) (map[s
 			result[environment] = make(TopicPartitionOffset)
 		}
 		result[environment][topic] = po
+		l.Logf(internal.Chatty, "%d partition offset(s) found locally for %s/%s", len(po), environment, topic)
 		return nil
 	})
 	if err != nil {

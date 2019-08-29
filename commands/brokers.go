@@ -19,26 +19,29 @@ import (
 )
 
 type brokers struct {
-	params          *Parameters
+	globalParams    *GlobalParameters
+	kafkaParams     *kafkaParameters
 	includeMetadata bool
 }
 
-func addBrokersSubCommand(parent *kingpin.CmdClause, params *Parameters) {
+func addBrokersSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
 	cmd := &brokers{
-		params: params,
+		globalParams: global,
+		kafkaParams:  kafkaParams,
 	}
 	c := parent.Command("brokers", "Queries the information about Kafka brokers").Action(cmd.run)
 	c.Flag("metadata", "Queries the broker metadata.").BoolVar(&cmd.includeMetadata)
 }
 
 func (c *brokers) run(_ *kingpin.ParseContext) error {
-	manager, err := kafka.NewManager(c.params.Brokers,
-		c.params.Verbosity,
-		kafka.WithClusterVersion(c.params.KafkaVersion),
-		kafka.WithTLS(c.params.TLS),
-		kafka.WithClusterVersion(c.params.KafkaVersion),
-		kafka.WithTLS(c.params.TLS),
-		kafka.WithSASL(c.params.SASLMechanism, c.params.SASLUsername, c.params.SASLPassword))
+	manager, err := kafka.NewManager(c.kafkaParams.brokers,
+		c.globalParams.Verbosity,
+		kafka.WithClusterVersion(c.kafkaParams.version),
+		kafka.WithTLS(c.kafkaParams.tls),
+		kafka.WithClusterVersion(c.kafkaParams.version),
+		kafka.WithSASL(c.kafkaParams.saslMechanism,
+			c.kafkaParams.saslUsername,
+			c.kafkaParams.saslPassword))
 
 	if err != nil {
 		return err

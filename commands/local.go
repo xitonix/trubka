@@ -5,7 +5,7 @@ import (
 )
 
 // AddLocalOffsetCommand initialises the top level local offset management command and adds it to the application.
-func AddLocalOffsetCommand(app *kingpin.Application, params *Parameters) {
+func AddLocalOffsetCommand(app *kingpin.Application, global *GlobalParameters) {
 	parent := app.Command("local", "Manages the locally stored offsets.")
-	addListOffsetsSubCommand(parent, params)
+	addListOffsetsSubCommand(parent, global)
 }
