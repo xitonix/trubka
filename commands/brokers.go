@@ -29,8 +29,8 @@ func addBrokersSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, k
 		globalParams: global,
 		kafkaParams:  kafkaParams,
 	}
-	c := parent.Command("brokers", "Queries the information about Kafka brokers").Action(cmd.run)
-	c.Flag("metadata", "Queries the broker metadata.").BoolVar(&cmd.includeMetadata)
+	c := parent.Command("brokers", "Lists the brokers in the Kafka cluster.").Action(cmd.run)
+	c.Flag("metadata", "Enables fetching metadata for each broker.").Short('m').BoolVar(&cmd.includeMetadata)
 }
 
 func (c *brokers) run(_ *kingpin.ParseContext) error {

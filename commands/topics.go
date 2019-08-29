@@ -31,9 +31,9 @@ func addTopicsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, ka
 		globalParams: global,
 	}
 	c := parent.Command("topics", "Loads the existing topics from the server.").Action(cmd.run)
-	c.Flag("filter", "An optional regular expression to filter the topics by.").RegexpVar(&cmd.filter)
-	c.Flag("partitions", "If enabled, the partition offset data will be retrieved too.").BoolVar(&cmd.includeOffsets)
-	c.Flag("environment", "The environment to load the local offsets for (if any).").StringVar(&cmd.environment)
+	c.Flag("filter", "An optional regular expression to filter the topics by.").Short('f').RegexpVar(&cmd.filter)
+	c.Flag("partitions", "If enabled, the partition offset data will be retrieved too.").Short('p').BoolVar(&cmd.includeOffsets)
+	c.Flag("environment", "The environment to load the local offsets for (if any).").Short('e').StringVar(&cmd.environment)
 }
 
 func (c *topics) run(_ *kingpin.ParseContext) error {

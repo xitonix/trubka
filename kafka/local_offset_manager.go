@@ -73,7 +73,7 @@ func (l *LocalOffsetManager) ReadLocalTopicOffsets(topic string, environment str
 }
 
 // ListLocalOffsets lists the locally stored offsets for the the topics of all the available environments.
-func (l *LocalOffsetManager) ListLocalOffsets(topicFilter *regexp.Regexp) (map[string]TopicPartitionOffset, error) {
+func (l *LocalOffsetManager) ListLocalOffsets(topicFilter *regexp.Regexp, envFilter *regexp.Regexp) (map[string]TopicPartitionOffset, error) {
 	result := make(map[string]TopicPartitionOffset)
 	root := configdir.LocalConfig(localOffsetRoot)
 	l.Logf(internal.Verbose, "Searching for local offsets in %s", root)
@@ -86,6 +86,9 @@ func (l *LocalOffsetManager) ListLocalOffsets(topicFilter *regexp.Regexp) (map[s
 			return nil
 		}
 		environment := filepath.Base(filepath.Dir(path))
+		if envFilter != nil && !envFilter.Match([]byte(environment)) {
+			return nil
+		}
 		file := filepath.Base(path)
 		topic := strings.TrimSuffix(file, offsetFileExtension)
 		if topicFilter != nil && !topicFilter.Match([]byte(topic)) {

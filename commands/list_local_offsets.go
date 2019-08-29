@@ -16,6 +16,7 @@ import (
 type listLocalOffsets struct {
 	globalParams *GlobalParameters
 	topicsFilter *regexp.Regexp
+	envFilter    *regexp.Regexp
 }
 
 func addListOffsetsSubCommand(parent *kingpin.CmdClause, params *GlobalParameters) {
@@ -23,17 +24,23 @@ func addListOffsetsSubCommand(parent *kingpin.CmdClause, params *GlobalParameter
 		globalParams: params,
 	}
 	c := parent.Command("list", "Lists the local offsets for different environments.").Action(cmd.run)
-	c.Flag("filter", "An optional regular expression to filter the topics by.").RegexpVar(&cmd.topicsFilter)
+	c.Flag("topic", "An optional regular expression to filter the topics by.").Short('t').RegexpVar(&cmd.topicsFilter)
+	c.Flag("environment", "An optional regular expression to filter the environments by.").Short('e').RegexpVar(&cmd.envFilter)
 }
 
 func (c *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 	offsetManager := kafka.NewLocalOffsetManager(c.globalParams.Verbosity)
-	offsetMap, err := offsetManager.ListLocalOffsets(c.topicsFilter)
+	offsetMap, err := offsetManager.ListLocalOffsets(c.topicsFilter, c.envFilter)
 	if err != nil {
 		return err
 	}
 	if len(offsetMap) == 0 {
-		fmt.Println("No offset has been stored locally.")
+		filtered := c.envFilter != nil || c.topicsFilter != nil
+		msg := "No offsets have been stored locally."
+		if filtered {
+			msg += " You might need to tweak the filters."
+		}
+		color.Warn.Println(msg)
 	}
 
 	for environment, topicOffsets := range offsetMap {
