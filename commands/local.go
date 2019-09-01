@@ -8,4 +8,5 @@ import (
 func AddLocalOffsetCommand(app *kingpin.Application, global *GlobalParameters) {
 	parent := app.Command("local", "Manages the locally stored offsets.")
 	addListOffsetsSubCommand(parent, global)
+	addDeleteLocalOffsetsSubCommand(parent, global)
 }

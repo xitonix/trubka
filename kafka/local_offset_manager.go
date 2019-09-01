@@ -40,20 +40,50 @@ func NewLocalOffsetManager(level internal.VerbosityLevel) *LocalOffsetManager {
 	}
 }
 
+// GetOffsetFiles returns a list of all the offset files for the given environment.
+func (l *LocalOffsetManager) GetOffsetFiles(environment string) ([]string, error) {
+	if internal.IsEmpty(environment) {
+		return nil, ErrEmptyEnvironment
+	}
+	root := configdir.LocalConfig(localOffsetRoot, environment)
+	l.Logf(internal.Verbose, "Looking for local offsets in %s", root)
+
+	files := make([]string, 0)
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() || !strings.HasSuffix(path, offsetFileExtension) {
+			return nil
+		}
+
+		l.Logf(internal.VeryVerbose, "Local offset file has been found: %s", filepath.Base(path))
+		files = append(files, path)
+		return nil
+	})
+
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, errors.Errorf("The local offset directory could not be found at %s", root)
+		}
+		return nil, err
+	}
+
+	return files, nil
+}
+
 // ReadLocalTopicOffsets returns the locally stored offsets of the given topic for the specified environment if exists.
 //
 // If there is no local offsets, the method will return an empty partition-offset map.
 func (l *LocalOffsetManager) ReadLocalTopicOffsets(topic string, environment string) (PartitionOffsets, error) {
-	if internal.IsEmpty(environment) {
-		return nil, errors.New("The environment cannot be empty")
+	file, err := l.setDBPath(topic, environment)
+	if err != nil {
+		return nil, err
 	}
+
 	result := make(PartitionOffsets)
-	l.db.BasePath = filepath.Join(l.root, environment)
 	l.Logf(internal.VeryVerbose, "Reading the local offsets of %s topic from %s", topic, l.db.BasePath)
-	file := topic
-	if !strings.HasSuffix(file, offsetFileExtension) {
-		file += offsetFileExtension
-	}
 	val, err := l.db.Read(file)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -110,4 +140,22 @@ func (l *LocalOffsetManager) ListLocalOffsets(topicFilter *regexp.Regexp, envFil
 		return nil, err
 	}
 	return result, nil
+}
+
+func (l *LocalOffsetManager) setDBPath(topic string, environment string) (string, error) {
+	if internal.IsEmpty(environment) {
+		return "", ErrEmptyEnvironment
+	}
+	if internal.IsEmpty(topic) {
+		return "", ErrEmptyTopic
+	}
+
+	l.db.BasePath = filepath.Join(l.root, environment)
+
+	file := topic
+	if !strings.HasSuffix(file, offsetFileExtension) {
+		file += offsetFileExtension
+	}
+
+	return file, nil
 }
