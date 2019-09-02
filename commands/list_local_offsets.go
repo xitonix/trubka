@@ -17,6 +17,7 @@ type listLocalOffsets struct {
 	globalParams *GlobalParameters
 	topicsFilter *regexp.Regexp
 	envFilter    *regexp.Regexp
+	short        bool
 }
 
 func addListOffsetsSubCommand(parent *kingpin.CmdClause, params *GlobalParameters) {
@@ -26,6 +27,7 @@ func addListOffsetsSubCommand(parent *kingpin.CmdClause, params *GlobalParameter
 	c := parent.Command("list", "Lists the local offsets for different environments.").Action(cmd.run)
 	c.Flag("topic", "An optional regular expression to filter the topics by.").Short('t').RegexpVar(&cmd.topicsFilter)
 	c.Flag("environment", "An optional regular expression to filter the environments by.").Short('e').RegexpVar(&cmd.envFilter)
+	c.Flag("short", "Enables short output. Offsets wont be printed in this mode.").Short('s').BoolVar(&cmd.short)
 }
 
 func (c *listLocalOffsets) run(_ *kingpin.ParseContext) error {
@@ -56,7 +58,11 @@ func (c *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 		table.SetHeader(headers)
 		table.SetColumnAlignment([]int{tablewriter.ALIGN_LEFT, tablewriter.ALIGN_CENTER, tablewriter.ALIGN_CENTER})
 		rows := make([][]string, 0)
-		for _, topic := range sortedTopics {
+		for i, topic := range sortedTopics {
+			if c.short {
+				fmt.Printf(" %d: %s\n", i+1, topic)
+				continue
+			}
 			partitionOffsets := topicOffsets[topic]
 			sortedPartitions := partitionOffsets.SortedPartitions()
 			for i, partition := range sortedPartitions {
@@ -71,8 +77,10 @@ func (c *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 				})
 			}
 		}
-		table.AppendBulk(rows)
-		table.Render()
+		if !c.short {
+			table.AppendBulk(rows)
+			table.Render()
+		}
 		fmt.Println()
 	}
 	return nil
