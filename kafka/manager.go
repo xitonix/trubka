@@ -112,6 +112,112 @@ func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeO
 	return result, nil
 }
 
+func (m *Manager) GetConsumerGroups(ctx context.Context, includeOffsets, includeMembers bool, topicFilter *regexp.Regexp, memberFilter *regexp.Regexp) (ConsumerGroups, error) {
+	result := make(ConsumerGroups)
+	select {
+	case <-ctx.Done():
+		return result, nil
+	default:
+		addresses := m.getBrokerAddresses(ctx)
+		admin, err := sarama.NewClusterAdmin(addresses, m.client.Config())
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to create a new cluster administrator.")
+		}
+
+		m.Log(internal.Verbose, "Retrieving consumer groups from the server")
+		groups, err := admin.ListConsumerGroups()
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to fetch the consumer groups from the server.")
+		}
+
+		groupNames := make([]string, 0)
+		for group := range groups {
+			select {
+			case <-ctx.Done():
+				return result, nil
+			default:
+				if includeMembers {
+					groupNames = append(groupNames, group)
+				}
+				result[group] = &ConsumerGroup{}
+			}
+		}
+
+		if includeMembers {
+			m.Log(internal.Verbose, "Retrieving consumer group members from the server")
+			groupsMeta, err := admin.DescribeConsumerGroups(groupNames)
+			if err != nil {
+				return nil, errors.Wrap(err, "Failed to retrieve the group members from the server")
+			}
+			for _, gm := range groupsMeta {
+				select {
+				case <-ctx.Done():
+					return result, nil
+				default:
+					m.Logf(internal.VeryVerbose, "Retrieving the members of %s consumer group", gm.GroupId)
+					result[gm.GroupId].addMembers(gm.Members, memberFilter)
+				}
+			}
+		}
+
+		if includeOffsets {
+			topicOffsets, err := m.GetTopics(ctx, topicFilter, includeOffsets, "")
+			if err != nil {
+				return nil, err
+			}
+			totals := make(map[string]int64)
+			topicPartitions := make(map[string][]int32)
+			for topic, po := range topicOffsets {
+				partitions, totalOffset := po.getPartitions()
+				topicPartitions[topic] = partitions
+				totals[topic] = totalOffset
+			}
+			for groupID, cg := range result {
+				select {
+				case <-ctx.Done():
+					return result, nil
+				default:
+					m.Logf(internal.VeryVerbose, "Retrieving the offsets for %s consumer group", groupID)
+					cgOffsets, err := admin.ListConsumerGroupOffsets(groupID, topicPartitions)
+					if err != nil {
+						return nil, errors.Wrap(err, "Failed to retrieve the consumer group offsets")
+					}
+					cg.GroupOffsets = make(map[string]GroupOffset)
+					for t, pOffsets := range cgOffsets.Blocks {
+						var current int64
+						for _, grpOffset := range pOffsets {
+							if grpOffset.Offset > 0 {
+								current += grpOffset.Offset
+							}
+						}
+						cg.GroupOffsets[t] = GroupOffset{
+							Latest:  totals[t],
+							Current: current,
+						}
+					}
+				}
+			}
+		}
+
+		return result, nil
+	}
+}
+
+func (m *Manager) getBrokerAddresses(ctx context.Context) []string {
+	m.Log(internal.Verbose, "Retrieving broker list from the server")
+	brokers := m.client.Brokers()
+	addresses := make([]string, len(brokers))
+	for i, broker := range brokers {
+		select {
+		case <-ctx.Done():
+			return addresses
+		default:
+			addresses[i] = broker.Addr()
+		}
+	}
+	return addresses
+}
+
 // GetBrokers returns the current set of active brokers as retrieved from cluster metadata.
 func (m *Manager) GetBrokers(ctx context.Context, includeMetadata bool) ([]Broker, error) {
 	m.Log(internal.Verbose, "Retrieving broker list from the server")

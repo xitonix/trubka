@@ -10,4 +10,5 @@ func AddQueryCommand(app *kingpin.Application, global *GlobalParameters) {
 	kafkaParams := bindKafkaFlags(parent)
 	addBrokersSubCommand(parent, global, kafkaParams)
 	addTopicsSubCommand(parent, global, kafkaParams)
+	addGroupsSubCommand(parent, global, kafkaParams)
 }
