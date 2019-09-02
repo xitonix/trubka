@@ -41,7 +41,7 @@ func NewLocalOffsetManager(level internal.VerbosityLevel) *LocalOffsetManager {
 }
 
 // GetOffsetFiles returns a list of all the offset files for the given environment.
-func (l *LocalOffsetManager) GetOffsetFiles(environment string) ([]string, error) {
+func (l *LocalOffsetManager) GetOffsetFiles(environment string, topicFilter *regexp.Regexp) ([]string, error) {
 	if internal.IsEmpty(environment) {
 		return nil, ErrEmptyEnvironment
 	}
@@ -58,7 +58,11 @@ func (l *LocalOffsetManager) GetOffsetFiles(environment string) ([]string, error
 			return nil
 		}
 
-		l.Logf(internal.VeryVerbose, "Local offset file has been found: %s", filepath.Base(path))
+		file := filepath.Base(path)
+		if topicFilter != nil && !topicFilter.Match([]byte(file)) {
+			return nil
+		}
+		l.Logf(internal.VeryVerbose, "Local offset file has been found: %s", file)
 		files = append(files, path)
 		return nil
 	})

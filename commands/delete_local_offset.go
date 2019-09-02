@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/gookit/color"
@@ -14,6 +15,7 @@ import (
 
 type deleteLocalOffsets struct {
 	globalParams *GlobalParameters
+	topicsFilter *regexp.Regexp
 	environment  string
 }
 
@@ -22,6 +24,7 @@ func addDeleteLocalOffsetsSubCommand(parent *kingpin.CmdClause, params *GlobalPa
 		globalParams: params,
 	}
 	c := parent.Command("delete", "Deletes the local offsets from the given environment.").Action(cmd.run)
+	c.Flag("topic", "An optional regular expression to filter the topics by.").Short('t').RegexpVar(&cmd.topicsFilter)
 	c.Arg("environment", "The environment of which the local offsets will be deleted.").
 		Required().
 		StringVar(&cmd.environment)
@@ -29,7 +32,7 @@ func addDeleteLocalOffsetsSubCommand(parent *kingpin.CmdClause, params *GlobalPa
 
 func (c *deleteLocalOffsets) run(_ *kingpin.ParseContext) error {
 	offsetManager := kafka.NewLocalOffsetManager(c.globalParams.Verbosity)
-	files, err := offsetManager.GetOffsetFiles(c.environment)
+	files, err := offsetManager.GetOffsetFiles(c.environment, c.topicsFilter)
 	if err != nil {
 		return err
 	}
