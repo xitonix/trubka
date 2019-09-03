@@ -58,9 +58,8 @@ func AddConsumeCommand(app *kingpin.Application, global *GlobalParameters) {
 }
 
 func (c *consume) bindCommandFlags(command *kingpin.CmdClause) {
-	command.Arg("topic", "The Kafka topic to consume from.").Required().StringVar(&c.topic)
+	command.Arg("topic", "The Kafka topic to consume from.").StringVar(&c.topic)
 	command.Arg("proto", "The fully qualified name of the protocol buffers type, stored in the given topic.").
-		Required().
 		StringVar(&c.messageType)
 	command.Flag("proto-root", "The path to the folder where your *.proto files live.").
 		Short('r').
@@ -137,6 +136,14 @@ func (c *consume) bindCommandFlags(command *kingpin.CmdClause) {
 }
 
 func (c *consume) run(_ *kingpin.ParseContext) error {
+	if !c.interactive {
+		if internal.IsEmpty(c.topic) {
+			return errors.New("Which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i).")
+		}
+		if internal.IsEmpty(c.messageType) {
+			return errors.Errorf("What message type is stored in %s topic? Make sure you provide the fully qualified proto name as the second argument or switch to interactive mode (-i).", c.topic)
+		}
+	}
 	logFile, writeLogToFile, err := c.getLogWriter()
 	if err != nil {
 		return err

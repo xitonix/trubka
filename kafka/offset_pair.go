@@ -53,20 +53,6 @@ func (p PartitionsOffsetPair) SortedPartitions() []int {
 	return sorted
 }
 
-func (p PartitionsOffsetPair) getPartitions() ([]int32, int64) {
-	var total int64
-	result := make([]int32, len(p))
-	var i int
-	for p, offset := range p {
-		result[i] = p
-		if offset.Remote > 0 {
-			total += offset.Remote
-		}
-		i++
-	}
-	return result, total
-}
-
 type TopicPartitionOffsetPairs map[string]PartitionsOffsetPair
 
 func (t TopicPartitionOffsetPairs) SortedTopics() []string {

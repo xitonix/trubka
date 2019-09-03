@@ -18,10 +18,9 @@ import (
 type groups struct {
 	globalParams   *GlobalParameters
 	kafkaParams    *kafkaParameters
-	includeOffsets bool
 	includeMembers bool
-	topicFilter    *regexp.Regexp
 	memberFilter   *regexp.Regexp
+	topics         []string
 }
 
 func addGroupsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
@@ -30,15 +29,12 @@ func addGroupsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, ka
 		kafkaParams:  kafkaParams,
 	}
 	c := parent.Command("groups", "Lists the consumer groups.").Action(cmd.run)
-	c.Flag("offsets", "Enables fetching offsets for each group.").
-		Short('o').
-		BoolVar(&cmd.includeOffsets)
 	c.Flag("members", "Enables fetching consumer group members.").
 		Short('m').
 		BoolVar(&cmd.includeMembers)
-	c.Flag("topic", "An optional regular expression to filter the topics by.").
+	c.Flag("topics", "The list of topics to retrieve the latest and the group offsets for.").
 		Short('t').
-		RegexpVar(&cmd.topicFilter)
+		StringsVar(&cmd.topics)
 	c.Flag("member-filter", "An optional regular expression to filter the member ID/Client/Host by.").
 		Short('f').
 		RegexpVar(&cmd.memberFilter)
@@ -77,15 +73,13 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *groups) listGroups(ctx context.Context, manager *kafka.Manager) error {
-	groups, err := manager.GetConsumerGroups(ctx, c.includeOffsets, c.includeMembers, c.topicFilter, c.memberFilter)
+	groups, err := manager.GetConsumerGroups(ctx, c.includeMembers, c.memberFilter, c.topics)
 	if err != nil {
 		return errors.Wrap(err, "Failed to list the brokers.")
 	}
 	for name, group := range groups {
 		fmt.Println(name)
-		if c.includeOffsets {
-			fmt.Printf("%+v\n", group.GroupOffsets)
-		}
+		fmt.Printf("%+v\n", group.GroupOffsets)
 	}
 	//if len(br) == 0 {
 	//	return errors.New("No broker found")

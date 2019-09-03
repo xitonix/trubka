@@ -112,7 +112,7 @@ func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeO
 	return result, nil
 }
 
-func (m *Manager) GetConsumerGroups(ctx context.Context, includeOffsets, includeMembers bool, topicFilter *regexp.Regexp, memberFilter *regexp.Regexp) (ConsumerGroups, error) {
+func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, memberFilter *regexp.Regexp, topics []string) (ConsumerGroups, error) {
 	result := make(ConsumerGroups)
 	select {
 	case <-ctx.Done():
@@ -160,17 +160,26 @@ func (m *Manager) GetConsumerGroups(ctx context.Context, includeOffsets, include
 			}
 		}
 
-		if includeOffsets {
-			topicOffsets, err := m.GetTopics(ctx, topicFilter, includeOffsets, "")
-			if err != nil {
-				return nil, err
-			}
+		if len(topics) > 0 {
 			totals := make(map[string]int64)
+			// TODO: Calculate Totals for each partition.
 			topicPartitions := make(map[string][]int32)
-			for topic, po := range topicOffsets {
-				partitions, totalOffset := po.getPartitions()
-				topicPartitions[topic] = partitions
-				totals[topic] = totalOffset
+			m.Log(internal.Verbose, "Retrieving topic partitions from the server")
+			for _, topic := range topics {
+				select {
+				case <-ctx.Done():
+					return result, nil
+				default:
+					if internal.IsEmpty(topic) {
+						continue
+					}
+					m.Logf(internal.VeryVerbose, "Retrieving the partition(s) of %s topic from the server", topic)
+					partitions, err := m.client.Partitions(topic)
+					if err != nil {
+						return nil, err
+					}
+					topicPartitions[topic] = partitions
+				}
 			}
 			for groupID, cg := range result {
 				select {
