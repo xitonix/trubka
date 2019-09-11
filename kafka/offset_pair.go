@@ -8,8 +8,11 @@ import (
 const unknownOffset int64 = -3
 const offsetNotFound int64 = -4
 
+// OffsetPair represents a pair of local/remote offset pairs for a given partition.
 type OffsetPair struct {
-	Local  int64
+	// Local locally stored offset.
+	Local int64
+	// Remote the latest partition offset fetched from Kafka.
 	Remote int64
 }
 
@@ -20,10 +23,12 @@ func newOffsetPair() OffsetPair {
 	}
 }
 
+// LocalString returns the string representation of the local offset.
 func (o OffsetPair) LocalString() string {
 	return getOffsetText(o.Local)
 }
 
+// RemoteString returns the string representation of the remote offset.
 func (o OffsetPair) RemoteString() string {
 	return getOffsetText(o.Remote)
 }
@@ -39,8 +44,10 @@ func getOffsetText(offset int64) string {
 	}
 }
 
+// PartitionsOffsetPair represents a map of partition offset pairs.
 type PartitionsOffsetPair map[int32]OffsetPair
 
+// SortedPartitions returns a list of sorted partitions.
 func (p PartitionsOffsetPair) SortedPartitions() []int {
 	sorted := make([]int, 0)
 	if len(p) == 0 {
@@ -53,8 +60,10 @@ func (p PartitionsOffsetPair) SortedPartitions() []int {
 	return sorted
 }
 
+// TopicPartitionOffsetPairs represents a map of topic offset pairs for all the partitions.
 type TopicPartitionOffsetPairs map[string]PartitionsOffsetPair
 
+// SortedTopics returns a list of sorted topics.
 func (t TopicPartitionOffsetPairs) SortedTopics() []string {
 	sorted := make([]string, 0)
 	if len(t) == 0 {

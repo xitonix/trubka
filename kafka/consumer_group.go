@@ -6,17 +6,25 @@ import (
 	"github.com/Shopify/sarama"
 )
 
+// GroupMember represents a consumer group member.
 type GroupMember struct {
-	ID         string
-	ClientID   string
-	ClientHost string
+	// ID the member identifier.
+	ID string
+	// ClientID client ID.
+	ClientID string
+	// Host the host name/IP of the client machine.
+	Host string
 }
 
+// GroupOffset represents a consumer group partition offset.
 type GroupOffset struct {
-	Latest  int64
+	// Latest the latest available offset of the partition.
+	Latest int64
+	// Current the current value of consumer group offset.
 	Current int64
 }
 
+// Lag returns the lag of the consumer group offset.
 func (g GroupOffset) Lag() int64 {
 	if g.Latest > g.Current {
 		return g.Latest - g.Current
@@ -24,9 +32,12 @@ func (g GroupOffset) Lag() int64 {
 	return 0
 }
 
+// ConsumerGroup represents a consumer group.
 type ConsumerGroup struct {
-	Members           []GroupMember
-	TopicGroupOffsets map[string]map[int32]GroupOffset
+	// Members the clients attached to the consumer groups.
+	Members []GroupMember
+	// TopicOffsets the offsets of each topic belong to the group.
+	TopicOffsets map[string]map[int32]GroupOffset
 }
 
 func (c *ConsumerGroup) addMembers(members map[string]*sarama.GroupMemberDescription, memberFilter *regexp.Regexp) {
@@ -38,12 +49,13 @@ func (c *ConsumerGroup) addMembers(members map[string]*sarama.GroupMemberDescrip
 			continue
 		}
 		member := GroupMember{
-			ID:         id,
-			ClientID:   m.ClientId,
-			ClientHost: m.ClientHost,
+			ID:       id,
+			ClientID: m.ClientId,
+			Host:     m.ClientHost,
 		}
 		c.Members = append(c.Members, member)
 	}
 }
 
+// ConsumerGroups the map of consumer groups.
 type ConsumerGroups map[string]*ConsumerGroup

@@ -112,7 +112,7 @@ func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeO
 	return result, nil
 }
 
-func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, memberFilter *regexp.Regexp, topics []string) (ConsumerGroups, error) {
+func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, memberFilter, groupFilter *regexp.Regexp, topics []string) (ConsumerGroups, error) {
 	result := make(ConsumerGroups)
 	select {
 	case <-ctx.Done():
@@ -136,11 +136,18 @@ func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, me
 			case <-ctx.Done():
 				return result, nil
 			default:
+				if groupFilter != nil && !groupFilter.Match([]byte(group)) {
+					continue
+				}
 				if includeMembers {
 					groupNames = append(groupNames, group)
 				}
 				result[group] = &ConsumerGroup{}
 			}
+		}
+
+		if len(result) == 0 {
+			return result, nil
 		}
 
 		if includeMembers {
@@ -179,43 +186,56 @@ func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, me
 					topicPartitions[topic] = partitions
 				}
 			}
-			for groupID, cg := range result {
-				select {
-				case <-ctx.Done():
-					return result, nil
-				default:
-					m.Logf(internal.VeryVerbose, "Retrieving the offsets for %s consumer group", groupID)
-					cgOffsets, err := admin.ListConsumerGroupOffsets(groupID, topicPartitions)
-					if err != nil {
-						return nil, errors.Wrap(err, "Failed to retrieve the consumer group offsets")
-					}
-					cg.TopicGroupOffsets = make(map[string]map[int32]GroupOffset)
-					for topic, blocks := range cgOffsets.Blocks {
-						for partition, block := range blocks {
-							if block.Offset < 0 {
-								continue
-							}
-							if _, ok := cg.TopicGroupOffsets[topic]; !ok {
-								// We add the topic, only if there is a group offset for one of its partitions
-								cg.TopicGroupOffsets[topic] = make(map[int32]GroupOffset)
-							}
-							m.Logf(internal.SuperVerbose, "Retrieving the latest offset of partition %d of %s topic from the server", partition, topic)
-							total, err := m.client.GetOffset(topic, partition, sarama.OffsetOldest)
-							if err != nil {
-								return nil, err
-							}
-							cg.TopicGroupOffsets[topic][partition] = GroupOffset{
-								Current: total,
-								Latest:  block.Offset,
-							}
-						}
-					}
-				}
+			err = m.setGroupOffsets(ctx, admin, result, topicPartitions)
+			if err != nil {
+				return nil, err
 			}
 		}
 
 		return result, nil
 	}
+}
+
+func (m *Manager) setGroupOffsets(ctx context.Context, admin sarama.ClusterAdmin, consumerGroups ConsumerGroups, topicPartitions map[string][]int32) error {
+	for groupID, group := range consumerGroups {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			m.Logf(internal.VeryVerbose, "Retrieving the offsets for %s consumer group", groupID)
+			cgOffsets, err := admin.ListConsumerGroupOffsets(groupID, topicPartitions)
+			if err != nil {
+				return errors.Wrap(err, "Failed to retrieve the consumer group offsets")
+			}
+			group.TopicOffsets = make(map[string]map[int32]GroupOffset)
+			for topic, blocks := range cgOffsets.Blocks {
+				for partition, block := range blocks {
+					select {
+					case <-ctx.Done():
+						return nil
+					default:
+						if block.Offset < 0 {
+							continue
+						}
+						if _, ok := group.TopicOffsets[topic]; !ok {
+							// We add the topic, only if there is a group offset for one of its partitions
+							group.TopicOffsets[topic] = make(map[int32]GroupOffset)
+						}
+						m.Logf(internal.SuperVerbose, "Retrieving the latest offset of partition %d of %s topic from the server", partition, topic)
+						total, err := m.client.GetOffset(topic, partition, sarama.OffsetOldest)
+						if err != nil {
+							return err
+						}
+						group.TopicOffsets[topic][partition] = GroupOffset{
+							Current: total,
+							Latest:  block.Offset,
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (m *Manager) getBrokerAddresses(ctx context.Context) []string {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"sort"
 	"strconv"
 	"syscall"
 
@@ -23,6 +24,7 @@ type groups struct {
 	kafkaParams    *kafkaParameters
 	includeMembers bool
 	memberFilter   *regexp.Regexp
+	groupFilter    *regexp.Regexp
 	topics         []string
 }
 
@@ -41,6 +43,9 @@ func addGroupsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, ka
 	c.Flag("member-filter", "An optional regular expression to filter the member ID/Client/Host by.").
 		Short('f').
 		RegexpVar(&cmd.memberFilter)
+	c.Flag("group-filter", "An optional regular expression to filter the groups by.").
+		Short('g').
+		RegexpVar(&cmd.groupFilter)
 }
 
 func (c *groups) run(_ *kingpin.ParseContext) error {
@@ -76,10 +81,20 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *groups) listGroups(ctx context.Context, manager *kafka.Manager) error {
-	groups, err := manager.GetConsumerGroups(ctx, c.includeMembers, c.memberFilter, c.topics)
+	groups, err := manager.GetConsumerGroups(ctx, c.includeMembers, c.memberFilter, c.groupFilter, c.topics)
 	if err != nil {
 		return errors.Wrap(err, "Failed to list the brokers.")
 	}
+
+	if len(groups) == 0 {
+		msg := "No consumer group has been found on the server."
+		if c.groupFilter != nil {
+			msg += fmt.Sprintf(" You might need to tweak the group filter (%s).", c.groupFilter.String())
+		}
+		fmt.Println(msg)
+		return nil
+	}
+
 	for name, group := range groups {
 		groupTable := tablewriter.NewWriter(os.Stdout)
 		groupTable.SetAutoWrapText(false)
@@ -92,13 +107,13 @@ func (c *groups) listGroups(ctx context.Context, manager *kafka.Manager) error {
 			table := tablewriter.NewWriter(&buff)
 			table.SetHeader([]string{"Name", "Client ID", "Host"})
 			for _, member := range group.Members {
-				table.Append([]string{member.ID, member.ClientID, member.ClientHost})
+				table.Append([]string{member.ID, member.ClientID, member.Host})
 			}
 			table.Render()
 			groupTable.Append([]string{buff.String()})
 		}
 
-		if len(group.TopicGroupOffsets) > 0 {
+		if len(group.TopicOffsets) > 0 {
 			buff := bytes.Buffer{}
 			buff.WriteString(fmt.Sprintf("\nGroup Offsets:\n"))
 			table := tablewriter.NewWriter(&buff)
@@ -109,8 +124,10 @@ func (c *groups) listGroups(ctx context.Context, manager *kafka.Manager) error {
 			table.SetColMinWidth(3, 20)
 			table.SetAlignment(tablewriter.ALIGN_CENTER)
 
-			for _, partitionOffsets := range group.TopicGroupOffsets {
-				for partition, offsets := range partitionOffsets {
+			for _, partitionOffsets := range group.TopicOffsets {
+				partitions := sortByPartitions(partitionOffsets)
+				for _, partition := range partitions {
+					offsets := partitionOffsets[int32(partition)]
 					latest := strconv.FormatInt(offsets.Latest, 10)
 					current := strconv.FormatInt(offsets.Current, 10)
 					part := strconv.FormatInt(int64(partition), 10)
@@ -129,4 +146,16 @@ func (c *groups) listGroups(ctx context.Context, manager *kafka.Manager) error {
 		groupTable.Render()
 	}
 	return nil
+}
+
+func sortByPartitions(p map[int32]kafka.GroupOffset) []int {
+	sorted := make([]int, 0)
+	if len(p) == 0 {
+		return sorted
+	}
+	for partition := range p {
+		sorted = append(sorted, int(partition))
+	}
+	sort.Ints(sorted)
+	return sorted
 }
