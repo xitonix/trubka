@@ -141,7 +141,7 @@ func (c *consume) run(_ *kingpin.ParseContext) error {
 			return errors.New("Which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i).")
 		}
 		if internal.IsEmpty(c.messageType) {
-			return errors.Errorf("What message type is stored in %s topic? Make sure you provide the fully qualified proto name as the second argument or switch to interactive mode (-i).", c.topic)
+			return errors.Errorf("Which message type is stored in %s topic? Make sure you provide the fully qualified proto name as the second argument or switch to interactive mode (-i).", c.topic)
 		}
 	}
 	logFile, writeLogToFile, err := c.getLogWriter()

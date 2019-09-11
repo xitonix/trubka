@@ -1,14 +1,17 @@
 package commands
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"os/signal"
 	"regexp"
+	"strconv"
 	"syscall"
 
 	"github.com/gookit/color"
+	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -78,33 +81,52 @@ func (c *groups) listGroups(ctx context.Context, manager *kafka.Manager) error {
 		return errors.Wrap(err, "Failed to list the brokers.")
 	}
 	for name, group := range groups {
-		fmt.Println(name)
-		fmt.Printf("%+v\n", group.GroupOffsets)
+		groupTable := tablewriter.NewWriter(os.Stdout)
+		groupTable.SetAutoWrapText(false)
+		groupTable.SetAutoFormatHeaders(false)
+		groupTable.SetHeader([]string{"Group Name: " + name})
+		groupTable.SetColMinWidth(0, 80)
+		if len(group.Members) > 0 {
+			buff := bytes.Buffer{}
+			buff.WriteString(fmt.Sprintf("\nMembers:\n"))
+			table := tablewriter.NewWriter(&buff)
+			table.SetHeader([]string{"Name", "Client ID", "Host"})
+			for _, member := range group.Members {
+				table.Append([]string{member.ID, member.ClientID, member.ClientHost})
+			}
+			table.Render()
+			groupTable.Append([]string{buff.String()})
+		}
+
+		if len(group.TopicGroupOffsets) > 0 {
+			buff := bytes.Buffer{}
+			buff.WriteString(fmt.Sprintf("\nGroup Offsets:\n"))
+			table := tablewriter.NewWriter(&buff)
+			table.SetHeader([]string{"Partition", "Latest", "Current", "Lag"})
+			table.SetColMinWidth(0, 20)
+			table.SetColMinWidth(1, 20)
+			table.SetColMinWidth(2, 20)
+			table.SetColMinWidth(3, 20)
+			table.SetAlignment(tablewriter.ALIGN_CENTER)
+
+			for _, partitionOffsets := range group.TopicGroupOffsets {
+				for partition, offsets := range partitionOffsets {
+					latest := strconv.FormatInt(offsets.Latest, 10)
+					current := strconv.FormatInt(offsets.Current, 10)
+					part := strconv.FormatInt(int64(partition), 10)
+					lag := offsets.Lag()
+					lagStr := "0"
+					if lag > 0 {
+						lagStr = color.Warn.Sprint(lag)
+					}
+					table.Append([]string{part, latest, current, lagStr})
+				}
+			}
+			table.Render()
+			groupTable.Append([]string{buff.String()})
+		}
+		groupTable.SetHeaderLine(false)
+		groupTable.Render()
 	}
-	//if len(br) == 0 {
-	//	return errors.New("No broker found")
-	//}
-	//table := tablewriter.NewWriter(os.Stdout)
-	//headers := []string{"ID", "Address"}
-	//if c.includeMetadata {
-	//	headers = append(headers, "Version", "Topic (No. of Partitions)")
-	//}
-	//table.SetHeader(headers)
-	//table.SetAlignment(tablewriter.ALIGN_LEFT)
-	//table.SetAutoWrapText(false)
-	//for _, broker := range br {
-	//	row := []string{strconv.Itoa(broker.ID), broker.Address}
-	//	if c.includeMetadata && len(broker.Meta.Topics) > 0 {
-	//		topics := make([]string, len(broker.Meta.Topics))
-	//		for i, topic := range broker.Meta.Topics {
-	//			topics[i] = fmt.Sprintf("%s (%d)", topic.Name, topic.NumberOdPartitions)
-	//		}
-	//		row = append(row,
-	//			strconv.Itoa(broker.Meta.Version),
-	//			strings.Join(topics, "\n"))
-	//	}
-	//	table.Append(row)
-	//}
-	//table.Render()
 	return nil
 }

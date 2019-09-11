@@ -25,8 +25,8 @@ func (g GroupOffset) Lag() int64 {
 }
 
 type ConsumerGroup struct {
-	Members      []GroupMember
-	GroupOffsets map[string]GroupOffset
+	Members           []GroupMember
+	TopicGroupOffsets map[string]map[int32]GroupOffset
 }
 
 func (c *ConsumerGroup) addMembers(members map[string]*sarama.GroupMemberDescription, memberFilter *regexp.Regexp) {
@@ -39,8 +39,8 @@ func (c *ConsumerGroup) addMembers(members map[string]*sarama.GroupMemberDescrip
 		}
 		member := GroupMember{
 			ID:         id,
-			ClientID:   m.ClientHost,
-			ClientHost: m.ClientId,
+			ClientID:   m.ClientId,
+			ClientHost: m.ClientHost,
 		}
 		c.Members = append(c.Members, member)
 	}

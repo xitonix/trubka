@@ -161,8 +161,6 @@ func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, me
 		}
 
 		if len(topics) > 0 {
-			totals := make(map[string]int64)
-			// TODO: Calculate Totals for each partition.
 			topicPartitions := make(map[string][]int32)
 			m.Log(internal.Verbose, "Retrieving topic partitions from the server")
 			for _, topic := range topics {
@@ -191,17 +189,25 @@ func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, me
 					if err != nil {
 						return nil, errors.Wrap(err, "Failed to retrieve the consumer group offsets")
 					}
-					cg.GroupOffsets = make(map[string]GroupOffset)
-					for t, pOffsets := range cgOffsets.Blocks {
-						var current int64
-						for _, grpOffset := range pOffsets {
-							if grpOffset.Offset > 0 {
-								current += grpOffset.Offset
+					cg.TopicGroupOffsets = make(map[string]map[int32]GroupOffset)
+					for topic, blocks := range cgOffsets.Blocks {
+						for partition, block := range blocks {
+							if block.Offset < 0 {
+								continue
 							}
-						}
-						cg.GroupOffsets[t] = GroupOffset{
-							Latest:  totals[t],
-							Current: current,
+							if _, ok := cg.TopicGroupOffsets[topic]; !ok {
+								// We add the topic, only if there is a group offset for one of its partitions
+								cg.TopicGroupOffsets[topic] = make(map[int32]GroupOffset)
+							}
+							m.Logf(internal.SuperVerbose, "Retrieving the latest offset of partition %d of %s topic from the server", partition, topic)
+							total, err := m.client.GetOffset(topic, partition, sarama.OffsetOldest)
+							if err != nil {
+								return nil, err
+							}
+							cg.TopicGroupOffsets[topic][partition] = GroupOffset{
+								Current: total,
+								Latest:  block.Offset,
+							}
 						}
 					}
 				}
