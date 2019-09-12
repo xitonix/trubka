@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
-	"sort"
 	"strconv"
 	"syscall"
 
@@ -26,6 +25,7 @@ type groups struct {
 	memberFilter   *regexp.Regexp
 	groupFilter    *regexp.Regexp
 	topics         []string
+	format         string
 }
 
 func addGroupsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
@@ -41,11 +41,15 @@ func addGroupsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, ka
 		Short('t').
 		StringsVar(&cmd.topics)
 	c.Flag("member-filter", "An optional regular expression to filter the member ID/Client/Host by.").
-		Short('f').
+		Short('r').
 		RegexpVar(&cmd.memberFilter)
 	c.Flag("group-filter", "An optional regular expression to filter the groups by.").
 		Short('g').
 		RegexpVar(&cmd.groupFilter)
+	c.Flag("format", "Sets the output format.").
+		Default(tableFormat).
+		Short('f').
+		EnumVar(&cmd.format, plainTextFormat, tableFormat)
 }
 
 func (c *groups) run(_ *kingpin.ParseContext) error {
@@ -95,6 +99,16 @@ func (c *groups) listGroups(ctx context.Context, manager *kafka.Manager) error {
 		return nil
 	}
 
+	switch c.format {
+	case plainTextFormat:
+		c.printPlainTextOutput(groups)
+	case tableFormat:
+		c.printTableOutput(groups)
+	}
+	return nil
+}
+
+func (*groups) printTableOutput(groups kafka.ConsumerGroups) {
 	for name, group := range groups {
 		groupTable := tablewriter.NewWriter(os.Stdout)
 		groupTable.SetAutoWrapText(false)
@@ -125,18 +139,13 @@ func (c *groups) listGroups(ctx context.Context, manager *kafka.Manager) error {
 			table.SetAlignment(tablewriter.ALIGN_CENTER)
 
 			for _, partitionOffsets := range group.TopicOffsets {
-				partitions := sortByPartitions(partitionOffsets)
+				partitions := partitionOffsets.SortPartitions()
 				for _, partition := range partitions {
 					offsets := partitionOffsets[int32(partition)]
 					latest := strconv.FormatInt(offsets.Latest, 10)
 					current := strconv.FormatInt(offsets.Current, 10)
 					part := strconv.FormatInt(int64(partition), 10)
-					lag := offsets.Lag()
-					lagStr := "0"
-					if lag > 0 {
-						lagStr = color.Warn.Sprint(lag)
-					}
-					table.Append([]string{part, latest, current, lagStr})
+					table.Append([]string{part, latest, current, highlightLag(offsets.Lag())})
 				}
 			}
 			table.Render()
@@ -145,17 +154,30 @@ func (c *groups) listGroups(ctx context.Context, manager *kafka.Manager) error {
 		groupTable.SetHeaderLine(false)
 		groupTable.Render()
 	}
-	return nil
 }
 
-func sortByPartitions(p map[int32]kafka.GroupOffset) []int {
-	sorted := make([]int, 0)
-	if len(p) == 0 {
-		return sorted
+func (*groups) printPlainTextOutput(groups kafka.ConsumerGroups) {
+	for name, group := range groups {
+		color.Bold.Print("Group Name: ")
+		fmt.Println(name)
+		if len(group.Members) > 0 {
+			color.Info.Println("\nMembers:\n")
+			for i, member := range group.Members {
+				fmt.Printf("  %2d: %s\n", i+1, member)
+			}
+			fmt.Println()
+		}
+
+		if len(group.TopicOffsets) > 0 {
+			color.Info.Println("\nGroup Offsets:\n")
+			for _, partitionOffsets := range group.TopicOffsets {
+				partitions := partitionOffsets.SortPartitions()
+				for _, partition := range partitions {
+					offsets := partitionOffsets[int32(partition)]
+					fmt.Printf("  Partition %2d: %d out of %d (Lag: %s) \n", partition, offsets.Current, offsets.Latest, highlightLag(offsets.Lag()))
+				}
+			}
+			fmt.Println()
+		}
 	}
-	for partition := range p {
-		sorted = append(sorted, int(partition))
-	}
-	sort.Ints(sorted)
-	return sorted
 }

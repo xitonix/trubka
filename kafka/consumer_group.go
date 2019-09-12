@@ -1,6 +1,7 @@
 package kafka
 
 import (
+	"fmt"
 	"regexp"
 
 	"github.com/Shopify/sarama"
@@ -16,20 +17,8 @@ type GroupMember struct {
 	Host string
 }
 
-// GroupOffset represents a consumer group partition offset.
-type GroupOffset struct {
-	// Latest the latest available offset of the partition.
-	Latest int64
-	// Current the current value of consumer group offset.
-	Current int64
-}
-
-// Lag returns the lag of the consumer group offset.
-func (g GroupOffset) Lag() int64 {
-	if g.Latest > g.Current {
-		return g.Latest - g.Current
-	}
-	return 0
+func (g GroupMember) String() string {
+	return fmt.Sprintf("%s/%s(%s)", g.ID, g.ClientID, g.Host)
 }
 
 // ConsumerGroup represents a consumer group.
@@ -37,7 +26,7 @@ type ConsumerGroup struct {
 	// Members the clients attached to the consumer groups.
 	Members []GroupMember
 	// TopicOffsets the offsets of each topic belong to the group.
-	TopicOffsets map[string]map[int32]GroupOffset
+	TopicOffsets TopicPartitionOffset
 }
 
 func (c *ConsumerGroup) addMembers(members map[string]*sarama.GroupMemberDescription, memberFilter *regexp.Regexp) {
@@ -57,5 +46,5 @@ func (c *ConsumerGroup) addMembers(members map[string]*sarama.GroupMemberDescrip
 	}
 }
 
-// ConsumerGroups the map of consumer groups.
+// ConsumerGroups the map of consumer groups keyed by consumer group ID.
 type ConsumerGroups map[string]*ConsumerGroup

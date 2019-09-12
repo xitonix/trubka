@@ -23,6 +23,7 @@ type topics struct {
 	filter         *regexp.Regexp
 	includeOffsets bool
 	environment    string
+	format         string
 }
 
 func addTopicsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
@@ -31,9 +32,13 @@ func addTopicsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, ka
 		globalParams: global,
 	}
 	c := parent.Command("topics", "Loads the existing topics from the server.").Action(cmd.run)
-	c.Flag("filter", "An optional regular expression to filter the topics by.").Short('f').RegexpVar(&cmd.filter)
+	c.Flag("topic-filter", "An optional regular expression to filter the topics by.").Short('t').RegexpVar(&cmd.filter)
 	c.Flag("partitions", "If enabled, the partition offset data will be retrieved too.").Short('p').BoolVar(&cmd.includeOffsets)
 	c.Flag("environment", "The environment to load the local offsets for (if any).").Short('e').StringVar(&cmd.environment)
+	c.Flag("format", "Sets the output format.").
+		Default(tableFormat).
+		Short('f').
+		EnumVar(&cmd.format, plainTextFormat, tableFormat)
 }
 
 func (c *topics) run(_ *kingpin.ParseContext) error {
@@ -72,12 +77,51 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
-	sortedTopics := topics.SortedTopics()
+	switch c.format {
+	case plainTextFormat:
+		c.printPlainTextOutput(topics)
+	case tableFormat:
+		c.printTableOutput(topics)
+	}
+	return nil
+}
+
+func (c *topics) printPlainTextOutput(tpo kafka.TopicPartitionOffset) {
+	sortedTopics := tpo.SortedTopics()
+	for _, topic := range sortedTopics {
+		color.Bold.Print("Topic: ")
+		fmt.Println(topic)
+		partitions := tpo[topic]
+		if !c.includeOffsets {
+			continue
+		}
+		keys := partitions.SortPartitions()
+		fmt.Println()
+		for _, partition := range keys {
+			offset := partitions[int32(partition)]
+			msg := fmt.Sprintf("  Partition %2d: ", partition)
+			if offset.Current >= 0 {
+				msg += fmt.Sprintf(" Local Offset %d out of %d", offset.Current, offset.Latest)
+				lag := offset.Lag()
+				if lag > 0 {
+					msg += fmt.Sprintf(" (Lag: %s)", highlightLag(lag))
+				}
+			} else {
+				msg += fmt.Sprintf("%d", offset.Latest)
+			}
+			fmt.Println(msg)
+		}
+		fmt.Println()
+	}
+}
+
+func (c *topics) printTableOutput(tpo kafka.TopicPartitionOffset) {
+	sortedTopics := tpo.SortedTopics()
 
 	table := tablewriter.NewWriter(os.Stdout)
 	headers := []string{"Topic"}
 	if c.includeOffsets {
-		headers = append(headers, "Partition", "Latest Offset", "Local Offset")
+		headers = append(headers, "Partition", "Latest Offset", "Local Offset", "Lag")
 	}
 	table.SetHeader(headers)
 	table.SetColumnAlignment([]int{
@@ -85,15 +129,16 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 		tablewriter.ALIGN_CENTER,
 		tablewriter.ALIGN_CENTER,
 		tablewriter.ALIGN_CENTER,
+		tablewriter.ALIGN_CENTER,
 	})
 	for _, topic := range sortedTopics {
-		partitions := topics[topic]
+		partitions := tpo[topic]
 		row := []string{topic}
 		if !c.includeOffsets {
 			table.Append(row)
 			continue
 		}
-		keys := partitions.SortedPartitions()
+		keys := partitions.SortPartitions()
 		rows := make([][]string, 0)
 		for i, partition := range keys {
 			firstCell := topic
@@ -101,15 +146,14 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 				firstCell = ""
 			}
 			op := partitions[int32(partition)]
-			local := op.LocalString()
-			if op.Local >= 0 && op.Local < op.Remote {
-				local = color.Warn.Sprint(local)
+			lagStr := "-"
+			if op.Current >= 0 {
+				lagStr = highlightLag(op.Lag())
 			}
-			rows = append(rows, []string{firstCell, strconv.Itoa(partition), op.RemoteString(), local})
+			rows = append(rows, []string{firstCell, strconv.Itoa(partition), op.String(true), op.String(false), lagStr})
 		}
 		table.AppendBulk(rows)
 
 	}
 	table.Render()
-	return nil
 }

@@ -34,7 +34,6 @@ type consume struct {
 	outputDir               string
 	environment             string
 	logFile                 string
-	theme                   string
 	topicFilter             *regexp.Regexp
 	protoFilter             *regexp.Regexp
 	searchQuery             *regexp.Regexp
@@ -117,9 +116,6 @@ func (c *consume) bindCommandFlags(command *kingpin.CmdClause) {
 	command.Flag("log-file", "The `file` to write the logs to. Set to 'none' to discard (Default: stdout).").
 		Short('l').
 		StringVar(&c.logFile)
-	command.Flag("terminal-mode", `Sets the color mode of your terminal to adjust colors and highlights. Set to none to disable colors.`).
-		Default(internal.DarkTheme).
-		EnumVar(&c.theme, internal.NoTheme, internal.DarkTheme, internal.LightTheme)
 
 	// Interactive mode flags
 	command.Flag("interactive", "Runs the consumer in interactive mode.").
@@ -148,12 +144,8 @@ func (c *consume) run(_ *kingpin.ParseContext) error {
 	if err != nil {
 		return err
 	}
-	theme := internal.ColorTheme{}
-	if !writeLogToFile && c.theme != internal.NoTheme {
-		c.setLogColors(&theme)
-	}
 
-	prn := internal.NewPrinter(c.globalParams.Verbosity, logFile, theme)
+	prn := internal.NewPrinter(c.globalParams.Verbosity, logFile)
 
 	loader, err := protobuf.NewFileLoader(c.protoRoot)
 	if err != nil {
@@ -229,7 +221,7 @@ func (c *consume) run(_ *kingpin.ParseContext) error {
 			marshaller := protobuf.NewMarshaller(c.format, c.includeTimestamp)
 			var searchColor color.Style
 			if !writeEventsToFile {
-				searchColor = c.getSearchColor()
+				searchColor = color.Warn.Style
 			}
 			var cancelled bool
 			for {
@@ -389,32 +381,6 @@ func (c *consume) getLogWriter() (io.Writer, bool, error) {
 			return nil, false, errors.Wrapf(err, "Failed to create: %s", c.logFile)
 		}
 		return lf, true, nil
-	}
-}
-
-func (c *consume) setLogColors(theme *internal.ColorTheme) {
-	switch c.theme {
-	case internal.DarkTheme:
-		theme.Error = color.New(color.LightRed)
-		theme.Info = color.New(color.LightGreen)
-		theme.Warning = color.New(color.LightYellow)
-	case internal.LightTheme:
-		theme.Error = color.New(color.FgRed)
-		theme.Info = color.New(color.FgGreen)
-		theme.Warning = color.New(color.FgYellow)
-	}
-}
-
-func (c *consume) getSearchColor() color.Style {
-	switch c.theme {
-	case internal.NoTheme:
-		return nil
-	case internal.DarkTheme:
-		return color.New(color.FgYellow, color.Bold)
-	case internal.LightTheme:
-		return color.New(color.FgBlue, color.Bold)
-	default:
-		return nil
 	}
 }
 

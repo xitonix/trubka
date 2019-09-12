@@ -64,7 +64,7 @@ func (c *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 				continue
 			}
 			partitionOffsets := topicOffsets[topic]
-			sortedPartitions := partitionOffsets.SortedPartitions()
+			sortedPartitions := partitionOffsets.SortPartitions()
 			for i, partition := range sortedPartitions {
 				firstCell := topic
 				if i > 0 {
@@ -73,7 +73,7 @@ func (c *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 				rows = append(rows, []string{
 					firstCell,
 					strconv.Itoa(partition),
-					strconv.FormatInt(partitionOffsets[int32(partition)], 10),
+					strconv.FormatInt(partitionOffsets[int32(partition)].Current, 10),
 				})
 			}
 		}

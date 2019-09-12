@@ -80,33 +80,35 @@ func (l *LocalOffsetManager) GetOffsetFiles(environment string, topicFilter *reg
 // ReadLocalTopicOffsets returns the locally stored offsets of the given topic for the specified environment if exists.
 //
 // If there is no local offsets, the method will return an empty partition-offset map.
-func (l *LocalOffsetManager) ReadLocalTopicOffsets(topic string, environment string) (PartitionOffsets, error) {
+func (l *LocalOffsetManager) ReadLocalTopicOffsets(topic string, environment string) (PartitionOffset, error) {
 	file, err := l.setDBPath(topic, environment)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(PartitionOffsets)
+	stored := make(map[int32]int64)
 	l.Logf(internal.VeryVerbose, "Reading the local offsets of %s topic from %s", topic, l.db.BasePath)
 	val, err := l.db.Read(file)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return result, nil
+			return PartitionOffset{}, nil
 		}
 		return nil, err
 	}
 
 	buff := bytes.NewBuffer(val)
 	dec := gob.NewDecoder(buff)
-	err = dec.Decode(&result)
+	err = dec.Decode(&stored)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to deserialize the value from local offset store for topic %s", topic)
 	}
 
-	return result, nil
+	return ToPartitionOffset(stored, false), nil
 }
 
 // ListLocalOffsets lists the locally stored offsets for the the topics of all the available environments.
+//
+// The returned map is keyed by the environment name.
 func (l *LocalOffsetManager) ListLocalOffsets(topicFilter *regexp.Regexp, envFilter *regexp.Regexp) (map[string]TopicPartitionOffset, error) {
 	result := make(map[string]TopicPartitionOffset)
 	root := configdir.LocalConfig(localOffsetRoot)

@@ -53,14 +53,14 @@ func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...
 }
 
 // GetTopics loads a list of the available topics from the server.
-func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeOffsets bool, environment string) (TopicPartitionOffsetPairs, error) {
+func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeOffsets bool, environment string) (TopicPartitionOffset, error) {
 	m.Log(internal.Verbose, "Retrieving topic list from the server")
 	topics, err := m.client.Topics()
-	result := make(TopicPartitionOffsetPairs)
 	if err != nil {
 		return nil, err
 	}
 
+	result := make(TopicPartitionOffset)
 	queryLocal := !internal.IsEmpty(environment)
 	for _, topic := range topics {
 		m.Logf(internal.SuperVerbose, "Topic %s has been found on the server", topic)
@@ -72,7 +72,7 @@ func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeO
 				m.Logf(internal.SuperVerbose, "Filtering out %s topic", topic)
 				continue
 			}
-			result[topic] = make(PartitionsOffsetPair)
+			result[topic] = make(PartitionOffset)
 			if !includeOffsets {
 				continue
 			}
@@ -81,7 +81,7 @@ func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeO
 			if err != nil {
 				return nil, err
 			}
-			local := make(PartitionOffsets)
+			local := make(PartitionOffset)
 
 			if queryLocal {
 				m.Logf(internal.VeryVerbose, "Reading local offsets of %s topic", topic)
@@ -91,21 +91,26 @@ func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeO
 				}
 			}
 			for _, partition := range partitions {
-				op := newOffsetPair()
-				m.Logf(internal.SuperVerbose, "Reading the latest offset of partition %d for %s topic from the server", partition, topic)
-				offset, err := m.client.GetOffset(topic, partition, sarama.OffsetNewest)
-				if err != nil {
-					return nil, err
+				select {
+				case <-ctx.Done():
+					return result, nil
+				default:
+					offset := newOffset()
+					m.Logf(internal.SuperVerbose, "Reading the latest offset of partition %d for %s topic from the server", partition, topic)
+					latestOffset, err := m.client.GetOffset(topic, partition, sarama.OffsetNewest)
+					if err != nil {
+						return nil, err
+					}
+					offset.Latest = latestOffset
+					lo, ok := local[partition]
+					if !ok && queryLocal {
+						offset.Current = offsetNotFound
+					}
+					if ok && lo.Current >= 0 {
+						offset.Current = lo.Current
+					}
+					result[topic][partition] = offset
 				}
-				op.Remote = offset
-				lo, ok := local[partition]
-				if !ok && queryLocal {
-					op.Local = offsetNotFound
-				}
-				if ok && lo >= 0 {
-					op.Local = lo
-				}
-				result[topic][partition] = op
 			}
 		}
 	}
@@ -207,7 +212,7 @@ func (m *Manager) setGroupOffsets(ctx context.Context, admin sarama.ClusterAdmin
 			if err != nil {
 				return errors.Wrap(err, "Failed to retrieve the consumer group offsets")
 			}
-			group.TopicOffsets = make(map[string]map[int32]GroupOffset)
+			group.TopicOffsets = make(TopicPartitionOffset)
 			for topic, blocks := range cgOffsets.Blocks {
 				for partition, block := range blocks {
 					select {
@@ -219,14 +224,14 @@ func (m *Manager) setGroupOffsets(ctx context.Context, admin sarama.ClusterAdmin
 						}
 						if _, ok := group.TopicOffsets[topic]; !ok {
 							// We add the topic, only if there is a group offset for one of its partitions
-							group.TopicOffsets[topic] = make(map[int32]GroupOffset)
+							group.TopicOffsets[topic] = make(PartitionOffset)
 						}
 						m.Logf(internal.SuperVerbose, "Retrieving the latest offset of partition %d of %s topic from the server", partition, topic)
 						total, err := m.client.GetOffset(topic, partition, sarama.OffsetOldest)
 						if err != nil {
 							return err
 						}
-						group.TopicOffsets[topic][partition] = GroupOffset{
+						group.TopicOffsets[topic][partition] = Offset{
 							Current: total,
 							Latest:  block.Offset,
 						}

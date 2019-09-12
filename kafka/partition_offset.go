@@ -8,18 +8,31 @@ import (
 	"strings"
 )
 
-// PartitionOffsets represents a map of partitions and offsets
-type PartitionOffsets map[int32]int64
+// PartitionOffset represents a map of partition offset pairs.
+type PartitionOffset map[int32]Offset
+
+// SortPartitions returns a list of sorted partitions.
+func (p PartitionOffset) SortPartitions() []int {
+	sorted := make([]int, 0)
+	if len(p) == 0 {
+		return sorted
+	}
+	for partition := range p {
+		sorted = append(sorted, int(partition))
+	}
+	sort.Ints(sorted)
+	return sorted
+}
 
 // serialises the offset map and returns the bytes as well as the checksum string of the current values.
-func (p PartitionOffsets) marshal() (string, []byte, error) {
+func (p PartitionOffset) marshal() (string, []byte, error) {
 	if len(p) == 0 {
 		return "", []byte{}, nil
 	}
-	toWrite := make(PartitionOffsets)
+	toWrite := make(map[int32]int64)
 	for pt, of := range p {
-		if of >= 0 {
-			toWrite[pt] = of
+		if of.Current >= 0 {
+			toWrite[pt] = of.Current
 		}
 	}
 	if len(toWrite) == 0 {
@@ -34,42 +47,33 @@ func (p PartitionOffsets) marshal() (string, []byte, error) {
 	return strings.Replace(fmt.Sprintf("%v", toWrite), "map", "", 1), buff.Bytes(), nil
 }
 
-func (p PartitionOffsets) SortedPartitions() []int {
-	sorted := make([]int, 0)
-	if len(p) == 0 {
-		return sorted
-	}
-	for partition := range p {
-		sorted = append(sorted, int(partition))
-	}
-	sort.Ints(sorted)
-	return sorted
-}
-
-type TopicPartitionOffset map[string]PartitionOffsets
-
-func (t TopicPartitionOffset) SortedTopics() []string {
-	sorted := make([]string, 0)
-	if len(t) == 0 {
-		return sorted
-	}
-	for topic := range t {
-		sorted = append(sorted, topic)
-	}
-	sort.Strings(sorted)
-	return sorted
-}
-
-func (p PartitionOffsets) copyTo(dest PartitionOffsets) {
+func (p PartitionOffset) copyTo(dest PartitionOffset) {
 	if len(p) == 0 {
 		return
 	}
 	if dest == nil {
-		dest = make(PartitionOffsets)
+		dest = make(PartitionOffset)
 	}
 	for partition, offset := range p {
-		if offset >= 0 {
+		if offset.Current >= 0 {
 			dest[partition] = offset
 		}
 	}
+}
+
+// ToPartitionOffset creates a new PartitionOffset map from a raw map.
+//
+// Set latest parameter to true, if you would like to set the Latest offset value instead of the Current value.
+func ToPartitionOffset(po map[int32]int64, latest bool) PartitionOffset {
+	result := make(PartitionOffset)
+	for partition, offset := range po {
+		off := Offset{}
+		if latest {
+			off.Latest = offset
+		} else {
+			off.Current = offset
+		}
+		result[partition] = off
+	}
+	return result
 }
