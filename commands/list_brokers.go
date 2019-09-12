@@ -1,9 +1,9 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -19,6 +19,9 @@ type listBrokers struct {
 	globalParams    *GlobalParameters
 	kafkaParams     *kafkaParameters
 	includeMetadata bool
+	topicFilter     *regexp.Regexp
+
+	format string
 }
 
 func addListBrokersSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
@@ -27,11 +30,14 @@ func addListBrokersSubCommand(parent *kingpin.CmdClause, global *GlobalParameter
 		kafkaParams:  kafkaParams,
 	}
 	c := parent.Command("list", "Lists the brokers in the Kafka cluster.").Action(cmd.run)
-	c.Flag("metadata", "Enables fetching metadata for each broker.").Short('m').BoolVar(&cmd.includeMetadata)
+	c.Flag("meta", "Enables fetching metadata for each broker.").Short('m').BoolVar(&cmd.includeMetadata)
+	c.Flag("topic-filter", "An optional regular expression to filter the topics by (valid with --meta only)").
+		Short('t').
+		RegexpVar(&cmd.topicFilter)
+	addFormatFlag(c, &cmd.format)
 }
 
 func (c *listBrokers) run(_ *kingpin.ParseContext) error {
-	//TODO: Add plain text output format
 	manager, ctx, cancel, err := initKafkaManager(c.globalParams, c.kafkaParams)
 
 	if err != nil {
@@ -43,17 +49,26 @@ func (c *listBrokers) run(_ *kingpin.ParseContext) error {
 		cancel()
 	}()
 
-	return c.listBrokers(ctx, manager)
-}
-
-func (c *listBrokers) listBrokers(ctx context.Context, manager *kafka.Manager) error {
-	br, err := manager.GetBrokers(ctx, c.includeMetadata)
+	brokers, err := manager.GetBrokers(ctx, c.includeMetadata)
 	if err != nil {
 		return errors.Wrap(err, "Failed to list the brokers.")
 	}
-	if len(br) == 0 {
+
+	if len(brokers) == 0 {
 		return errors.New("No broker found")
 	}
+
+	switch c.format {
+	case plainTextFormat:
+		c.printPlainTextOutput(brokers)
+	case tableFormat:
+		c.printTableOutput(brokers)
+	}
+	return nil
+}
+
+func (c *listBrokers) printTableOutput(brokers []kafka.Broker) {
+
 	table := tablewriter.NewWriter(os.Stdout)
 	headers := []string{"ID", "Address"}
 	if c.includeMetadata {
@@ -62,19 +77,49 @@ func (c *listBrokers) listBrokers(ctx context.Context, manager *kafka.Manager) e
 	table.SetHeader(headers)
 	table.SetAlignment(tablewriter.ALIGN_LEFT)
 	table.SetAutoWrapText(false)
-	for _, broker := range br {
+	for _, broker := range brokers {
 		row := []string{strconv.Itoa(broker.ID), broker.Address}
 		if c.includeMetadata && len(broker.Meta.Topics) > 0 {
-			topics := make([]string, len(broker.Meta.Topics))
-			for i, topic := range broker.Meta.Topics {
-				topics[i] = fmt.Sprintf("%s (%d)", topic.Name, topic.NumberOdPartitions)
+			topics := make([]string, 0)
+			for _, topic := range broker.Meta.Topics {
+				if c.topicFilter != nil && !c.topicFilter.Match([]byte(topic.Name)) {
+					continue
+				}
+				topics = append(topics, fmt.Sprintf("%s (%d)", topic.Name, topic.NumberOdPartitions))
 			}
-			row = append(row,
-				strconv.Itoa(broker.Meta.Version),
-				strings.Join(topics, "\n"))
+			if len(topics) > 0 {
+				row = append(row,
+					strconv.Itoa(broker.Meta.Version),
+					strings.Join(topics, "\n"))
+			} else {
+				row = append(row,
+					strconv.Itoa(broker.Meta.Version),
+					getNotFoundMessage("topic", "topic", c.topicFilter))
+			}
 		}
 		table.Append(row)
 	}
 	table.Render()
-	return nil
+}
+
+func (c *listBrokers) printPlainTextOutput(brokers []kafka.Broker) {
+	for _, broker := range brokers {
+		fmt.Printf("%s: %s\n", bold("Broker"), broker.String())
+		if c.includeMetadata && len(broker.Meta.Topics) > 0 {
+			topics := make([]string, 0)
+			for _, topic := range broker.Meta.Topics {
+				if c.topicFilter != nil && !c.topicFilter.Match([]byte(topic.Name)) {
+					continue
+				}
+				topics = append(topics, fmt.Sprintf("  %s (%d)", topic.Name, topic.NumberOdPartitions))
+			}
+			if len(topics) > 0 {
+				fmt.Printf("%s\n\n", green("TOPICS (No. of Partitions)"))
+				fmt.Println(strings.Join(topics, "\n"))
+			} else {
+				fmt.Println(getNotFoundMessage("topic", "topic", c.topicFilter))
+			}
+			fmt.Println()
+		}
+	}
 }

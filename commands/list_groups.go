@@ -43,10 +43,7 @@ func addListGroupsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters
 	c.Flag("group-filter", "An optional regular expression to filter the groups by.").
 		Short('g').
 		RegexpVar(&cmd.groupFilter)
-	c.Flag("format", "Sets the output format.").
-		Default(tableFormat).
-		Short('f').
-		EnumVar(&cmd.format, plainTextFormat, tableFormat)
+	addFormatFlag(c, &cmd.format)
 }
 
 func (c *listGroups) run(_ *kingpin.ParseContext) error {

@@ -31,10 +31,7 @@ func addListTopicsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters
 	c.Flag("topic-filter", "An optional regular expression to filter the topics by.").Short('t').RegexpVar(&cmd.topicFilter)
 	c.Flag("partitions", "If enabled, the partition offset data will be retrieved too.").Short('p').BoolVar(&cmd.includeOffsets)
 	c.Flag("environment", "The environment to load the local offsets for (if any).").Short('e').StringVar(&cmd.environment)
-	c.Flag("format", "Sets the output format.").
-		Default(tableFormat).
-		Short('f').
-		EnumVar(&cmd.format, plainTextFormat, tableFormat)
+	addFormatFlag(c, &cmd.format)
 }
 
 func (c *listTopics) run(_ *kingpin.ParseContext) error {

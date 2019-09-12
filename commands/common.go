@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/gookit/color"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/kafka"
 )
@@ -63,4 +64,11 @@ func getNotFoundMessage(entity, filterName string, ex *regexp.Regexp) string {
 		msg += fmt.Sprintf(" You might need to tweak the %s filter (%s).", filterName, ex.String())
 	}
 	return msg
+}
+
+func addFormatFlag(c *kingpin.CmdClause, format *string) {
+	c.Flag("format", "Sets the output format.").
+		Default(tableFormat).
+		Short('f').
+		EnumVar(format, plainTextFormat, tableFormat)
 }
