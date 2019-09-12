@@ -42,9 +42,14 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 
 	sarama.Logger = log.New(ops.logWriter, "KAFKA Client: ", log.LstdFlags)
 
-	client, consumer, err := initClient(brokers, ops)
+	client, err := initClient(brokers, ops)
 	if err != nil {
 		return nil, err
+	}
+
+	consumer, err := sarama.NewConsumerFromClient(client)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to initialise the Kafka consumer")
 	}
 
 	store, err := newOffsetStore(printer, environment)
@@ -66,17 +71,9 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 }
 
 // GetTopics fetches the topics from the server.
-func (c *Consumer) GetTopics(filter string) ([]string, error) {
+func (c *Consumer) GetTopics(search *regexp.Regexp) ([]string, error) {
 	if c.remoteTopics != nil {
 		return c.remoteTopics, nil
-	}
-	var search *regexp.Regexp
-	if !internal.IsEmpty(filter) {
-		s, err := regexp.Compile(filter)
-		if err != nil {
-			return nil, errors.Wrap(err, "Invalid topic filter regular expression")
-		}
-		search = s
 	}
 
 	topics, err := c.internalConsumer.Topics()
@@ -154,7 +151,7 @@ func (c *Consumer) Close() {
 	})
 }
 
-func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets map[string]PartitionOffsets) {
+func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets TopicPartitionOffset) {
 	cn, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var cancelled bool
@@ -178,7 +175,7 @@ func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets map[
 				default:
 					err := c.consumePartition(cn, topic, partition, offset)
 					if err != nil {
-						c.printer.Errorf(internal.Forced, "Failed to start consuming from %s offset of topic %s, partition %d: %s", getOffsetString(offset), topic, partition, err)
+						c.printer.Errorf(internal.Forced, "Failed to start consuming from %s offset of topic %s, partition %d: %s", getOffsetString(offset.Current), topic, partition, err)
 						cancel()
 						cancelled = true
 					}
@@ -190,13 +187,13 @@ func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets map[
 	c.Close()
 }
 
-func (c *Consumer) consumePartition(ctx context.Context, topic string, partition int32, offset int64) error {
+func (c *Consumer) consumePartition(ctx context.Context, topic string, partition int32, offset Offset) error {
 	select {
 	case <-ctx.Done():
 		return nil
 	default:
-		c.printer.Logf(internal.VeryVerbose, "Start consuming from partition %d of topic %s (offset: %v).", partition, topic, getOffsetString(offset))
-		pc, err := c.internalConsumer.ConsumePartition(topic, partition, offset)
+		c.printer.Logf(internal.VeryVerbose, "Start consuming from partition %d of topic %s (offset: %v).", partition, topic, getOffsetString(offset.Current))
+		pc, err := c.internalConsumer.ConsumePartition(topic, partition, offset.Current)
 		if err != nil {
 			return errors.Wrapf(err, "Failed to start consuming partition %d of topic %s", partition, topic)
 		}
@@ -239,12 +236,12 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 	}
 }
 
-func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (map[string]PartitionOffsets, error) {
+func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (TopicPartitionOffset, error) {
 	existing := make(map[string]interface{})
 	if !c.enableAutoTopicCreation {
 		// We need to check if the requested topic(s) exist on the server
 		// That's why we need to get the list of the existing topics from the brokers.
-		remote, err := c.GetTopics("")
+		remote, err := c.GetTopics(nil)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Failed to fetch the topic list from the broker(s)")
 		}
@@ -253,8 +250,9 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (map[stri
 		}
 	}
 
-	topicPartitionOffsets := make(map[string]PartitionOffsets)
+	topicPartitionOffsets := make(TopicPartitionOffset)
 
+	localOffsetManager := NewLocalOffsetManager(c.printer.Level())
 	for topic, cp := range topics {
 		if !c.enableAutoTopicCreation {
 			if _, ok := existing[topic]; !ok {
@@ -262,7 +260,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (map[stri
 			}
 		}
 		c.printer.Logf(internal.SuperVerbose, "Fetching partitions for topic %s.", topic)
-		offsets, err := c.store.Query(topic)
+		offsets, err := localOffsetManager.ReadLocalTopicOffsets(topic, c.environment)
 		if err != nil {
 			return nil, err
 		}
@@ -310,7 +308,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (map[stri
 					break
 				}
 				if storedOffset, ok := offsets[partition]; ok {
-					offset = storedOffset
+					offset = storedOffset.Current
 				}
 			}
 			c.printer.Logf(internal.SuperVerbose,
@@ -318,28 +316,17 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (map[stri
 				partition,
 				getOffsetString(offset),
 				topic)
-			offsets[partition] = offset
+			offsets[partition] = Offset{Current: offset}
 		}
 		topicPartitionOffsets[topic] = offsets
 	}
 	return topicPartitionOffsets, nil
 }
 
-func getOffsetString(offset int64) interface{} {
-	switch offset {
-	case sarama.OffsetOldest:
-		return "oldest"
-	case sarama.OffsetNewest:
-		return "newest"
-	default:
-		return offset
-	}
-}
-
-func initClient(brokers []string, ops *Options) (sarama.Client, sarama.Consumer, error) {
+func initClient(brokers []string, ops *Options) (sarama.Client, error) {
 	version, err := sarama.ParseKafkaVersion(ops.ClusterVersion)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	config := sarama.NewConfig()
 	config.Version = version
@@ -361,13 +348,19 @@ func initClient(brokers []string, ops *Options) (sarama.Client, sarama.Consumer,
 
 	client, err := sarama.NewClient(brokers, config)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to initialise the Kafka client")
+		return nil, errors.Wrap(err, "failed to initialise the Kafka client")
 	}
 
-	consumer, err := sarama.NewConsumerFromClient(client)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to initialise the Kafka consumer")
-	}
+	return client, nil
+}
 
-	return client, consumer, nil
+func getOffsetString(offset int64) interface{} {
+	switch offset {
+	case sarama.OffsetOldest:
+		return "oldest"
+	case sarama.OffsetNewest:
+		return "newest"
+	default:
+		return offset
+	}
 }
