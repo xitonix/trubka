@@ -1,10 +1,16 @@
 package commands
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
 	"regexp"
+	"syscall"
 
 	"github.com/gookit/color"
+
+	"github.com/xitonix/trubka/kafka"
 )
 
 const (
@@ -17,6 +23,32 @@ var (
 	green  = color.Info.Render
 	bold   = color.Bold.Render
 )
+
+func initKafkaManager(globalParams *GlobalParameters, kafkaParams *kafkaParameters) (*kafka.Manager, context.Context, context.CancelFunc, error) {
+	manager, err := kafka.NewManager(kafkaParams.brokers,
+		globalParams.Verbosity,
+		kafka.WithClusterVersion(kafkaParams.version),
+		kafka.WithTLS(kafkaParams.tls),
+		kafka.WithClusterVersion(kafkaParams.version),
+		kafka.WithSASL(kafkaParams.saslMechanism,
+			kafkaParams.saslUsername,
+			kafkaParams.saslPassword))
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		signals := make(chan os.Signal, 1)
+		signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
+		<-signals
+		cancel()
+	}()
+
+	return manager, ctx, cancel, nil
+}
 
 func highlightLag(input int64) string {
 	if input > 0 {

@@ -1,12 +1,8 @@
 package commands
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"os/signal"
 	"regexp"
-	"syscall"
 
 	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -45,52 +41,37 @@ func addDeleteTopicSubCommand(parent *kingpin.CmdClause, global *GlobalParameter
 }
 
 func (c *deleteTopic) run(_ *kingpin.ParseContext) error {
-	manager, err := kafka.NewManager(c.kafkaParams.brokers,
-		c.globalParams.Verbosity,
-		kafka.WithClusterVersion(c.kafkaParams.version),
-		kafka.WithTLS(c.kafkaParams.tls),
-		kafka.WithClusterVersion(c.kafkaParams.version),
-		kafka.WithSASL(c.kafkaParams.saslMechanism,
-			c.kafkaParams.saslUsername,
-			c.kafkaParams.saslPassword))
+	manager, ctx, cancel, err := initKafkaManager(c.globalParams, c.kafkaParams)
 
 	if err != nil {
 		return err
 	}
 
-	defer manager.Close()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go func() {
-		signals := make(chan os.Signal, 1)
-		signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
-		<-signals
+	defer func() {
+		manager.Close()
 		cancel()
 	}()
 
-	if c.interactive {
-		topics, err := manager.GetTopics(ctx, c.topicFilter, false, "")
-		if err != nil {
-			return err
-		}
-
-		if len(topics) == 0 {
-			fmt.Println(getNotFoundMessage("topic", "topic", c.topicFilter))
-			return nil
-		}
-
-		names := topics.SortedTopics()
-		index := pickAnIndex("Choose a topic to delete", "topic", names)
-		if index < 0 {
-			return nil
-		}
-		toRemove := names[index]
-		return c.delete(manager, toRemove)
+	if !c.interactive {
+		return c.delete(manager, c.topic)
+	}
+	topics, err := manager.GetTopics(ctx, c.topicFilter, false, "")
+	if err != nil {
+		return err
 	}
 
-	return c.delete(manager, c.topic)
+	if len(topics) == 0 {
+		fmt.Println(getNotFoundMessage("topic", "topic", c.topicFilter))
+		return nil
+	}
+
+	names := topics.SortedTopics()
+	index := pickAnIndex("Choose a topic to delete", "topic", names)
+	if index < 0 {
+		return nil
+	}
+	toRemove := names[index]
+	return c.delete(manager, toRemove)
 }
 
 func (c *deleteTopic) delete(manager *kafka.Manager, topic string) error {

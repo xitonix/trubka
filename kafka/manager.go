@@ -288,6 +288,7 @@ func (m *Manager) GetBrokers(ctx context.Context, includeMetadata bool) ([]Broke
 
 // Close closes the underlying Kafka connection.
 func (m *Manager) Close() {
+	m.Logf(internal.Verbose, "Closing kafka manager.")
 	err := m.admin.Close()
 	if err != nil {
 		m.Logf(internal.Forced, "Failed to close the cluster admin: %s", err)
@@ -296,7 +297,9 @@ func (m *Manager) Close() {
 	err = m.client.Close()
 	if err != nil {
 		m.Logf(internal.Forced, "Failed to close Kafka client: %s", err)
+		return
 	}
+	m.Logf(internal.Verbose, "Kafka manager has been closed successfully.")
 }
 
 func (m *Manager) getMetadata(broker *sarama.Broker) (*BrokerMetadata, error) {

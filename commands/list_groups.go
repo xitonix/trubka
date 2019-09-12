@@ -5,10 +5,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
 	"regexp"
 	"strconv"
-	"syscall"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
@@ -52,28 +50,14 @@ func addListGroupsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters
 }
 
 func (c *listGroups) run(_ *kingpin.ParseContext) error {
-	manager, err := kafka.NewManager(c.kafkaParams.brokers,
-		c.globalParams.Verbosity,
-		kafka.WithClusterVersion(c.kafkaParams.version),
-		kafka.WithTLS(c.kafkaParams.tls),
-		kafka.WithClusterVersion(c.kafkaParams.version),
-		kafka.WithSASL(c.kafkaParams.saslMechanism,
-			c.kafkaParams.saslUsername,
-			c.kafkaParams.saslPassword))
+	manager, ctx, cancel, err := initKafkaManager(c.globalParams, c.kafkaParams)
 
 	if err != nil {
 		return err
 	}
 
-	defer manager.Close()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go func() {
-		signals := make(chan os.Signal, 1)
-		signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
-		<-signals
+	defer func() {
+		manager.Close()
 		cancel()
 	}()
 

@@ -1,13 +1,9 @@
 package commands
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"os/signal"
 	"regexp"
 	"sort"
-	"syscall"
 
 	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -46,53 +42,38 @@ func addDeleteGroupSubCommand(parent *kingpin.CmdClause, global *GlobalParameter
 }
 
 func (c *deleteGroup) run(_ *kingpin.ParseContext) error {
-	manager, err := kafka.NewManager(c.kafkaParams.brokers,
-		c.globalParams.Verbosity,
-		kafka.WithClusterVersion(c.kafkaParams.version),
-		kafka.WithTLS(c.kafkaParams.tls),
-		kafka.WithClusterVersion(c.kafkaParams.version),
-		kafka.WithSASL(c.kafkaParams.saslMechanism,
-			c.kafkaParams.saslUsername,
-			c.kafkaParams.saslPassword))
+	manager, ctx, cancel, err := initKafkaManager(c.globalParams, c.kafkaParams)
 
 	if err != nil {
 		return err
 	}
 
-	defer manager.Close()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go func() {
-		signals := make(chan os.Signal, 1)
-		signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
-		<-signals
+	defer func() {
 		cancel()
+		manager.Close()
 	}()
 
-	if c.interactive {
-		groups, err := manager.GetConsumerGroups(ctx, false, nil, c.groupFilter, nil)
-		if err != nil {
-			return err
-		}
-
-		if len(groups) == 0 {
-			fmt.Println(getNotFoundMessage("consumer group", "group", c.groupFilter))
-			return nil
-		}
-
-		names := groups.Names()
-		sort.Strings(names)
-		index := pickAnIndex("Choose a consumer group ID to delete", "group", names)
-		if index < 0 {
-			return nil
-		}
-		toRemove := names[index]
-		return c.delete(manager, toRemove)
+	if !c.interactive {
+		return c.delete(manager, c.group)
+	}
+	groups, err := manager.GetConsumerGroups(ctx, false, nil, c.groupFilter, nil)
+	if err != nil {
+		return err
 	}
 
-	return c.delete(manager, c.group)
+	if len(groups) == 0 {
+		fmt.Println(getNotFoundMessage("consumer group", "group", c.groupFilter))
+		return nil
+	}
+
+	names := groups.Names()
+	sort.Strings(names)
+	index := pickAnIndex("Choose a consumer group ID to delete", "group", names)
+	if index < 0 {
+		return nil
+	}
+	toRemove := names[index]
+	return c.delete(manager, toRemove)
 }
 
 func (c *deleteGroup) delete(manager *kafka.Manager, group string) error {
