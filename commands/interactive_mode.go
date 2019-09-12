@@ -1,9 +1,10 @@
-package main
+package commands
 
 import (
 	"bufio"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,7 +13,7 @@ import (
 	"github.com/xitonix/trubka/protobuf"
 )
 
-func readUserData(consumer *kafka.Consumer, loader protobuf.Loader, topicFilter string, typeFilter string, cp *kafka.Checkpoint) (map[string]*kafka.Checkpoint, map[string]string, error) {
+func readUserData(consumer *kafka.Consumer, loader protobuf.Loader, topicFilter, typeFilter *regexp.Regexp, cp *kafka.Checkpoint) (map[string]*kafka.Checkpoint, map[string]string, error) {
 	remoteTopic, err := consumer.GetTopics(topicFilter)
 	if err != nil {
 		return nil, nil, err
@@ -61,7 +62,7 @@ func readUserData(consumer *kafka.Consumer, loader protobuf.Loader, topicFilter 
 // pickAnIndex returns the index of one of the items within the list
 func pickAnIndex(message, entryName string, input []string) int {
 	if len(input) == 0 {
-		fmt.Printf("No %ss found. You may need to tweak the %[1]s filter.\n", entryName)
+		fmt.Printf("No %s has been found. You may need to tweak the %[1]s filter.\n", entryName)
 		return -1
 	}
 	for i, t := range input {

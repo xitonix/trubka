@@ -1,9 +1,6 @@
 package kafka
 
 import (
-	"bytes"
-	"encoding/gob"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -35,7 +32,7 @@ func newOffsetStore(printer internal.Printer, environment string) (*offsetStore,
 	if len(environment) == 0 {
 		return nil, errors.New("empty environment value is not acceptable")
 	}
-	root := configdir.LocalConfig("trubka", environment)
+	root := configdir.LocalConfig(localOffsetRoot, environment)
 	err := configdir.MakePath(root)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create the application cache folder")
@@ -59,12 +56,12 @@ func newOffsetStore(printer internal.Printer, environment string) (*offsetStore,
 	}, nil
 }
 
-func (s *offsetStore) start(loaded map[string]PartitionOffsets) {
+func (s *offsetStore) start(loaded TopicPartitionOffset) {
 	s.wg.Add(1)
 	ticker := time.NewTicker(3 * time.Second)
-	offsets := make(map[string]PartitionOffsets)
+	offsets := make(TopicPartitionOffset)
 	for t, lpo := range loaded {
-		partOffsets := make(PartitionOffsets)
+		partOffsets := make(PartitionOffset)
 		lpo.copyTo(partOffsets)
 		offsets[t] = partOffsets
 	}
@@ -83,9 +80,9 @@ func (s *offsetStore) start(loaded map[string]PartitionOffsets) {
 				}
 				_, ok := offsets[p.topic]
 				if !ok {
-					offsets[p.topic] = make(PartitionOffsets)
+					offsets[p.topic] = make(PartitionOffset)
 				}
-				offsets[p.topic][p.partition] = p.offset
+				offsets[p.topic][p.partition] = Offset{Current: p.offset}
 			}
 		}
 	}()
@@ -99,26 +96,6 @@ func (s *offsetStore) Store(topic string, partition int32, offset int64) error {
 		offset:    offset,
 	}
 	return nil
-}
-
-// Query loads the offsets of all the available partitions from the local disk.
-func (s *offsetStore) Query(topic string) (PartitionOffsets, error) {
-	offsets := make(PartitionOffsets)
-	val, err := s.db.Read(topic)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return offsets, nil
-		}
-		return nil, err
-	}
-
-	buff := bytes.NewBuffer(val)
-	dec := gob.NewDecoder(buff)
-	err = dec.Decode(&offsets)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to deserialize the value from local offset store for topic %s", topic)
-	}
-	return offsets, nil
 }
 
 // Returns the channel on which the write errors will be received.
@@ -138,9 +115,9 @@ func (s *offsetStore) close() {
 	s.printer.Info(internal.SuperVerbose, "The offset store has been closed successfully.")
 }
 
-func (s *offsetStore) writeOffsetsToDisk(offsets map[string]PartitionOffsets) {
-	for topic, offsets := range offsets {
-		cs, buff, err := offsets.marshal()
+func (s *offsetStore) writeOffsetsToDisk(topicPartitionOffsets TopicPartitionOffset) {
+	for topic, partitionOffsets := range topicPartitionOffsets {
+		cs, buff, err := partitionOffsets.marshal()
 		if err != nil {
 			s.writeErrors <- errors.Wrapf(err, "Failed to serialise the offsets of topic %s", topic)
 			return
@@ -153,12 +130,12 @@ func (s *offsetStore) writeOffsetsToDisk(offsets map[string]PartitionOffsets) {
 		}
 		s.checksum[cs] = nil
 		s.printer.Infof(internal.SuperVerbose, "Writing the offset(s) of topic %s to the disk.", topic)
-		for p, o := range offsets {
-			if o >= 0 {
-				s.printer.Logf(internal.Chatty, " P%02d: %d", p, o)
+		for p, offset := range partitionOffsets {
+			if offset.Current >= 0 {
+				s.printer.Logf(internal.Chatty, " P%02d: %d", p, offset.Current)
 			}
 		}
-		err = s.db.Write(topic, buff)
+		err = s.db.Write(topic+offsetFileExtension, buff)
 		if err != nil {
 			s.writeErrors <- errors.Wrapf(err, "Failed to write the offsets of topic %s to the disk %s", topic, cs)
 		}

@@ -17,3 +17,10 @@ func FormatTime(t time.Time) string {
 func FormatTimeUTC(t time.Time) string {
 	return FormatTime(t) + " UTC"
 }
+
+func BoolToString(in bool) string {
+	if in {
+		return "Yes"
+	}
+	return "No"
+}

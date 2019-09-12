@@ -10,15 +10,13 @@ import (
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/pkg/errors"
-
-	"github.com/xitonix/trubka/internal"
 )
 
 // Loader the interface to load and list the protocol buffer message types.
 type Loader interface {
 	Load(messageName string) error
 	Get(messageName string) (*dynamic.Message, error)
-	List(filter string) ([]string, error)
+	List(filter *regexp.Regexp) ([]string, error)
 }
 
 const protoExtension = ".proto"
@@ -130,15 +128,7 @@ func (f *FileLoader) Get(messageName string) (*dynamic.Message, error) {
 }
 
 // List returns a list of all the protocol buffer messages exist in the path.
-func (f *FileLoader) List(filter string) ([]string, error) {
-	var search *regexp.Regexp
-	if !internal.IsEmpty(filter) {
-		s, err := regexp.Compile(filter)
-		if err != nil {
-			return nil, errors.Wrap(err, "invalid type filter regular expression")
-		}
-		search = s
-	}
+func (f *FileLoader) List(search *regexp.Regexp) ([]string, error) {
 	result := make([]string, 0)
 	for _, fd := range f.files {
 		messages := fd.GetMessageTypes()
