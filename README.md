@@ -28,8 +28,7 @@ Download the pre-built binaries for the platform of your choice from the [releas
 ## Usage
 
 ```bash
-trubka --proto-root /protocol_buffers_dir --brokers localhost:9092 \
---topic TopicA --proto MessageA
+trubka consume TopicA MessageA --proto-root /protocol_buffers_dir --brokers localhost:9092
 ```
 
 
@@ -39,13 +38,13 @@ trubka --proto-root /protocol_buffers_dir --brokers localhost:9092 \
 Trubka can also be executed in interactive mode using the `-i` flag. Interactive mode walks you though the steps of picking topic(s) and proto message type(s) from provided lists of exising topics, fetched from the server, and a list of protocol buffer messages, living in the  `--proto-root` directory. If you have too many topics on the server, the list can be narrowed down using `--topic-filter` flag. The message type list could also be filtered using `—type-filter` flag.
 
 ```bash
-trubka --proto-root /protocol_buffers_dir --brokers localhost:9092 \ 
---topic-filter Notifications --type-filter EmailSent -i
+trubka consume --proto-root /protocol_buffers_dir --brokers localhost:9092 \ 
+--topic-filter Notifications --proto-filter EmailSent -i
 ```
 
 ##### Note
 
-`topic-filter` and `type-filter` flags are regular expressions.
+`topic-filter` and `proto-filter` flags are regular expressions.
 
 ### Searching Messages
 
@@ -58,8 +57,8 @@ Trubka supports the following SASL authentication mechanisms:
 - SCRAM-SHA-512
 
 ```bash
-trubka --proto-root /protocol_buffers_dir --brokers localhost:9092 \ 
---topic TopicA --proto MessageA --sasl-mechanism scram-sha-512 \
+trubka consume TopicA MessageA --proto-root /protocol_buffers_dir --brokers localhost:9092 \
+--sasl-mechanism scram-sha-512 \
 --sasl-username username --sasl-password password
 ```
 
@@ -68,7 +67,15 @@ trubka --proto-root /protocol_buffers_dir --brokers localhost:9092 \
 Trubka also supports TLS:
 
 ```bash
-trubka --proto-root /protocol_buffers_dir --brokers localhost:9092 \ 
---topic TopicA --proto MessageA --tls --ca-cert ~/certs/kafka.pem
+trubka consume TopicA MessageA --proto-root /protocol_buffers_dir --brokers localhost:9092 \ 
+--tls --ca-cert ~/certs/kafka.pem
 ```
 To enable mutual authentication, you need to provide `--client-key` and `--client-cert` files.
+
+# Environment Variables
+
+It is possible to ask trubka to read the cli flags from the system environment variables. The flags must be in `TRUBKA_FLAG_NAME` format. For example the value of `--proto-root` parameter can be read from `TRUBKA_PROTO_ROOT` if it's provided.
+
+**NOTE**
+
+Providing the same cli flag when running trubka will override its environment variable counterpart. That means  `--proto-root=/tmp/protos` will override `TRUBKA_PROTO_ROOT=/dev/contracts` and trubka will run with `/tmp/protos` as proto root. 
