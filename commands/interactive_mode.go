@@ -62,7 +62,7 @@ func readUserData(consumer *kafka.Consumer, loader protobuf.Loader, topicFilter,
 // pickAnIndex returns the index of one of the items within the list
 func pickAnIndex(message, entryName string, input []string) int {
 	if len(input) == 0 {
-		fmt.Printf("No %ss found. You may need to tweak the %[1]s filter.\n", entryName)
+		fmt.Printf("No %s has been found. You may need to tweak the %[1]s filter.\n", entryName)
 		return -1
 	}
 	for i, t := range input {

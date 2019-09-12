@@ -17,7 +17,9 @@ func newApplication() error {
 
 	commands.AddVersionCommand(app, version)
 	commands.AddConsumeCommand(app, global)
-	commands.AddQueryCommand(app, global)
+	commands.AddBrokerCommand(app, global)
+	commands.AddTopicCommand(app, global)
+	commands.AddGroupCommand(app, global)
 	commands.AddLocalOffsetCommand(app, global)
 	_, err := app.Parse(os.Args[1:])
 	return err

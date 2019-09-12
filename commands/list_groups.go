@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/gookit/color"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -18,7 +17,7 @@ import (
 	"github.com/xitonix/trubka/kafka"
 )
 
-type groups struct {
+type listGroups struct {
 	globalParams   *GlobalParameters
 	kafkaParams    *kafkaParameters
 	includeMembers bool
@@ -28,12 +27,12 @@ type groups struct {
 	format         string
 }
 
-func addGroupsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
-	cmd := &groups{
+func addListGroupsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
+	cmd := &listGroups{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
 	}
-	c := parent.Command("groups", "Lists the consumer groups.").Action(cmd.run)
+	c := parent.Command("list", "Lists the consumer groups.").Action(cmd.run)
 	c.Flag("members", "Enables fetching consumer group members.").
 		Short('m').
 		BoolVar(&cmd.includeMembers)
@@ -52,7 +51,7 @@ func addGroupsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, ka
 		EnumVar(&cmd.format, plainTextFormat, tableFormat)
 }
 
-func (c *groups) run(_ *kingpin.ParseContext) error {
+func (c *listGroups) run(_ *kingpin.ParseContext) error {
 	manager, err := kafka.NewManager(c.kafkaParams.brokers,
 		c.globalParams.Verbosity,
 		kafka.WithClusterVersion(c.kafkaParams.version),
@@ -66,11 +65,8 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	defer func() {
-		if err := manager.Close(); err != nil {
-			color.Error.Printf("Failed to close the Kafka client: %s", err)
-		}
-	}()
+	defer manager.Close()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -84,18 +80,14 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 	return c.listGroups(ctx, manager)
 }
 
-func (c *groups) listGroups(ctx context.Context, manager *kafka.Manager) error {
+func (c *listGroups) listGroups(ctx context.Context, manager *kafka.Manager) error {
 	groups, err := manager.GetConsumerGroups(ctx, c.includeMembers, c.memberFilter, c.groupFilter, c.topics)
 	if err != nil {
 		return errors.Wrap(err, "Failed to list the brokers.")
 	}
 
 	if len(groups) == 0 {
-		msg := "No consumer group has been found on the server."
-		if c.groupFilter != nil {
-			msg += fmt.Sprintf(" You might need to tweak the group filter (%s).", c.groupFilter.String())
-		}
-		fmt.Println(msg)
+		fmt.Println(getNotFoundMessage("consumer group", "group", c.groupFilter))
 		return nil
 	}
 
@@ -108,12 +100,12 @@ func (c *groups) listGroups(ctx context.Context, manager *kafka.Manager) error {
 	return nil
 }
 
-func (*groups) printTableOutput(groups kafka.ConsumerGroups) {
+func (*listGroups) printTableOutput(groups kafka.ConsumerGroups) {
 	for name, group := range groups {
 		groupTable := tablewriter.NewWriter(os.Stdout)
 		groupTable.SetAutoWrapText(false)
 		groupTable.SetAutoFormatHeaders(false)
-		groupTable.SetHeader([]string{"Group Name: " + name})
+		groupTable.SetHeader([]string{"Group: " + name})
 		groupTable.SetColMinWidth(0, 80)
 		if len(group.Members) > 0 {
 			buff := bytes.Buffer{}
@@ -156,12 +148,11 @@ func (*groups) printTableOutput(groups kafka.ConsumerGroups) {
 	}
 }
 
-func (*groups) printPlainTextOutput(groups kafka.ConsumerGroups) {
+func (*listGroups) printPlainTextOutput(groups kafka.ConsumerGroups) {
 	for name, group := range groups {
-		color.Bold.Print("Group Name: ")
-		fmt.Println(name)
+		fmt.Printf("%s: %s\n", bold("Group"), name)
 		if len(group.Members) > 0 {
-			color.Info.Println("\nMembers:\n")
+			fmt.Printf("\n%s\n\n", green("Members:"))
 			for i, member := range group.Members {
 				fmt.Printf("  %2d: %s\n", i+1, member)
 			}
@@ -169,7 +160,7 @@ func (*groups) printPlainTextOutput(groups kafka.ConsumerGroups) {
 		}
 
 		if len(group.TopicOffsets) > 0 {
-			color.Info.Println("\nGroup Offsets:\n")
+			fmt.Printf("\n%s\n\n", green("Partition Offsets:"))
 			for _, partitionOffsets := range group.TopicOffsets {
 				partitions := partitionOffsets.SortPartitions()
 				for _, partition := range partitions {

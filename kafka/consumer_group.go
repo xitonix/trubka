@@ -48,3 +48,14 @@ func (c *ConsumerGroup) addMembers(members map[string]*sarama.GroupMemberDescrip
 
 // ConsumerGroups the map of consumer groups keyed by consumer group ID.
 type ConsumerGroups map[string]*ConsumerGroup
+
+// Names returns the names of the consumer groups
+func (c ConsumerGroups) Names() []string {
+	names := make([]string, len(c))
+	i := 0
+	for name := range c {
+		names[i] = name
+		i++
+	}
+	return names
+}

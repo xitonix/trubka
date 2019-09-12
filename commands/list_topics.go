@@ -9,30 +9,29 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/gookit/color"
 	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/kafka"
 )
 
-type topics struct {
+type listTopics struct {
 	kafkaParams  *kafkaParameters
 	globalParams *GlobalParameters
 
-	filter         *regexp.Regexp
+	topicFilter    *regexp.Regexp
 	includeOffsets bool
 	environment    string
 	format         string
 }
 
-func addTopicsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
-	cmd := &topics{
+func addListTopicsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
+	cmd := &listTopics{
 		kafkaParams:  kafkaParams,
 		globalParams: global,
 	}
-	c := parent.Command("topics", "Loads the existing topics from the server.").Action(cmd.run)
-	c.Flag("topic-filter", "An optional regular expression to filter the topics by.").Short('t').RegexpVar(&cmd.filter)
+	c := parent.Command("list", "Loads the existing topics from the server.").Action(cmd.run)
+	c.Flag("topic-filter", "An optional regular expression to filter the topics by.").Short('t').RegexpVar(&cmd.topicFilter)
 	c.Flag("partitions", "If enabled, the partition offset data will be retrieved too.").Short('p').BoolVar(&cmd.includeOffsets)
 	c.Flag("environment", "The environment to load the local offsets for (if any).").Short('e').StringVar(&cmd.environment)
 	c.Flag("format", "Sets the output format.").
@@ -41,7 +40,7 @@ func addTopicsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, ka
 		EnumVar(&cmd.format, plainTextFormat, tableFormat)
 }
 
-func (c *topics) run(_ *kingpin.ParseContext) error {
+func (c *listTopics) run(_ *kingpin.ParseContext) error {
 	manager, err := kafka.NewManager(c.kafkaParams.brokers,
 		c.globalParams.Verbosity,
 		kafka.WithClusterVersion(c.kafkaParams.version),
@@ -52,11 +51,8 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	defer func() {
-		if err := manager.Close(); err != nil {
-			color.Error.Printf("Failed to close the Kafka client: %s", err)
-		}
-	}()
+	defer manager.Close()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -67,13 +63,13 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 		cancel()
 	}()
 
-	topics, err := manager.GetTopics(ctx, c.filter, c.includeOffsets, c.environment)
+	topics, err := manager.GetTopics(ctx, c.topicFilter, c.includeOffsets, c.environment)
 	if err != nil {
 		return err
 	}
 
 	if len(topics) == 0 {
-		fmt.Println("No topics found!")
+		fmt.Println(getNotFoundMessage("topic", "topic", c.topicFilter))
 		return nil
 	}
 
@@ -86,11 +82,10 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *topics) printPlainTextOutput(tpo kafka.TopicPartitionOffset) {
+func (c *listTopics) printPlainTextOutput(tpo kafka.TopicPartitionOffset) {
 	sortedTopics := tpo.SortedTopics()
 	for _, topic := range sortedTopics {
-		color.Bold.Print("Topic: ")
-		fmt.Println(topic)
+		fmt.Printf("%s: %s\n", bold("Topic"), topic)
 		partitions := tpo[topic]
 		if !c.includeOffsets {
 			continue
@@ -115,7 +110,7 @@ func (c *topics) printPlainTextOutput(tpo kafka.TopicPartitionOffset) {
 	}
 }
 
-func (c *topics) printTableOutput(tpo kafka.TopicPartitionOffset) {
+func (c *listTopics) printTableOutput(tpo kafka.TopicPartitionOffset) {
 	sortedTopics := tpo.SortedTopics()
 
 	table := tablewriter.NewWriter(os.Stdout)

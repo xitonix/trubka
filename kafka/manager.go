@@ -18,7 +18,9 @@ import (
 type Manager struct {
 	config       *Options
 	client       sarama.Client
+	admin        sarama.ClusterAdmin
 	localOffsets *LocalOffsetManager
+	servers      []*sarama.Broker
 	*internal.Logger
 }
 
@@ -44,11 +46,24 @@ func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...
 		return nil, err
 	}
 
+	servers := client.Brokers()
+	addresses := make([]string, len(servers))
+	for i, broker := range servers {
+		addresses[i] = broker.Addr()
+	}
+
+	admin, err := sarama.NewClusterAdmin(addresses, client.Config())
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to create a new cluster administrator.")
+	}
+
 	return &Manager{
 		config:       ops,
 		client:       client,
 		Logger:       internal.NewLogger(verbosity),
 		localOffsets: NewLocalOffsetManager(verbosity),
+		admin:        admin,
+		servers:      servers,
 	}, nil
 }
 
@@ -117,24 +132,26 @@ func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeO
 	return result, nil
 }
 
+func (m *Manager) DeleteConsumerGroup(group string) error {
+	return m.admin.DeleteConsumerGroup(group)
+}
+
+func (m *Manager) DeleteTopic(topic string) error {
+	return m.admin.DeleteTopic(topic)
+}
+
 func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, memberFilter, groupFilter *regexp.Regexp, topics []string) (ConsumerGroups, error) {
 	result := make(ConsumerGroups)
 	select {
 	case <-ctx.Done():
 		return result, nil
 	default:
-		addresses := m.getBrokerAddresses(ctx)
-		admin, err := sarama.NewClusterAdmin(addresses, m.client.Config())
-		if err != nil {
-			return nil, errors.Wrap(err, "Failed to create a new cluster administrator.")
-		}
 
 		m.Log(internal.Verbose, "Retrieving consumer groups from the server")
-		groups, err := admin.ListConsumerGroups()
+		groups, err := m.admin.ListConsumerGroups()
 		if err != nil {
 			return nil, errors.Wrap(err, "Failed to fetch the consumer groups from the server.")
 		}
-
 		groupNames := make([]string, 0)
 		for group := range groups {
 			select {
@@ -157,7 +174,7 @@ func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, me
 
 		if includeMembers {
 			m.Log(internal.Verbose, "Retrieving consumer group members from the server")
-			groupsMeta, err := admin.DescribeConsumerGroups(groupNames)
+			groupsMeta, err := m.admin.DescribeConsumerGroups(groupNames)
 			if err != nil {
 				return nil, errors.Wrap(err, "Failed to retrieve the group members from the server")
 			}
@@ -191,7 +208,7 @@ func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, me
 					topicPartitions[topic] = partitions
 				}
 			}
-			err = m.setGroupOffsets(ctx, admin, result, topicPartitions)
+			err = m.setGroupOffsets(ctx, result, topicPartitions)
 			if err != nil {
 				return nil, err
 			}
@@ -201,14 +218,14 @@ func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, me
 	}
 }
 
-func (m *Manager) setGroupOffsets(ctx context.Context, admin sarama.ClusterAdmin, consumerGroups ConsumerGroups, topicPartitions map[string][]int32) error {
+func (m *Manager) setGroupOffsets(ctx context.Context, consumerGroups ConsumerGroups, topicPartitions map[string][]int32) error {
 	for groupID, group := range consumerGroups {
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
 			m.Logf(internal.VeryVerbose, "Retrieving the offsets for %s consumer group", groupID)
-			cgOffsets, err := admin.ListConsumerGroupOffsets(groupID, topicPartitions)
+			cgOffsets, err := m.admin.ListConsumerGroupOffsets(groupID, topicPartitions)
 			if err != nil {
 				return errors.Wrap(err, "Failed to retrieve the consumer group offsets")
 			}
@@ -243,27 +260,11 @@ func (m *Manager) setGroupOffsets(ctx context.Context, admin sarama.ClusterAdmin
 	return nil
 }
 
-func (m *Manager) getBrokerAddresses(ctx context.Context) []string {
-	m.Log(internal.Verbose, "Retrieving broker list from the server")
-	brokers := m.client.Brokers()
-	addresses := make([]string, len(brokers))
-	for i, broker := range brokers {
-		select {
-		case <-ctx.Done():
-			return addresses
-		default:
-			addresses[i] = broker.Addr()
-		}
-	}
-	return addresses
-}
-
 // GetBrokers returns the current set of active brokers as retrieved from cluster metadata.
 func (m *Manager) GetBrokers(ctx context.Context, includeMetadata bool) ([]Broker, error) {
 	m.Log(internal.Verbose, "Retrieving broker list from the server")
-	brokers := m.client.Brokers()
 	result := make([]Broker, 0)
-	for _, broker := range brokers {
+	for _, broker := range m.servers {
 		select {
 		case <-ctx.Done():
 			return result, nil
@@ -286,8 +287,16 @@ func (m *Manager) GetBrokers(ctx context.Context, includeMetadata bool) ([]Broke
 }
 
 // Close closes the underlying Kafka connection.
-func (m *Manager) Close() error {
-	return m.client.Close()
+func (m *Manager) Close() {
+	err := m.admin.Close()
+	if err != nil {
+		m.Logf(internal.Forced, "Failed to close the cluster admin: %s", err)
+	}
+
+	err = m.client.Close()
+	if err != nil {
+		m.Logf(internal.Forced, "Failed to close Kafka client: %s", err)
+	}
 }
 
 func (m *Manager) getMetadata(broker *sarama.Broker) (*BrokerMetadata, error) {

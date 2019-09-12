@@ -9,7 +9,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/gookit/color"
 	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -18,22 +17,22 @@ import (
 	"github.com/xitonix/trubka/kafka"
 )
 
-type brokers struct {
+type listBrokers struct {
 	globalParams    *GlobalParameters
 	kafkaParams     *kafkaParameters
 	includeMetadata bool
 }
 
-func addBrokersSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
-	cmd := &brokers{
+func addListBrokersSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
+	cmd := &listBrokers{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
 	}
-	c := parent.Command("brokers", "Lists the brokers in the Kafka cluster.").Action(cmd.run)
+	c := parent.Command("list", "Lists the brokers in the Kafka cluster.").Action(cmd.run)
 	c.Flag("metadata", "Enables fetching metadata for each broker.").Short('m').BoolVar(&cmd.includeMetadata)
 }
 
-func (c *brokers) run(_ *kingpin.ParseContext) error {
+func (c *listBrokers) run(_ *kingpin.ParseContext) error {
 	manager, err := kafka.NewManager(c.kafkaParams.brokers,
 		c.globalParams.Verbosity,
 		kafka.WithClusterVersion(c.kafkaParams.version),
@@ -47,11 +46,8 @@ func (c *brokers) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	defer func() {
-		if err := manager.Close(); err != nil {
-			color.Error.Printf("Failed to close the Kafka client: %s", err)
-		}
-	}()
+	defer manager.Close()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -65,7 +61,7 @@ func (c *brokers) run(_ *kingpin.ParseContext) error {
 	return c.listBrokers(ctx, manager)
 }
 
-func (c *brokers) listBrokers(ctx context.Context, manager *kafka.Manager) error {
+func (c *listBrokers) listBrokers(ctx context.Context, manager *kafka.Manager) error {
 	br, err := manager.GetBrokers(ctx, c.includeMetadata)
 	if err != nil {
 		return errors.Wrap(err, "Failed to list the brokers.")
