@@ -35,7 +35,7 @@ trubka consume TopicA MessageA --proto-root /protocol_buffers_dir --brokers loca
 
 ### Interactive mode
 
-Trubka can also be executed in interactive mode using the `-i` flag. Interactive mode walks you though the steps of picking topic(s) and proto message type(s) from provided lists of exising topics, fetched from the server, and a list of protocol buffer messages, living in the  `--proto-root` directory. If you have too many topics on the server, the list can be narrowed down using `--topic-filter` flag. The message type list could also be filtered using `—type-filter` flag.
+Trubka can also be executed in interactive mode using the `-i` flag. Interactive mode walks you though the steps of picking topic(s) and proto message type(s) from provided lists of existing topics, fetched from the server, and a list of protocol buffer messages, living in the  `--proto-root` directory. If you have too many topics on the server, the list can be narrowed down using `--topic-filter` flag. The message type list could also be filtered using `—proto-filter` flag.
 
 ```bash
 trubka consume --proto-root /protocol_buffers_dir --brokers localhost:9092 \ 
@@ -48,7 +48,7 @@ trubka consume --proto-root /protocol_buffers_dir --brokers localhost:9092 \
 
 ### Searching Messages
 
-You can optionally define a regular expression using the `-q` flag to filter the messages consumed from Kafka. It's simply a string match on the string representation of the deserialised message content.
+You can optionally define a regular expression using the `-q` flag to filter the messages consumed from Kafka. It's simply a string match on the string representation of the de-serialised message content.
 
 # SASL Authentication
 Trubka supports the following SASL authentication mechanisms:
@@ -75,6 +75,8 @@ To enable mutual authentication, you need to provide `--client-key` and `--clien
 # Environment Variables
 
 It is possible to ask trubka to read the cli flags from the system environment variables. The flags must be in `TRUBKA_FLAG_NAME` format. For example the value of `--proto-root` parameter can be read from `TRUBKA_PROTO_ROOT` if it's provided.
+
+Using environment variables is very useful in a multi-environment workspace.
 
 **NOTE**
 
