@@ -7,7 +7,9 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 
+	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -21,7 +23,7 @@ type listGroups struct {
 	includeMembers bool
 	memberFilter   *regexp.Regexp
 	groupFilter    *regexp.Regexp
-	topics         []string
+	topics         string
 	format         string
 }
 
@@ -34,9 +36,9 @@ func addListGroupsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters
 	c.Flag("members", "Enables fetching consumer group members.").
 		Short('m').
 		BoolVar(&cmd.includeMembers)
-	c.Flag("topics", "The list of topics to retrieve the latest and the group offsets for.").
+	c.Flag("topics", "Comma separate list of the topics to retrieve the latest and the group offsets for.").
 		Short('t').
-		StringsVar(&cmd.topics)
+		StringVar(&cmd.topics)
 	c.Flag("member-filter", "An optional regular expression to filter the member ID/Client/Host by.").
 		Short('r').
 		RegexpVar(&cmd.memberFilter)
@@ -62,7 +64,8 @@ func (c *listGroups) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *listGroups) listGroups(ctx context.Context, manager *kafka.Manager) error {
-	groups, err := manager.GetConsumerGroups(ctx, c.includeMembers, c.memberFilter, c.groupFilter, c.topics)
+	topics := strings.Split(c.topics, ",")
+	groups, err := manager.GetConsumerGroups(ctx, c.includeMembers, c.memberFilter, c.groupFilter, topics)
 	if err != nil {
 		return errors.Wrap(err, "Failed to list the brokers.")
 	}
@@ -92,37 +95,36 @@ func (*listGroups) printTableOutput(groups kafka.ConsumerGroups) {
 			buff := bytes.Buffer{}
 			buff.WriteString(fmt.Sprintf("\nMembers:\n"))
 			table := tablewriter.NewWriter(&buff)
-			table.SetHeader([]string{"Name", "Client ID", "Host"})
-			for _, member := range group.Members {
-				table.Append([]string{member.ID, member.ClientID, member.Host})
+			table.SetHeader([]string{"", "ID", "Host"})
+			for i, member := range group.Members {
+				table.Append([]string{strconv.Itoa(i + 1), member.ID, member.Host})
 			}
 			table.Render()
 			groupTable.Append([]string{buff.String()})
 		}
 
 		if len(group.TopicOffsets) > 0 {
-			buff := bytes.Buffer{}
-			buff.WriteString(fmt.Sprintf("\nGroup Offsets:\n"))
-			table := tablewriter.NewWriter(&buff)
-			table.SetHeader([]string{"Partition", "Latest", "Current", "Lag"})
-			table.SetColMinWidth(0, 20)
-			table.SetColMinWidth(1, 20)
-			table.SetColMinWidth(2, 20)
-			table.SetColMinWidth(3, 20)
-			table.SetAlignment(tablewriter.ALIGN_CENTER)
-
-			for _, partitionOffsets := range group.TopicOffsets {
+			for topic, partitionOffsets := range group.TopicOffsets {
+				buff := bytes.Buffer{}
+				buff.WriteString(fmt.Sprintf("\nTopic: %s\n", topic))
+				table := tablewriter.NewWriter(&buff)
+				table.SetHeader([]string{"Partition", "Latest", "Current", "Lag"})
+				table.SetColMinWidth(0, 20)
+				table.SetColMinWidth(1, 20)
+				table.SetColMinWidth(2, 20)
+				table.SetColMinWidth(3, 20)
+				table.SetAlignment(tablewriter.ALIGN_CENTER)
 				partitions := partitionOffsets.SortPartitions()
 				for _, partition := range partitions {
 					offsets := partitionOffsets[int32(partition)]
-					latest := strconv.FormatInt(offsets.Latest, 10)
-					current := strconv.FormatInt(offsets.Current, 10)
+					latest := humanize.Comma(offsets.Latest)
+					current := humanize.Comma(offsets.Current)
 					part := strconv.FormatInt(int64(partition), 10)
 					table.Append([]string{part, latest, current, highlightLag(offsets.Lag())})
 				}
+				table.Render()
+				groupTable.Append([]string{buff.String()})
 			}
-			table.Render()
-			groupTable.Append([]string{buff.String()})
 		}
 		groupTable.SetHeaderLine(false)
 		groupTable.Render()
@@ -142,11 +144,12 @@ func (*listGroups) printPlainTextOutput(groups kafka.ConsumerGroups) {
 
 		if len(group.TopicOffsets) > 0 {
 			fmt.Printf("\n%s\n\n", green("Partition Offsets:"))
-			for _, partitionOffsets := range group.TopicOffsets {
+			for topic, partitionOffsets := range group.TopicOffsets {
 				partitions := partitionOffsets.SortPartitions()
+				fmt.Printf("\n %s\n\n", green("Topic: "+topic))
 				for _, partition := range partitions {
 					offsets := partitionOffsets[int32(partition)]
-					fmt.Printf("  Partition %2d: %d out of %d (Lag: %s) \n", partition, offsets.Current, offsets.Latest, highlightLag(offsets.Lag()))
+					fmt.Printf("   Partition %2d: %d out of %d (Lag: %s) \n", partition, offsets.Current, offsets.Latest, highlightLag(offsets.Lag()))
 				}
 			}
 			fmt.Println()

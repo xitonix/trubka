@@ -13,7 +13,7 @@ import (
 )
 
 type kafkaParameters struct {
-	brokers       []string
+	brokers       string
 	version       string
 	tls           *tls.Config
 	saslMechanism string
@@ -32,7 +32,7 @@ func bindKafkaFlags(cmd *kingpin.CmdClause) *kafkaParameters {
 	params := &kafkaParameters{}
 	cmd.Flag("brokers", "The comma separated list of Kafka brokers in server:port format.").
 		Short('b').
-		StringsVar(&params.brokers)
+		StringVar(&params.brokers)
 	cmd.Flag("kafka-version", "Kafka cluster version.").
 		Default(kafka.DefaultClusterVersion).
 		StringVar(&params.version)

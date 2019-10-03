@@ -10,4 +10,5 @@ func AddGroupCommand(app *kingpin.Application, global *GlobalParameters) {
 	kafkaParams := bindKafkaFlags(parent)
 	addListGroupsSubCommand(parent, global, kafkaParams)
 	addDeleteGroupSubCommand(parent, global, kafkaParams)
+	addListGroupTopicsSubCommand(parent, global, kafkaParams)
 }

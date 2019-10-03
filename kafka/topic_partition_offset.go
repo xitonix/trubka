@@ -2,7 +2,7 @@ package kafka
 
 import "sort"
 
-// TopicPartitionOffsetPair represents a map of topic offset pairs for all the partitions.
+// TopicPartitionOffset represents a map of topic offset pairs for all the partitions.
 type TopicPartitionOffset map[string]PartitionOffset
 
 // SortedTopics returns a list of sorted topics.

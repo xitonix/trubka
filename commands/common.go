@@ -6,8 +6,10 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strings"
 	"syscall"
 
+	"github.com/dustin/go-humanize"
 	"github.com/gookit/color"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -26,7 +28,8 @@ var (
 )
 
 func initKafkaManager(globalParams *GlobalParameters, kafkaParams *kafkaParameters) (*kafka.Manager, context.Context, context.CancelFunc, error) {
-	manager, err := kafka.NewManager(kafkaParams.brokers,
+	brokers := getBrokers(kafkaParams.brokers)
+	manager, err := kafka.NewManager(brokers,
 		globalParams.Verbosity,
 		kafka.WithClusterVersion(kafkaParams.version),
 		kafka.WithTLS(kafkaParams.tls),
@@ -53,9 +56,9 @@ func initKafkaManager(globalParams *GlobalParameters, kafkaParams *kafkaParamete
 
 func highlightLag(input int64) string {
 	if input > 0 {
-		return yellow(input)
+		return yellow(humanize.Comma(input))
 	}
-	return green(input)
+	return green(humanize.Comma(input))
 }
 
 func getNotFoundMessage(entity, filterName string, ex *regexp.Regexp) string {
@@ -71,4 +74,12 @@ func addFormatFlag(c *kingpin.CmdClause, format *string) {
 		Default(tableFormat).
 		Short('f').
 		EnumVar(format, plainTextFormat, tableFormat)
+}
+
+func getBrokers(commaSeparated string) []string {
+	brokers := strings.Split(commaSeparated, ",")
+	for i := 0; i < len(brokers); i++ {
+		brokers[i] = strings.TrimSpace(brokers[i])
+	}
+	return brokers
 }

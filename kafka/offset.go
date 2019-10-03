@@ -11,7 +11,7 @@ const offsetNotFound int64 = -4
 type Offset struct {
 	// Latest the latest available offset of the partition reported by the server.
 	Latest int64
-	// Current the current value of the local or consumer group offset.
+	// Current the current value of the local or consumer group offset. This is where the consumer up to.
 	Current int64
 }
 
