@@ -18,7 +18,7 @@ type GroupMember struct {
 }
 
 func (g GroupMember) String() string {
-	return fmt.Sprintf("%s/%s(%s)", g.ID, g.ClientID, g.Host)
+	return fmt.Sprintf("%s [%s]", g.ID, g.Host)
 }
 
 // ConsumerGroup represents a consumer group.

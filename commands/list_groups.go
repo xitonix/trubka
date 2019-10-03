@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -94,9 +95,9 @@ func (*listGroups) printTableOutput(groups kafka.ConsumerGroups) {
 			buff := bytes.Buffer{}
 			buff.WriteString(fmt.Sprintf("\nMembers:\n"))
 			table := tablewriter.NewWriter(&buff)
-			table.SetHeader([]string{"", "Name", "Client ID", "Host"})
+			table.SetHeader([]string{"", "ID", "Host"})
 			for i, member := range group.Members {
-				table.Append([]string{strconv.Itoa(i + 1), member.ID, member.ClientID, member.Host})
+				table.Append([]string{strconv.Itoa(i + 1), member.ID, member.Host})
 			}
 			table.Render()
 			groupTable.Append([]string{buff.String()})
@@ -116,8 +117,8 @@ func (*listGroups) printTableOutput(groups kafka.ConsumerGroups) {
 				partitions := partitionOffsets.SortPartitions()
 				for _, partition := range partitions {
 					offsets := partitionOffsets[int32(partition)]
-					latest := strconv.FormatInt(offsets.Latest, 10)
-					current := strconv.FormatInt(offsets.Current, 10)
+					latest := humanize.Comma(offsets.Latest)
+					current := humanize.Comma(offsets.Current)
 					part := strconv.FormatInt(int64(partition), 10)
 					table.Append([]string{part, latest, current, highlightLag(offsets.Lag())})
 				}

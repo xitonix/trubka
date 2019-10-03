@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/dustin/go-humanize"
 	"github.com/gookit/color"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -55,9 +56,9 @@ func initKafkaManager(globalParams *GlobalParameters, kafkaParams *kafkaParamete
 
 func highlightLag(input int64) string {
 	if input > 0 {
-		return yellow(input)
+		return yellow(humanize.Comma(input))
 	}
-	return green(input)
+	return green(humanize.Comma(input))
 }
 
 func getNotFoundMessage(entity, filterName string, ex *regexp.Regexp) string {
