@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strings"
 	"syscall"
 
 	"github.com/gookit/color"
@@ -26,7 +27,8 @@ var (
 )
 
 func initKafkaManager(globalParams *GlobalParameters, kafkaParams *kafkaParameters) (*kafka.Manager, context.Context, context.CancelFunc, error) {
-	manager, err := kafka.NewManager(kafkaParams.brokers,
+	brokers := getBrokers(kafkaParams.brokers)
+	manager, err := kafka.NewManager(brokers,
 		globalParams.Verbosity,
 		kafka.WithClusterVersion(kafkaParams.version),
 		kafka.WithTLS(kafkaParams.tls),
@@ -71,4 +73,12 @@ func addFormatFlag(c *kingpin.CmdClause, format *string) {
 		Default(tableFormat).
 		Short('f').
 		EnumVar(format, plainTextFormat, tableFormat)
+}
+
+func getBrokers(commaSeparated string) []string {
+	brokers := strings.Split(commaSeparated, ",")
+	for i := 0; i < len(brokers); i++ {
+		brokers[i] = strings.TrimSpace(brokers[i])
+	}
+	return brokers
 }

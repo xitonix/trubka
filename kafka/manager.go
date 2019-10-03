@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/Shopify/sarama"
 	"github.com/pkg/errors"
@@ -140,13 +141,46 @@ func (m *Manager) DeleteTopic(topic string) error {
 	return m.admin.DeleteTopic(topic)
 }
 
+func (m *Manager) GetGroupTopics(ctx context.Context, group string, includeOffsets bool) (TopicPartitionOffset, error) {
+	result := make(TopicPartitionOffset)
+	select {
+	case <-ctx.Done():
+		return result, nil
+	default:
+		m.Log(internal.Verbose, "Retrieving consumer group details")
+		groupDescriptions, err := m.admin.DescribeConsumerGroups([]string{group})
+		if err != nil {
+			return nil, err
+		}
+
+		if len(groupDescriptions) != 1 {
+			return nil, errors.New("Failed to retrieve consumer group details from the server")
+		}
+		for _, member := range groupDescriptions[0].Members {
+			select {
+			case <-ctx.Done():
+				return result, nil
+			default:
+				m.Logf(internal.VeryVerbose, "Retrieving the topic assignments for %s", member.ClientId)
+				assignments, err := member.GetMemberAssignment()
+				if err != nil {
+					return nil, errors.Wrap(err, "Failed to retrieve the topics assignments")
+				}
+				// for topic, partitions := range assignments.Topics {
+				// 	result[topic]
+				// }
+			}
+		}
+	}
+	return result, nil
+}
+
 func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, memberFilter, groupFilter *regexp.Regexp, topics []string) (ConsumerGroups, error) {
 	result := make(ConsumerGroups)
 	select {
 	case <-ctx.Done():
 		return result, nil
 	default:
-
 		m.Log(internal.Verbose, "Retrieving consumer groups from the server")
 		groups, err := m.admin.ListConsumerGroups()
 		if err != nil {
@@ -193,11 +227,12 @@ func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, me
 			topicPartitions := make(map[string][]int32)
 			m.Log(internal.Verbose, "Retrieving topic partitions from the server")
 			for _, topic := range topics {
+				topic = strings.TrimSpace(topic)
 				select {
 				case <-ctx.Done():
 					return result, nil
 				default:
-					if internal.IsEmpty(topic) {
+					if len(topic) == 0 {
 						continue
 					}
 					m.Logf(internal.VeryVerbose, "Retrieving the partition(s) of %s topic from the server", topic)

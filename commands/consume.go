@@ -157,8 +157,9 @@ func (c *consume) run(_ *kingpin.ParseContext) error {
 		saramaLogWriter = logFile
 	}
 
+	brokers := getBrokers(c.kafkaParams.brokers)
 	consumer, err := kafka.NewConsumer(
-		c.kafkaParams.brokers, prn,
+		brokers, prn,
 		c.environment,
 		c.enableAutoTopicCreation,
 		kafka.WithClusterVersion(c.kafkaParams.version),
