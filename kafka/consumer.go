@@ -143,7 +143,12 @@ func (c *Consumer) Close() {
 		c.printer.Info(internal.Verbose, "Closing Kafka consumer.")
 		err := c.internalConsumer.Close()
 		if err != nil {
-			c.printer.Errorf(internal.Forced, "Failed to close Kafka client: %s.", err)
+			c.printer.Errorf(internal.Forced, "Failed to close the Kafka consumer: %s.", err)
+		}
+		c.printer.Info(internal.Verbose, "Closing Kafka connections.")
+		err = c.internalClient.Close()
+		if err != nil {
+			c.printer.Errorf(internal.Forced, "Failed to close Kafka connections: %s.", err)
 		} else {
 			c.printer.Info(internal.VeryVerbose, "The Kafka client has been closed successfully.")
 		}
