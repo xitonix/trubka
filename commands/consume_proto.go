@@ -153,18 +153,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		saramaLogWriter = logFile
 	}
 
-	brokers := getBrokers(c.kafkaParams.brokers)
-	consumer, err := kafka.NewConsumer(
-		brokers, prn,
-		c.environment,
-		c.enableAutoTopicCreation,
-		kafka.WithClusterVersion(c.kafkaParams.version),
-		kafka.WithTLS(c.kafkaParams.tls),
-		kafka.WithLogWriter(saramaLogWriter),
-		kafka.WithSASL(c.kafkaParams.saslMechanism,
-			c.kafkaParams.saslUsername,
-			c.kafkaParams.saslPassword))
-
+	consumer, err := c.kafkaParams.createConsumer(prn, c.environment, c.enableAutoTopicCreation, saramaLogWriter)
 	if err != nil {
 		return err
 	}

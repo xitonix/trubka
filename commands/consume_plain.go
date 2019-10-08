@@ -3,6 +3,7 @@ package commands
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/signal"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
-	"github.com/xitonix/trubka/protobuf"
 )
 
 type consumePlain struct {
@@ -74,14 +74,12 @@ func (c *consumePlain) bindCommandFlags(command *kingpin.CmdClause) {
 		BoolVar(&c.enableAutoTopicCreation)
 
 	command.Flag("format", "The format in which the Kafka messages will be written to the output.").
-		Default(protobuf.JsonIndent).
+		Default(internal.Json).
 		EnumVar(&c.format,
-			protobuf.Json,
-			protobuf.JsonIndent,
-			protobuf.Text,
-			protobuf.TextIndent,
-			protobuf.Hex,
-			protobuf.HexIndent)
+			internal.Json,
+			internal.Text,
+			internal.Hex,
+			internal.HexIndent)
 	command.Flag("output-dir", "The `directory` to write the Kafka messages to (Default: Stdout).").
 		Short('d').
 		StringVar(&c.outputDir)
@@ -97,6 +95,7 @@ func (c *consumePlain) bindCommandFlags(command *kingpin.CmdClause) {
 	command.Flag("search-query", "The optional regular expression to filter the message content by.").
 		Short('q').
 		RegexpVar(&c.searchQuery)
+
 	command.Flag("log-file", "The `file` to write the logs to. Set to 'none' to discard (Default: stdout).").
 		Short('l').
 		StringVar(&c.logFile)
@@ -115,18 +114,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 		saramaLogWriter = logFile
 	}
 
-	brokers := getBrokers(c.kafkaParams.brokers)
-	consumer, err := kafka.NewConsumer(
-		brokers, prn,
-		c.environment,
-		c.enableAutoTopicCreation,
-		kafka.WithClusterVersion(c.kafkaParams.version),
-		kafka.WithTLS(c.kafkaParams.tls),
-		kafka.WithLogWriter(saramaLogWriter),
-		kafka.WithSASL(c.kafkaParams.saslMechanism,
-			c.kafkaParams.saslUsername,
-			c.kafkaParams.saslPassword))
-
+	consumer, err := c.kafkaParams.createConsumer(prn, c.environment, c.enableAutoTopicCreation, saramaLogWriter)
 	if err != nil {
 		return err
 	}
@@ -230,7 +218,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 func (c *consumePlain) process(event *kafka.Event, highlightColor color.Style, marshaller *internal.Marshaller) ([]byte, error) {
 	output, err := marshaller.Marshal(event.Value, event.Timestamp)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid '%s' message received from Kafka: %w", c.format, err)
 	}
 
 	if c.searchQuery != nil {

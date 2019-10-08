@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -23,6 +25,10 @@ func main() {
 
 	key := flags.String("partition-key", "Message partition key. It will be a random string if not specified.").
 		WithShort("p")
+
+	format := flags.String("format", "The message serialisation format.").
+		WithShort("f").WithValidRange(true, "proto", "json", "plain").
+		WithDefault("proto")
 
 	count := flags.Int("count", "Number of messages to publish").
 		WithShort("c").
@@ -55,7 +61,7 @@ func main() {
 	num := count.Get()
 	tp := topic.Get()
 	for i := 0; i < num; i++ {
-		pk, val, err := populate(key.Get())
+		pk, val, err := populate(key.Get(), strings.ToLower(format.Get()))
 
 		if err != nil {
 			exit(err)
@@ -79,7 +85,7 @@ func exit(err error) {
 	os.Exit(-1)
 }
 
-func populate(key string) ([]byte, []byte, error) {
+func populate(key string, format string) ([]byte, []byte, error) {
 	id := strconv.FormatInt(time.Now().UnixNano(), 10)
 
 	if len(key) == 0 {
@@ -93,7 +99,18 @@ func populate(key string) ([]byte, []byte, error) {
 		Gender: contracts.Gender_MALE,
 	}
 
-	val, err := proto.Marshal(&person)
+	var val []byte
+	var err error
+
+	switch strings.TrimSpace(format) {
+	case "proto":
+		val, err = proto.Marshal(&person)
+	case "json":
+		val, err = json.Marshal(&person)
+	default:
+		val = []byte(fmt.Sprintf("%s|%d (%s)", person.Name, person.Age, person.Id))
+	}
+
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to marshal the message")
 	}
