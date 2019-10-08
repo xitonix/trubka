@@ -9,11 +9,10 @@ import (
 )
 
 const (
-	Json       = "json"
-	JsonIndent = "json-indent"
-	Text       = "text"
-	Hex        = "hex"
-	HexIndent  = "hex-indent"
+	Json      = "json"
+	Text      = "text"
+	Hex       = "hex"
+	HexIndent = "hex-indent"
 )
 
 type Marshaller struct {
@@ -37,9 +36,7 @@ func (m *Marshaller) Marshal(msg []byte, ts time.Time) ([]byte, error) {
 	case Text:
 		return m.marshalText(msg, ts)
 	case Json:
-		return m.marshalJson(msg, ts, false)
-	case JsonIndent:
-		return m.marshalJson(msg, ts, true)
+		return m.marshalJson(msg, ts)
 	default:
 		return msg, nil
 	}
@@ -64,15 +61,13 @@ func (m *Marshaller) marshalText(msg []byte, ts time.Time) ([]byte, error) {
 	return msg, nil
 }
 
-func (m *Marshaller) marshalJson(msg []byte, ts time.Time, indent bool) ([]byte, error) {
-	if indent {
-		var buf bytes.Buffer
-		err := json.Indent(&buf, msg, " ", "   ")
-		if err != nil {
-			return nil, err
-		}
-		msg = buf.Bytes()
+func (m *Marshaller) marshalJson(msg []byte, ts time.Time) ([]byte, error) {
+	var buf bytes.Buffer
+	err := json.Indent(&buf, msg, "", "   ")
+	if err != nil {
+		return nil, err
 	}
+	msg = buf.Bytes()
 	if m.includeTimeStamp && !ts.IsZero() {
 		return prependTimestamp(ts, msg), nil
 	}

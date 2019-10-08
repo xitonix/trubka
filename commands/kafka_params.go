@@ -3,6 +3,7 @@ package commands
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"io"
 	"io/ioutil"
 
 	"github.com/pkg/errors"
@@ -26,6 +27,20 @@ type tlsParameters struct {
 	caCert     string
 	clientCert string
 	clientKey  string
+}
+
+func (p *kafkaParameters) createConsumer(prn internal.Printer, env string, autoTopic bool, logW io.Writer) (*kafka.Consumer, error) {
+	brokers := getBrokers(p.brokers)
+	return kafka.NewConsumer(
+		brokers, prn,
+		env,
+		autoTopic,
+		kafka.WithClusterVersion(p.version),
+		kafka.WithTLS(p.tls),
+		kafka.WithLogWriter(logW),
+		kafka.WithSASL(p.saslMechanism,
+			p.saslUsername,
+			p.saslPassword))
 }
 
 func bindKafkaFlags(cmd *kingpin.CmdClause) *kafkaParameters {
