@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -23,4 +24,8 @@ func BoolToString(in bool) string {
 		return "Yes"
 	}
 	return "No"
+}
+
+func PrependTimestamp(ts time.Time, in []byte) []byte {
+	return append([]byte(fmt.Sprintf("[%s]\n", FormatTimeUTC(ts))), in...)
 }
