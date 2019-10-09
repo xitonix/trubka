@@ -23,16 +23,65 @@ Clone the repo locally and build trubka from source.  You can also use `Make` to
 
 Download the pre-built binaries for the platform of your choice from the [releases](https://github.com/xitonix/trubka/releases) page.
 
-
-
 ## Usage
 
-### Consume Protobuf Events
+```bash
+usage: trubka [<flags>] <command> [<args> ...]
+
+A tool to consume protocol buffer events from Kafka.
+
+Flags:
+      --help         Show context-sensitive help (also try --help-long and --help-man).
+  -v, --verbose ...  The verbosity level of Trubka.
+
+Commands:
+  help [<command>...]
+    Show help.
+
+  version
+    Prints the current version of Trubka.
+
+  consume proto --proto-root=PROTO-ROOT [<flags>] [<topic>] [<proto>]
+    Starts consuming protobuf encoded events from the given Kafka topic.
+
+  consume plain [<flags>] [<topic>]
+    Starts consuming plain text or json events from the given Kafka topic.
+
+  broker list [<flags>]
+    Lists the brokers in the Kafka cluster.
+
+  topic list [<flags>]
+    Loads the existing topics from the server.
+
+  topic delete [<flags>]
+    Deletes a topic.
+
+  group list [<flags>]
+    Lists the consumer groups.
+
+  group delete [<flags>]
+    Deletes an empty consumer group.
+
+  group topics [<flags>] <group>
+    Lists the topics a consumer group is subscribed to.
+
+  local list [<flags>]
+    Lists the local offsets for different environments.
+
+  local delete [<flags>] <environment>
+    Deletes the local offsets from the given environment.
+```
+
+## Consumer
+
+Trubka can be used as a general purpose Kafka consumer. You can use it to consume from any protocol buffer or plain text (/json) topics.
+
+###### Consuming Protobuf
 ```bash
 trubka consume proto TopicA MessageA --proto-root /protocol_buffers_dir --brokers localhost:9092
 ```
 
-### Consume Plain Text Events
+###### Consuming Plain Text (/Json)
 ```bash
 trubka consume plain TopicA --brokers localhost:9092
 ```
@@ -41,9 +90,9 @@ trubka consume plain TopicA --brokers localhost:9092
 
 ### Interactive mode
 
-Trubka can also be executed in interactive mode using the `-i` flag. Interactive mode walks you though the steps of picking the topic and proto message type (if applicable) from the provided lists of existing topics, fetched from the server, and a list of protocol buffer messages, living in the  `--proto-root` directory (if applicable). If you have too many topics on the server, the list can be narrowed down using `--topic-filter` flag. 
+Trubka can also be executed in interactive mode using the `-i` flag. Interactive mode walks you though the steps of picking the topic and the proto message type (if applicable) from a list of existing topics, fetched from the server, and a list of protocol buffer messages, living in the  `--proto-root` directory (if applicable). If you have too many topics on the server, the list can be narrowed down using `--topic-filter` flag. 
 
-For proto consumer, the message type list could also be filtered using `—proto-filter` flag.
+For proto consumer, the message type could also be filtered using `—proto-filter` flag.
 
 ###### Proto Consumer
 ```bash
@@ -55,9 +104,9 @@ trubka consume proto --proto-root /protocol_buffers_dir --brokers localhost:9092
 ```bash
 trubka consume plain --brokers localhost:9092 -i --topic-filter Notifications
 ```
-##### Note
+**Note**
 
-`topic-filter` and `proto-filter` flags are regular expressions.
+`--topic-filter` and `--proto-filter` flags are regular expressions.
 
 ### Searching Messages
 
@@ -97,7 +146,13 @@ trubka consume proto TopicA MessageA --proto-root /protocol_buffers_dir --broker
 ```
 
 ###### Plain Text Consumer
-To enable mutual authentication, you need to provide `--client-key` and `--client-cert` files.
+
+```bash
+trubka consume plain TopicA --brokers localhost:9092 \ 
+--tls --ca-cert ~/certs/kafka.pem
+```
+
+To enable mutual authentication, you need to provide `--client-key` and `--client-cert` files as well.
 
 # Environment Variables
 
