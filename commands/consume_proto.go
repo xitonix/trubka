@@ -41,6 +41,7 @@ type consumeProto struct {
 	enableAutoTopicCreation bool
 	timeCheckpoint          time.Time
 	offsetCheckpoint        int64
+	count                   bool
 }
 
 func addConsumeProtoCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
@@ -64,7 +65,7 @@ func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
 	var timeCheckpoint string
 	command.Flag("from", "Starts consuming from the most recent available offset at the given time. This will override --rewind.").
 		Short('f').
-		Action(func(context *kingpin.ParseContext) error {
+		PreAction(func(context *kingpin.ParseContext) error {
 			t, err := parseTime(timeCheckpoint)
 			if err != nil {
 				return err
@@ -125,6 +126,10 @@ func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
 	command.Flag("proto-filter", "The optional regular expression to filter the proto types by (Interactive mode only).").
 		Short('p').
 		RegexpVar(&c.protoFilter)
+
+	command.Flag("count", "Count the number of messages consumed from Kafka.").
+		Short('c').
+		BoolVar(&c.count)
 }
 
 func (c *consumeProto) run(_ *kingpin.ParseContext) error {
@@ -157,6 +162,9 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	if err != nil {
 		return err
 	}
+
+	// It is safe to close the consumer more than once.
+	defer consumer.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -198,6 +206,8 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 
 	wg := sync.WaitGroup{}
 
+	counter := &internal.Counter{}
+	
 	if len(tm) > 0 {
 		wg.Add(1)
 		consumerCtx, stopConsumer := context.WithCancel(context.Background())
@@ -226,11 +236,19 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 						// Otherwise the consumer will deadlock
 						continue
 					}
+
 					output, err := c.process(tm[event.Topic], loader, event, marshaller, searchColor)
 					if err == nil {
 						prn.WriteEvent(event.Topic, output)
 						consumer.StoreOffset(event)
+						if c.count {
+							counter.IncrSuccess()
+						}
 						continue
+					}
+
+					if c.count {
+						counter.IncrFailure()
 					}
 					prn.Errorf(internal.Forced,
 						"Failed to process the message at offset %d of partition %d, topic %s: %s",
@@ -269,6 +287,10 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		}
 	}
 	prn.Close()
+
+	if c.count {
+		counter.Print()
+	}
 
 	return nil
 }
