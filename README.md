@@ -27,21 +27,34 @@ Download the pre-built binaries for the platform of your choice from the [releas
 
 ## Usage
 
+### Consume Protobuf Events
 ```bash
-trubka consume TopicA MessageA --proto-root /protocol_buffers_dir --brokers localhost:9092
+trubka consume proto TopicA MessageA --proto-root /protocol_buffers_dir --brokers localhost:9092
+```
+
+### Consume Plain Text Events
+```bash
+trubka consume plain TopicA --brokers localhost:9092
 ```
 
 
 
 ### Interactive mode
 
-Trubka can also be executed in interactive mode using the `-i` flag. Interactive mode walks you though the steps of picking topic(s) and proto message type(s) from provided lists of existing topics, fetched from the server, and a list of protocol buffer messages, living in the  `--proto-root` directory. If you have too many topics on the server, the list can be narrowed down using `--topic-filter` flag. The message type list could also be filtered using `—proto-filter` flag.
+Trubka can also be executed in interactive mode using the `-i` flag. Interactive mode walks you though the steps of picking the topic and proto message type (if applicable) from the provided lists of existing topics, fetched from the server, and a list of protocol buffer messages, living in the  `--proto-root` directory (if applicable). If you have too many topics on the server, the list can be narrowed down using `--topic-filter` flag. 
 
+For proto consumer, the message type list could also be filtered using `—proto-filter` flag.
+
+###### Proto Consumer
 ```bash
-trubka consume --proto-root /protocol_buffers_dir --brokers localhost:9092 \ 
+trubka consume proto --proto-root /protocol_buffers_dir --brokers localhost:9092 \ 
 --topic-filter Notifications --proto-filter EmailSent -i
 ```
 
+###### Plain Text Consumer
+```bash
+trubka consume plain --brokers localhost:9092 -i --topic-filter Notifications
+```
 ##### Note
 
 `topic-filter` and `proto-filter` flags are regular expressions.
@@ -56,8 +69,18 @@ Trubka supports the following SASL authentication mechanisms:
 - SCRAM-SHA-256
 - SCRAM-SHA-512
 
+###### Proto Consumer
+
 ```bash
-trubka consume TopicA MessageA --proto-root /protocol_buffers_dir --brokers localhost:9092 \
+trubka consume proto TopicA MessageA --proto-root /protocol_buffers_dir --brokers localhost:9092 \
+--sasl-mechanism scram-sha-512 \
+--sasl-username username --sasl-password password
+```
+
+###### Plain Text Consumer
+
+```bash
+trubka consume plain TopicA --brokers localhost:9092 \
 --sasl-mechanism scram-sha-512 \
 --sasl-username username --sasl-password password
 ```
@@ -66,10 +89,14 @@ trubka consume TopicA MessageA --proto-root /protocol_buffers_dir --brokers loca
 
 Trubka also supports TLS:
 
+###### Proto Consumer
+
 ```bash
-trubka consume TopicA MessageA --proto-root /protocol_buffers_dir --brokers localhost:9092 \ 
+trubka consume proto TopicA MessageA --proto-root /protocol_buffers_dir --brokers localhost:9092 \ 
 --tls --ca-cert ~/certs/kafka.pem
 ```
+
+###### Plain Text Consumer
 To enable mutual authentication, you need to provide `--client-key` and `--client-cert` files.
 
 # Environment Variables

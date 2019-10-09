@@ -12,6 +12,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -114,7 +115,7 @@ func (c *listGroupTopics) printTableOutput(topics kafka.TopicPartitionOffset) {
 
 func (c *listGroupTopics) printPlainTextOutput(topics kafka.TopicPartitionOffset) {
 	for topic, partitionOffsets := range topics {
-		fmt.Printf("%s\n", bold(topic))
+		fmt.Printf("%s\n", internal.Bold(topic))
 		if c.includeOffsets && len(partitionOffsets) > 0 {
 			fmt.Printf("\n\n")
 			partitions := partitionOffsets.SortPartitions()

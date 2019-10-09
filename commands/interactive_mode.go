@@ -13,6 +13,21 @@ import (
 	"github.com/xitonix/trubka/protobuf"
 )
 
+func askUserForTopic(consumer *kafka.Consumer, topicFilter *regexp.Regexp) (string, error) {
+	remoteTopics, err := consumer.GetTopics(topicFilter)
+	if err != nil {
+		return "", err
+	}
+
+	sort.Strings(remoteTopics)
+	topicIndex := pickAnIndex("Choose the topic to consume from", "topic", remoteTopics)
+	if topicIndex < 0 {
+		return "", nil
+	}
+
+	return remoteTopics[topicIndex], nil
+}
+
 func readUserData(consumer *kafka.Consumer, loader protobuf.Loader, topicFilter, typeFilter *regexp.Regexp, cp *kafka.Checkpoint) (map[string]*kafka.Checkpoint, map[string]string, error) {
 	remoteTopic, err := consumer.GetTopics(topicFilter)
 	if err != nil {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gookit/color"
+	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/internal"
@@ -29,12 +30,15 @@ type consumePlain struct {
 	environment             string
 	logFile                 string
 	searchQuery             *regexp.Regexp
+	interactive             bool
+	topicFilter             *regexp.Regexp
 	rewind                  bool
 	reverse                 bool
 	includeTimestamp        bool
 	enableAutoTopicCreation bool
 	timeCheckpoint          time.Time
 	offsetCheckpoint        int64
+	count                   bool
 }
 
 func addConsumePlainCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
@@ -47,20 +51,21 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 }
 
 func (c *consumePlain) bindCommandFlags(command *kingpin.CmdClause) {
-	command.Arg("topic", "The Kafka topic to consume from.").Required().StringVar(&c.topic)
+	command.Arg("topic", "The Kafka topic to consume from.").StringVar(&c.topic)
 	command.Flag("rewind", "Starts consuming from the beginning of the stream.").Short('w').BoolVar(&c.rewind)
 	var timeCheckpoint string
+
 	command.Flag("from", "Starts consuming from the most recent available offset at the given time. This will override --rewind.").
 		Short('f').
-		Action(func(context *kingpin.ParseContext) error {
+		PreAction(func(context *kingpin.ParseContext) error {
 			t, err := parseTime(timeCheckpoint)
 			if err != nil {
 				return err
 			}
 			c.timeCheckpoint = t
 			return nil
-		}).
-		StringVar(&timeCheckpoint)
+		}).StringVar(&timeCheckpoint)
+
 	command.Flag("from-offset", `Starts consuming from the specified offset (if applicable). This will override --rewind and --from.
 							If the most recent offset value of a partition is less than the specified value, this flag will be ignored.`).
 		Default("-1").
@@ -81,6 +86,7 @@ func (c *consumePlain) bindCommandFlags(command *kingpin.CmdClause) {
 			internal.Text,
 			internal.Hex,
 			internal.HexIndent)
+
 	command.Flag("output-dir", "The `directory` to write the Kafka messages to (Default: Stdout).").
 		Short('d').
 		StringVar(&c.outputDir)
@@ -100,9 +106,26 @@ func (c *consumePlain) bindCommandFlags(command *kingpin.CmdClause) {
 	command.Flag("log-file", "The `file` to write the logs to. Set to 'none' to discard (Default: stdout).").
 		Short('l').
 		StringVar(&c.logFile)
+
+	// Interactive mode flags
+	command.Flag("interactive", "Runs the consumer in interactive mode.").
+		Short('i').
+		BoolVar(&c.interactive)
+
+	command.Flag("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").
+		Short('t').
+		RegexpVar(&c.topicFilter)
+
+	command.Flag("count", "Count the number of messages consumed from Kafka.").
+		Short('c').
+		BoolVar(&c.count)
 }
 
 func (c *consumePlain) run(_ *kingpin.ParseContext) error {
+	if !c.interactive && internal.IsEmpty(c.topic) {
+		return errors.New("Which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i).")
+	}
+
 	logFile, writeLogToFile, err := getLogWriter(c.logFile)
 	if err != nil {
 		return err
@@ -120,6 +143,9 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
+	// It is safe to close the consumer more than once.
+	defer consumer.Close()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -130,6 +156,17 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 		prn.Info(internal.Verbose, "Stopping Trubka.")
 		cancel()
 	}()
+
+	if c.interactive {
+		c.topic, err = askUserForTopic(consumer, c.topicFilter)
+		if err != nil {
+			return err
+		}
+	}
+
+	if internal.IsEmpty(c.topic) {
+		return nil
+	}
 
 	cp := getCheckpoint(c.rewind, c.offsetCheckpoint, c.timeCheckpoint)
 	topics := map[string]*kafka.Checkpoint{
@@ -148,6 +185,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	wg.Add(1)
 	consumerCtx, stopConsumer := context.WithCancel(context.Background())
 	defer stopConsumer()
+	counter := &internal.Counter{}
 	go func() {
 		defer wg.Done()
 		marshaller := internal.NewPlainTextMarshaller(c.format, c.includeTimestamp)
@@ -176,7 +214,13 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 				if err == nil {
 					prn.WriteEvent(event.Topic, output)
 					consumer.StoreOffset(event)
+					if c.count {
+						counter.IncrSuccess()
+					}
 					continue
+				}
+				if c.count {
+					counter.IncrFailure()
 				}
 				prn.Errorf(internal.Forced,
 					"Failed to process the message at offset %d of partition %d, topic %s: %s",
@@ -211,7 +255,12 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 			closeFile(w.(*os.File))
 		}
 	}
+
 	prn.Close()
+
+	if c.count {
+		counter.Print()
+	}
 
 	return nil
 }

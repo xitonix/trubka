@@ -12,6 +12,7 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -104,7 +105,7 @@ func (c *listBrokers) printTableOutput(brokers []kafka.Broker) {
 
 func (c *listBrokers) printPlainTextOutput(brokers []kafka.Broker) {
 	for _, broker := range brokers {
-		fmt.Printf("%s: %s\n", bold("Broker"), broker.String())
+		fmt.Printf("%s: %s\n", internal.Bold("Broker"), broker.String())
 		if c.includeMetadata && len(broker.Meta.Topics) > 0 {
 			topics := make([]string, 0)
 			for _, topic := range broker.Meta.Topics {
@@ -114,7 +115,7 @@ func (c *listBrokers) printPlainTextOutput(brokers []kafka.Broker) {
 				topics = append(topics, fmt.Sprintf("  %s (%d)", topic.Name, topic.NumberOdPartitions))
 			}
 			if len(topics) > 0 {
-				fmt.Printf("%s\n\n", green("TOPICS (No. of Partitions)"))
+				fmt.Printf("%s\n\n", internal.Green("TOPICS (No. of Partitions)"))
 				fmt.Println(strings.Join(topics, "\n"))
 			} else {
 				fmt.Println(getNotFoundMessage("topic", "topic", c.topicFilter))

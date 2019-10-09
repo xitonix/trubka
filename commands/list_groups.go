@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -133,9 +134,9 @@ func (*listGroups) printTableOutput(groups kafka.ConsumerGroups) {
 
 func (*listGroups) printPlainTextOutput(groups kafka.ConsumerGroups) {
 	for name, group := range groups {
-		fmt.Printf("%s: %s\n", bold("Group"), name)
+		fmt.Printf("%s: %s\n", internal.Bold("Group"), name)
 		if len(group.Members) > 0 {
-			fmt.Printf("\n%s\n\n", green("Members:"))
+			fmt.Printf("\n%s\n\n", internal.Green("Members:"))
 			for i, member := range group.Members {
 				fmt.Printf("  %2d: %s\n", i+1, member)
 			}
@@ -143,10 +144,10 @@ func (*listGroups) printPlainTextOutput(groups kafka.ConsumerGroups) {
 		}
 
 		if len(group.TopicOffsets) > 0 {
-			fmt.Printf("\n%s\n\n", green("Partition Offsets:"))
+			fmt.Printf("\n%s\n\n", internal.Green("Partition Offsets:"))
 			for topic, partitionOffsets := range group.TopicOffsets {
 				partitions := partitionOffsets.SortPartitions()
-				fmt.Printf("\n %s\n\n", green("Topic: "+topic))
+				fmt.Printf("\n %s\n\n", internal.Green("Topic: "+topic))
 				for _, partition := range partitions {
 					offsets := partitionOffsets[int32(partition)]
 					fmt.Printf("   Partition %2d: %d out of %d (Lag: %s) \n", partition, offsets.Current, offsets.Latest, highlightLag(offsets.Lag()))

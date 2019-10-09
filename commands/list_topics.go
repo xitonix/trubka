@@ -9,6 +9,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -68,7 +69,7 @@ func (c *listTopics) run(_ *kingpin.ParseContext) error {
 func (c *listTopics) printPlainTextOutput(tpo kafka.TopicPartitionOffset) {
 	sortedTopics := tpo.SortedTopics()
 	for _, topic := range sortedTopics {
-		fmt.Printf("%s: %s\n", bold("Topic"), topic)
+		fmt.Printf("%s: %s\n", internal.Bold("Topic"), topic)
 		partitions := tpo[topic]
 		if !c.includeOffsets {
 			continue

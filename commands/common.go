@@ -27,12 +27,6 @@ const (
 	tableFormat     = "table"
 )
 
-var (
-	yellow = color.Warn.Render
-	green  = color.Info.Render
-	bold   = color.Bold.Render
-)
-
 func initKafkaManager(globalParams *GlobalParameters, kafkaParams *kafkaParameters) (*kafka.Manager, context.Context, context.CancelFunc, error) {
 	brokers := getBrokers(kafkaParams.brokers)
 	manager, err := kafka.NewManager(brokers,
@@ -62,9 +56,9 @@ func initKafkaManager(globalParams *GlobalParameters, kafkaParams *kafkaParamete
 
 func highlightLag(input int64) string {
 	if input > 0 {
-		return yellow(humanize.Comma(input))
+		return internal.Yellow(humanize.Comma(input))
 	}
-	return green(humanize.Comma(input))
+	return internal.Green(humanize.Comma(input))
 }
 
 func getNotFoundMessage(entity, filterName string, ex *regexp.Regexp) string {
