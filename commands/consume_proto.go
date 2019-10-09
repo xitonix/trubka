@@ -86,14 +86,14 @@ func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
 		BoolVar(&c.enableAutoTopicCreation)
 
 	command.Flag("format", "The format in which the Kafka messages will be written to the output.").
-		Default(protobuf.JsonIndent).
+		Default(internal.JsonIndent).
 		EnumVar(&c.format,
-			protobuf.Json,
-			protobuf.JsonIndent,
-			protobuf.Text,
-			protobuf.TextIndent,
-			protobuf.Hex,
-			protobuf.HexIndent)
+			internal.Json,
+			internal.JsonIndent,
+			internal.Text,
+			internal.TextIndent,
+			internal.Hex,
+			internal.HexIndent)
 	command.Flag("output-dir", "The `directory` to write the Kafka messages to (Default: Stdout).").
 		Short('d').
 		StringVar(&c.outputDir)

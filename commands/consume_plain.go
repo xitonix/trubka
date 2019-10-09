@@ -42,7 +42,7 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 		globalParams: global,
 		kafkaParams:  kafkaParams,
 	}
-	c := parent.Command("plain", "Starts consuming plain text events from the given Kafka topic.").Action(cmd.run)
+	c := parent.Command("plain", "Starts consuming plain text or json events from the given Kafka topic.").Action(cmd.run)
 	cmd.bindCommandFlags(c)
 }
 
@@ -74,9 +74,10 @@ func (c *consumePlain) bindCommandFlags(command *kingpin.CmdClause) {
 		BoolVar(&c.enableAutoTopicCreation)
 
 	command.Flag("format", "The format in which the Kafka messages will be written to the output.").
-		Default(internal.Json).
+		Default(internal.Text).
 		EnumVar(&c.format,
 			internal.Json,
+			internal.JsonIndent,
 			internal.Text,
 			internal.Hex,
 			internal.HexIndent)
