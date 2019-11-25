@@ -37,6 +37,11 @@ func bindAppFlags(app *kingpin.Application, global *commands.GlobalParameters) {
 
 	colorFlag.BoolVar(&global.EnableColor)
 
+	app.PreAction(func(context *kingpin.ParseContext) error {
+		enabledColor = global.EnableColor
+		return nil
+	})
+
 	var verbosity int
 	app.Flag("verbose", "The verbosity level of Trubka.").
 		Short('v').

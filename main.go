@@ -3,9 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/xitonix/trubka/internal"
 )
 
 var version string
+var enabledColor bool
 
 func main() {
 	err := newApplication()
@@ -15,6 +18,7 @@ func main() {
 }
 
 func exit(err error) {
-	fmt.Printf("FATAL: %s\n", err)
+	msg := fmt.Sprintf("ERROR: %s.", err)
+	fmt.Println(internal.Err(msg, enabledColor))
 	os.Exit(1)
 }
