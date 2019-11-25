@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gookit/color"
 	"gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -38,7 +38,8 @@ func (c *deleteLocalOffsets) run(_ *kingpin.ParseContext) error {
 	}
 
 	if len(files) == 0 {
-		color.Warn.Printf("There is no local offset stored for %s environment.\n", c.environment)
+		msg := fmt.Sprintf("There is no local offset stored for %s environment.", c.environment)
+		fmt.Println(internal.Yellow(msg, c.globalParams.EnableColor))
 		return nil
 	}
 
@@ -78,7 +79,7 @@ func confirmAndDelete(message, path string, all bool) error {
 		if err != nil {
 			return err
 		}
-		color.Info.Println("The local offsets have been removed.")
+		fmt.Println("The local offsets have been removed.")
 	}
 	return nil
 }

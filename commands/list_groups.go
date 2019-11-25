@@ -85,7 +85,7 @@ func (c *listGroups) listGroups(ctx context.Context, manager *kafka.Manager) err
 	return nil
 }
 
-func (*listGroups) printTableOutput(groups kafka.ConsumerGroups) {
+func (c *listGroups) printTableOutput(groups kafka.ConsumerGroups) {
 	for name, group := range groups {
 		groupTable := tablewriter.NewWriter(os.Stdout)
 		groupTable.SetAutoWrapText(false)
@@ -121,7 +121,7 @@ func (*listGroups) printTableOutput(groups kafka.ConsumerGroups) {
 					latest := humanize.Comma(offsets.Latest)
 					current := humanize.Comma(offsets.Current)
 					part := strconv.FormatInt(int64(partition), 10)
-					table.Append([]string{part, latest, current, highlightLag(offsets.Lag())})
+					table.Append([]string{part, latest, current, fmt.Sprint(highlightLag(offsets.Lag(), c.globalParams.EnableColor))})
 				}
 				table.Render()
 				groupTable.Append([]string{buff.String()})
@@ -132,11 +132,11 @@ func (*listGroups) printTableOutput(groups kafka.ConsumerGroups) {
 	}
 }
 
-func (*listGroups) printPlainTextOutput(groups kafka.ConsumerGroups) {
+func (c *listGroups) printPlainTextOutput(groups kafka.ConsumerGroups) {
 	for name, group := range groups {
-		fmt.Printf("%s: %s\n", internal.Bold("Group"), name)
+		fmt.Printf("%s: %s\n", internal.Bold("Group", c.globalParams.EnableColor), name)
 		if len(group.Members) > 0 {
-			fmt.Printf("\n%s\n\n", internal.Green("Members:"))
+			fmt.Printf("\n%s\n\n", internal.Green("Members:", c.globalParams.EnableColor))
 			for i, member := range group.Members {
 				fmt.Printf("  %2d: %s\n", i+1, member)
 			}
@@ -144,13 +144,14 @@ func (*listGroups) printPlainTextOutput(groups kafka.ConsumerGroups) {
 		}
 
 		if len(group.TopicOffsets) > 0 {
-			fmt.Printf("\n%s\n\n", internal.Green("Partition Offsets:"))
+			fmt.Printf("\n%s\n\n", internal.Green("Partition Offsets:", c.globalParams.EnableColor))
 			for topic, partitionOffsets := range group.TopicOffsets {
 				partitions := partitionOffsets.SortPartitions()
-				fmt.Printf("\n %s\n\n", internal.Green("Topic: "+topic))
+				fmt.Printf("\n %s\n\n", internal.Green("Topic: "+topic, c.globalParams.EnableColor))
 				for _, partition := range partitions {
 					offsets := partitionOffsets[int32(partition)]
-					fmt.Printf("   Partition %2d: %d out of %d (Lag: %s) \n", partition, offsets.Current, offsets.Latest, highlightLag(offsets.Lag()))
+					fmt.Printf("   Partition %2d: %d out of %d (Lag: %s) \n", partition, offsets.Current,
+						offsets.Latest, highlightLag(offsets.Lag(), c.globalParams.EnableColor))
 				}
 			}
 			fmt.Println()

@@ -7,14 +7,14 @@ type Counter struct {
 	failure uint64
 }
 
-func (c *Counter) Print() {
+func (c *Counter) Print(highlight bool) {
 	failed := RedIfTrue(c.failure, func() bool {
 		return c.failure > 0
-	})
+	}, highlight)
 
 	succeeded := GreenIfTrue(c.success, func() bool {
 		return c.success > 0
-	})
+	}, highlight)
 	fmt.Printf("\nSummary:  \n  Succeeded: %s\n     Failed: %s", succeeded, failed)
 }
 

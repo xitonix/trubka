@@ -69,7 +69,7 @@ func (c *listTopics) run(_ *kingpin.ParseContext) error {
 func (c *listTopics) printPlainTextOutput(tpo kafka.TopicPartitionOffset) {
 	sortedTopics := tpo.SortedTopics()
 	for _, topic := range sortedTopics {
-		fmt.Printf("%s: %s\n", internal.Bold("Topic"), topic)
+		fmt.Printf("%s: %s\n", internal.Bold("Topic", c.globalParams.EnableColor), topic)
 		partitions := tpo[topic]
 		if !c.includeOffsets {
 			continue
@@ -83,7 +83,7 @@ func (c *listTopics) printPlainTextOutput(tpo kafka.TopicPartitionOffset) {
 				msg += fmt.Sprintf(" Local Offset %d out of %d", offset.Current, offset.Latest)
 				lag := offset.Lag()
 				if lag > 0 {
-					msg += fmt.Sprintf(" (Lag: %s)", highlightLag(lag))
+					msg += fmt.Sprintf(" (Lag: %s)", highlightLag(lag, c.globalParams.EnableColor))
 				}
 			} else {
 				msg += fmt.Sprintf("%d", offset.Latest)
@@ -127,7 +127,7 @@ func (c *listTopics) printTableOutput(tpo kafka.TopicPartitionOffset) {
 			op := partitions[int32(partition)]
 			lagStr := "-"
 			if op.Current >= 0 {
-				lagStr = highlightLag(op.Lag())
+				lagStr = fmt.Sprint(highlightLag(op.Lag(), c.globalParams.EnableColor))
 			}
 			rows = append(rows, []string{firstCell, strconv.Itoa(partition), op.String(true), op.String(false), lagStr})
 		}

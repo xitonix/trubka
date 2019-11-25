@@ -26,6 +26,9 @@ func newApplication() error {
 }
 
 func bindAppFlags(app *kingpin.Application, global *commands.GlobalParameters) {
+	app.Flag("color", "Enables colors in the standard output. To disable, use --no-color.").
+		BoolVar(&global.EnableColor)
+
 	var verbosity int
 	app.Flag("verbose", "The verbosity level of Trubka.").
 		Short('v').

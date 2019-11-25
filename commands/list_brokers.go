@@ -105,7 +105,7 @@ func (c *listBrokers) printTableOutput(brokers []kafka.Broker) {
 
 func (c *listBrokers) printPlainTextOutput(brokers []kafka.Broker) {
 	for _, broker := range brokers {
-		fmt.Printf("%s: %s\n", internal.Bold("Broker"), broker.String())
+		fmt.Printf("%s: %s\n", internal.Bold("Broker", c.globalParams.EnableColor), broker.String())
 		if c.includeMetadata && len(broker.Meta.Topics) > 0 {
 			topics := make([]string, 0)
 			for _, topic := range broker.Meta.Topics {
@@ -115,7 +115,7 @@ func (c *listBrokers) printPlainTextOutput(brokers []kafka.Broker) {
 				topics = append(topics, fmt.Sprintf("  %s (%d)", topic.Name, topic.NumberOdPartitions))
 			}
 			if len(topics) > 0 {
-				fmt.Printf("%s\n\n", internal.Green("TOPICS (No. of Partitions)"))
+				fmt.Printf("%s\n\n", internal.Green("TOPICS (No. of Partitions)", c.globalParams.EnableColor))
 				fmt.Println(strings.Join(topics, "\n"))
 			} else {
 				fmt.Println(getNotFoundMessage("topic", "topic", c.topicFilter))

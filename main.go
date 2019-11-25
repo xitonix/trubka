@@ -1,9 +1,8 @@
 package main
 
 import (
+	"fmt"
 	"os"
-
-	"github.com/gookit/color"
 )
 
 var version string
@@ -16,6 +15,6 @@ func main() {
 }
 
 func exit(err error) {
-	color.Error.Printf("FATAL: %s\n", err)
+	fmt.Printf("FATAL: %s\n", err)
 	os.Exit(1)
 }
