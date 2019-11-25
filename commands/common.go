@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/gookit/color"
 	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -54,11 +53,15 @@ func initKafkaManager(globalParams *GlobalParameters, kafkaParams *kafkaParamete
 	return manager, ctx, cancel, nil
 }
 
-func highlightLag(input int64) string {
-	if input > 0 {
-		return internal.Yellow(humanize.Comma(input))
+func highlightLag(input int64, colorEnabled bool) interface{} {
+	humanised := humanize.Comma(input)
+	if !colorEnabled {
+		return humanised
 	}
-	return internal.Green(humanize.Comma(input))
+	if input > 0 {
+		return internal.Yellow(humanised, true)
+	}
+	return internal.Green(humanised, true)
 }
 
 func getNotFoundMessage(entity, filterName string, ex *regexp.Regexp) string {
@@ -107,13 +110,15 @@ func getTopics(topicMap map[string]string, cp *kafka.Checkpoint) map[string]*kaf
 	return topics
 }
 
-func closeFile(file *os.File) {
+func closeFile(file *os.File, highlight bool) {
 	err := file.Sync()
 	if err != nil {
-		color.Error.Printf("Failed to sync the file: %s\n", err)
+		msg := fmt.Sprintf("Failed to sync the file: %s", err)
+		fmt.Println(internal.Red(msg, highlight))
 	}
 	if err := file.Close(); err != nil {
-		color.Error.Printf("Failed to close the file: %s\n", err)
+		msg := fmt.Sprintf("Failed to close the file: %s", err)
+		fmt.Println(internal.Red(msg, highlight))
 	}
 }
 

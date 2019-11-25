@@ -3,6 +3,7 @@ package commands
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/signal"
@@ -11,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gookit/color"
 	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -207,18 +207,15 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	wg := sync.WaitGroup{}
 
 	counter := &internal.Counter{}
-	
+
 	if len(tm) > 0 {
 		wg.Add(1)
 		consumerCtx, stopConsumer := context.WithCancel(context.Background())
 		defer stopConsumer()
+		prn.Infof(internal.Verbose, "Start consuming from %s offset.", cp.OffsetString())
 		go func() {
 			defer wg.Done()
 			marshaller := protobuf.NewMarshaller(c.format, c.includeTimestamp)
-			var searchColor color.Style
-			if !writeEventsToFile {
-				searchColor = color.Warn.Style
-			}
 			var cancelled bool
 			for {
 				select {
@@ -237,7 +234,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 						continue
 					}
 
-					output, err := c.process(tm[event.Topic], loader, event, marshaller, searchColor)
+					output, err := c.process(tm[event.Topic], loader, event, marshaller, c.globalParams.EnableColor && !writeEventsToFile)
 					if err == nil {
 						prn.WriteEvent(event.Topic, output)
 						consumer.StoreOffset(event)
@@ -278,18 +275,18 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 
 	// Do not write to Printer after this point
 	if writeLogToFile {
-		closeFile(logFile.(*os.File))
+		closeFile(logFile.(*os.File), c.globalParams.EnableColor)
 	}
 
 	if writeEventsToFile {
 		for _, w := range writers {
-			closeFile(w.(*os.File))
+			closeFile(w.(*os.File), c.globalParams.EnableColor)
 		}
 	}
 	prn.Close()
 
 	if c.count {
-		counter.Print()
+		counter.Print(c.globalParams.EnableColor)
 	}
 
 	return nil
@@ -299,7 +296,7 @@ func (c *consumeProto) process(messageType string,
 	loader *protobuf.FileLoader,
 	event *kafka.Event,
 	marshaller *protobuf.Marshaller,
-	highlightColor color.Style) ([]byte, error) {
+	highlight bool) ([]byte, error) {
 
 	msg, err := loader.Get(messageType)
 	if err != nil {
@@ -322,8 +319,8 @@ func (c *consumeProto) process(messageType string,
 			return nil, nil
 		}
 		for _, match := range matches {
-			if highlightColor != nil {
-				output = bytes.ReplaceAll(output, match, []byte(highlightColor.Sprint(string(match))))
+			if highlight {
+				output = bytes.ReplaceAll(output, match, []byte(fmt.Sprint(internal.Yellow(string(match), true))))
 			}
 		}
 	}

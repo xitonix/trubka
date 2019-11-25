@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"runtime"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -26,6 +27,21 @@ func newApplication() error {
 }
 
 func bindAppFlags(app *kingpin.Application, global *commands.GlobalParameters) {
+	colorFlag := app.Flag("color", "Enables colors in the standard output. To disable, use --no-color (Disabled by default on Windows).")
+
+	if runtime.GOOS == "windows" {
+		colorFlag.Default("false")
+	} else {
+		colorFlag.Default("true")
+	}
+
+	colorFlag.BoolVar(&global.EnableColor)
+
+	app.PreAction(func(context *kingpin.ParseContext) error {
+		enabledColor = global.EnableColor
+		return nil
+	})
+
 	var verbosity int
 	app.Flag("verbose", "The verbosity level of Trubka.").
 		Short('v').

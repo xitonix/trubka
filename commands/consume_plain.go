@@ -12,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gookit/color"
 	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -186,13 +185,11 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	consumerCtx, stopConsumer := context.WithCancel(context.Background())
 	defer stopConsumer()
 	counter := &internal.Counter{}
+	prn.Infof(internal.Verbose, "Start consuming from %s offset.", cp.OffsetString())
 	go func() {
 		defer wg.Done()
 		marshaller := internal.NewPlainTextMarshaller(c.format, c.includeTimestamp)
-		var searchColor color.Style
-		if !writeEventsToFile {
-			searchColor = color.Warn.Style
-		}
+
 		var cancelled bool
 		for {
 			select {
@@ -210,7 +207,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 					// Otherwise the consumer will deadlock
 					continue
 				}
-				output, err := c.process(event, searchColor, marshaller)
+				output, err := c.process(event, marshaller, c.globalParams.EnableColor && !writeEventsToFile)
 				if err == nil {
 					prn.WriteEvent(event.Topic, output)
 					consumer.StoreOffset(event)
@@ -247,25 +244,25 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 
 	// Do not write to Printer after this point
 	if writeLogToFile {
-		closeFile(logFile.(*os.File))
+		closeFile(logFile.(*os.File), c.globalParams.EnableColor)
 	}
 
 	if writeEventsToFile {
 		for _, w := range writers {
-			closeFile(w.(*os.File))
+			closeFile(w.(*os.File), c.globalParams.EnableColor)
 		}
 	}
 
 	prn.Close()
 
 	if c.count {
-		counter.Print()
+		counter.Print(c.globalParams.EnableColor)
 	}
 
 	return nil
 }
 
-func (c *consumePlain) process(event *kafka.Event, highlightColor color.Style, marshaller *internal.Marshaller) ([]byte, error) {
+func (c *consumePlain) process(event *kafka.Event, marshaller *internal.Marshaller, highlight bool) ([]byte, error) {
 	output, err := marshaller.Marshal(event.Value, event.Timestamp)
 	if err != nil {
 		return nil, fmt.Errorf("invalid '%s' message received from Kafka: %w", c.format, err)
@@ -277,8 +274,8 @@ func (c *consumePlain) process(event *kafka.Event, highlightColor color.Style, m
 			return nil, nil
 		}
 		for _, match := range matches {
-			if highlightColor != nil {
-				output = bytes.ReplaceAll(output, match, []byte(highlightColor.Sprint(string(match))))
+			if highlight {
+				output = bytes.ReplaceAll(output, match, []byte(fmt.Sprint(internal.Yellow(string(match), true))))
 			}
 		}
 	}

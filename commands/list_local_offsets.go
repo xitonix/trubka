@@ -6,10 +6,10 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/gookit/color"
 	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -42,7 +42,7 @@ func (c *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 		if filtered {
 			msg += " You might need to tweak the filters."
 		}
-		color.Warn.Println(msg)
+		fmt.Println(internal.Yellow(msg, c.globalParams.EnableColor))
 	}
 
 	for environment, topicOffsets := range offsetMap {
@@ -51,7 +51,7 @@ func (c *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 		}
 		sortedTopics := topicOffsets.SortedTopics()
 
-		color.Bold.Print("Environment")
+		internal.Bold("Environment", c.globalParams.EnableColor)
 		fmt.Printf(": %s\n", environment)
 		table := tablewriter.NewWriter(os.Stdout)
 		headers := []string{"Topic", "Partition", "Offset"}
