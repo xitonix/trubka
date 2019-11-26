@@ -1,13 +1,14 @@
 package kafka
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/kirsle/configdir"
 	"github.com/peterbourgon/diskv"
-	"github.com/pkg/errors"
 
 	"github.com/xitonix/trubka/internal"
 )
@@ -35,7 +36,7 @@ func newOffsetStore(printer internal.Printer, environment string) (*offsetStore,
 	root := configdir.LocalConfig(localOffsetRoot, environment)
 	err := configdir.MakePath(root)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to create the application cache folder")
+		return nil, fmt.Errorf("failed to create the application cache folder: %w", err)
 	}
 	printer.Infof(internal.Verbose, "Initialising local offset store at %s", root)
 
@@ -119,7 +120,7 @@ func (s *offsetStore) writeOffsetsToDisk(topicPartitionOffsets TopicPartitionOff
 	for topic, partitionOffsets := range topicPartitionOffsets {
 		cs, buff, err := partitionOffsets.marshal()
 		if err != nil {
-			s.writeErrors <- errors.Wrapf(err, "Failed to serialise the offsets of topic %s", topic)
+			s.writeErrors <- fmt.Errorf("failed to serialise the offsets of topic %s: %w", topic, err)
 			return
 		}
 		if cs == "" {
@@ -137,7 +138,7 @@ func (s *offsetStore) writeOffsetsToDisk(topicPartitionOffsets TopicPartitionOff
 		}
 		err = s.db.Write(topic+offsetFileExtension, buff)
 		if err != nil {
-			s.writeErrors <- errors.Wrapf(err, "Failed to write the offsets of topic %s to the disk %s", topic, cs)
+			s.writeErrors <- fmt.Errorf("failed to write the offsets of topic %s to the disk %s: %w", topic, cs, err)
 		}
 	}
 }

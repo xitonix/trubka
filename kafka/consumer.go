@@ -2,13 +2,15 @@ package kafka
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
 	"math"
 	"regexp"
 	"sync"
 
 	"github.com/Shopify/sarama"
-	"github.com/pkg/errors"
+
 	"github.com/rcrowley/go-metrics"
 
 	"github.com/xitonix/trubka/internal"
@@ -33,7 +35,7 @@ type Consumer struct {
 // NewConsumer creates a new instance of Kafka cluster consumer.
 func NewConsumer(brokers []string, printer internal.Printer, environment string, enableAutoTopicCreation bool, options ...Option) (*Consumer, error) {
 	if len(brokers) == 0 {
-		return nil, errors.New("The brokers list cannot be empty")
+		return nil, errors.New("the brokers list cannot be empty")
 	}
 	ops := NewOptions()
 	for _, option := range options {
@@ -49,7 +51,7 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 
 	consumer, err := sarama.NewConsumerFromClient(client)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialise the Kafka consumer")
+		return nil, fmt.Errorf("failed to initialise the Kafka consumer: %w", err)
 	}
 
 	store, err := newOffsetStore(printer, environment)
@@ -78,7 +80,7 @@ func (c *Consumer) GetTopics(search *regexp.Regexp) ([]string, error) {
 
 	topics, err := c.internalConsumer.Topics()
 	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to fetch the topic list from the server")
+		return nil, fmt.Errorf("failed to fetch the topic list from the server: %w", err)
 	}
 
 	c.remoteTopics = make([]string, 0)
@@ -200,7 +202,7 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 		c.printer.Logf(internal.VeryVerbose, "Start consuming from partition %d of topic %s (offset: %v).", partition, topic, getOffsetString(offset.Current))
 		pc, err := c.internalConsumer.ConsumePartition(topic, partition, offset.Current)
 		if err != nil {
-			return errors.Wrapf(err, "Failed to start consuming partition %d of topic %s", partition, topic)
+			return fmt.Errorf("failed to start consuming partition %d of topic %s: %w", partition, topic, err)
 		}
 
 		c.wg.Add(1)
@@ -248,7 +250,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (TopicPar
 		// That's why we need to get the list of the existing topics from the brokers.
 		remote, err := c.GetTopics(nil)
 		if err != nil {
-			return nil, errors.Wrapf(err, "Failed to fetch the topic list from the broker(s)")
+			return nil, fmt.Errorf("failed to fetch the topic list from the broker(s): %w", err)
 		}
 		for _, t := range remote {
 			existing[t] = nil
@@ -261,7 +263,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (TopicPar
 	for topic, cp := range topics {
 		if !c.enableAutoTopicCreation {
 			if _, ok := existing[topic]; !ok {
-				return nil, errors.Errorf("failed to find the topic %s on the server. You must create the topic manually or enable automatic topic creation both on the server and in trubka", topic)
+				return nil, fmt.Errorf("failed to find the topic %s on the server. You must create the topic manually or enable automatic topic creation both on the server and in trubka", topic)
 			}
 		}
 		c.printer.Logf(internal.SuperVerbose, "Fetching partitions for topic %s.", topic)
@@ -272,7 +274,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (TopicPar
 
 		partitions, err := c.internalConsumer.Partitions(topic)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to fetch the partition offsets for topic %s", topic)
+			return nil, fmt.Errorf("failed to fetch the partition offsets for topic %s: %w", topic, err)
 		}
 		for _, partition := range partitions {
 			offset := sarama.OffsetNewest
@@ -281,7 +283,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (TopicPar
 				c.printer.Logf(internal.SuperVerbose, "Reading the most recent offset of partition %d for topic %s from the server.", partition, topic)
 				currentOffset, err := c.internalClient.GetOffset(topic, partition, sarama.OffsetNewest)
 				if err != nil {
-					return nil, errors.Wrapf(err, "failed to retrieve the current offset value for partition %d of topic %s", partition, topic)
+					return nil, fmt.Errorf("failed to retrieve the current offset value for partition %d of topic %s: %w", partition, topic, err)
 				}
 				offset = int64(math.Min(float64(cp.offset), float64(currentOffset)))
 				c.printer.Logf(internal.SuperVerbose,
@@ -298,7 +300,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*Checkpoint) (TopicPar
 					cp.OffsetString())
 				offset, err = c.internalClient.GetOffset(topic, partition, cp.offset)
 				if err != nil {
-					return nil, errors.Wrapf(err, "failed to retrieve the time-based offset for partition %d of topic %s", partition, topic)
+					return nil, fmt.Errorf("failed to retrieve the time-based offset for partition %d of topic %s: %w", partition, topic, err)
 				}
 				c.printer.Logf(internal.SuperVerbose,
 					"Time-based offset for partition %d of topic %s at %v = %v.",
@@ -353,7 +355,7 @@ func initClient(brokers []string, ops *Options) (sarama.Client, error) {
 
 	client, err := sarama.NewClient(brokers, config)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialise the Kafka client")
+		return nil, fmt.Errorf("failed to initialise the Kafka client: %w", err)
 	}
 
 	return client, nil

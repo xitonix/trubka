@@ -11,7 +11,6 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
-	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/internal"
@@ -68,7 +67,7 @@ func (c *listGroups) listGroups(ctx context.Context, manager *kafka.Manager) err
 	topics := strings.Split(c.topics, ",")
 	groups, err := manager.GetConsumerGroups(ctx, c.includeMembers, c.memberFilter, c.groupFilter, topics)
 	if err != nil {
-		return errors.Wrap(err, "Failed to list the brokers.")
+		return fmt.Errorf("failed to list the brokers: %w", err)
 	}
 
 	if len(groups) == 0 {

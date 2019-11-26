@@ -3,6 +3,7 @@ package commands
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/internal"
@@ -138,7 +138,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 			return errors.New("Which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i).")
 		}
 		if internal.IsEmpty(c.messageType) {
-			return errors.Errorf("Which message type is stored in %s topic? Make sure you provide the fully qualified proto name as the second argument or switch to interactive mode (-i).", c.topic)
+			return fmt.Errorf("Which message type is stored in %s topic? Make sure you provide the fully qualified proto name as the second argument or switch to interactive mode (-i).", c.topic)
 		}
 	}
 	logFile, writeLogToFile, err := getLogWriter(c.logFile)

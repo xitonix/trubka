@@ -2,6 +2,8 @@ package kafka
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -10,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/Shopify/sarama"
-	"github.com/pkg/errors"
 
 	"github.com/xitonix/trubka/internal"
 )
@@ -55,7 +56,7 @@ func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...
 
 	admin, err := sarama.NewClusterAdmin(addresses, client.Config())
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to create a new cluster administrator.")
+		return nil, fmt.Errorf("failed to create a new cluster administrator: %w", err)
 	}
 
 	return &Manager{
@@ -165,7 +166,7 @@ func (m *Manager) GetGroupTopics(ctx context.Context, group string, includeOffse
 				m.Logf(internal.VeryVerbose, "Retrieving the topic assignments for %s", member.ClientId)
 				assignments, err := member.GetMemberAssignment()
 				if err != nil {
-					return nil, errors.Wrap(err, "Failed to retrieve the topic/partition assignments")
+					return nil, fmt.Errorf("failed to retrieve the topic/partition assignments: %w", err)
 				}
 
 				for topic, partitions := range assignments.Topics {
@@ -196,7 +197,7 @@ func (m *Manager) GetGroupTopics(ctx context.Context, group string, includeOffse
 		m.Logf(internal.VeryVerbose, "Retrieving the offsets for %s consumer group", group)
 		cgOffsets, err := m.admin.ListConsumerGroupOffsets(group, topicPartitions)
 		if err != nil {
-			return nil, errors.Wrap(err, "Failed to retrieve the consumer group offsets")
+			return nil, fmt.Errorf("failed to retrieve the consumer group offsets: %w", err)
 		}
 
 		for topic, blocks := range cgOffsets.Blocks {
@@ -233,7 +234,7 @@ func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, me
 		m.Log(internal.Verbose, "Retrieving consumer groups from the server")
 		groups, err := m.admin.ListConsumerGroups()
 		if err != nil {
-			return nil, errors.Wrap(err, "Failed to fetch the consumer groups from the server.")
+			return nil, fmt.Errorf("failed to fetch the consumer groups from the server: %w", err)
 		}
 		groupNames := make([]string, 0)
 		for group := range groups {
@@ -259,7 +260,7 @@ func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, me
 			m.Log(internal.Verbose, "Retrieving consumer group members from the server")
 			groupsMeta, err := m.admin.DescribeConsumerGroups(groupNames)
 			if err != nil {
-				return nil, errors.Wrap(err, "Failed to retrieve the group members from the server")
+				return nil, fmt.Errorf("failed to retrieve the group members from the server: %w", err)
 			}
 			for _, gm := range groupsMeta {
 				select {
@@ -311,7 +312,7 @@ func (m *Manager) setGroupOffsets(ctx context.Context, consumerGroups ConsumerGr
 			m.Logf(internal.VeryVerbose, "Retrieving the offsets for %s consumer group", groupID)
 			cgOffsets, err := m.admin.ListConsumerGroupOffsets(groupID, topicPartitions)
 			if err != nil {
-				return errors.Wrap(err, "Failed to retrieve the consumer group offsets")
+				return fmt.Errorf("failed to retrieve the consumer group offsets: %w", err)
 			}
 			group.TopicOffsets = make(TopicPartitionOffset)
 			for topic, blocks := range cgOffsets.Blocks {

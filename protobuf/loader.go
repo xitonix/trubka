@@ -1,6 +1,7 @@
 package protobuf
 
 import (
+	"fmt"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -9,7 +10,6 @@ import (
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
-	"github.com/pkg/errors"
 )
 
 // Loader the interface to load and list the protocol buffer message types.
@@ -39,7 +39,7 @@ func NewFileLoader(root string, files ...string) (*FileLoader, error) {
 	if len(files) == 0 {
 		files, err = finder.ls()
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to load the proto files")
+			return nil, fmt.Errorf("failed to load the proto files: %w", err)
 		}
 	} else {
 		for i, f := range files {
@@ -54,16 +54,16 @@ func NewFileLoader(root string, files ...string) (*FileLoader, error) {
 
 	importPaths, err := finder.dirs()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load the import paths")
+		return nil, fmt.Errorf("failed to load the import paths: %w", err)
 	}
 
 	if len(files) == 0 {
-		return nil, errors.Errorf("no protocol buffer (*.proto) files found in %s", root)
+		return nil, fmt.Errorf("no protocol buffer (*.proto) files found in %s", root)
 	}
 
 	resolved, err := protoparse.ResolveFilenames(importPaths, files...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to resolve the protocol buffer (*.proto) files")
+		return nil, fmt.Errorf("failed to resolve the protocol buffer (*.proto) files: %w", err)
 	}
 
 	parser := protoparse.Parser{
@@ -80,7 +80,7 @@ func NewFileLoader(root string, files ...string) (*FileLoader, error) {
 
 	fileDescriptors, err := parser.ParseFiles(resolved...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse the protocol buffer (*.proto) files")
+		return nil, fmt.Errorf("failed to parse the protocol buffer (*.proto) files: %w", err)
 	}
 
 	er := &dynamic.ExtensionRegistry{}
@@ -113,7 +113,7 @@ func (f *FileLoader) Load(messageName string) error {
 			return nil
 		}
 	}
-	return errors.Errorf("%s not found. Make sure you use the fully qualified name of the message", messageName)
+	return fmt.Errorf("%s not found. Make sure you use the fully qualified name of the message", messageName)
 }
 
 // Get creates a new instance of the specified protocol buffer message.
@@ -124,7 +124,7 @@ func (f *FileLoader) Get(messageName string) (*dynamic.Message, error) {
 	if md, ok := f.cache[messageName]; ok {
 		return f.factory.NewDynamicMessage(md), nil
 	}
-	return nil, errors.Errorf("%s not found. Make sure you Load the message first.", messageName)
+	return nil, fmt.Errorf("%s not found. Make sure you Load the message first", messageName)
 }
 
 // List returns a list of all the protocol buffer messages exist in the path.

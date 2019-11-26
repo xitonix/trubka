@@ -3,10 +3,11 @@ package commands
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 
-	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/internal"
@@ -108,7 +109,7 @@ func configureTLS(params *tlsParameters) (*tls.Config, error) {
 		}
 		certificate, err := tls.LoadX509KeyPair(params.clientCert, params.clientKey)
 		if err != nil {
-			return nil, errors.Wrap(err, "Failed to load the client TLS key pair")
+			return nil, fmt.Errorf("failed to load the client TLS key pair: %w", err)
 		}
 		tlsConf.Certificates = []tls.Certificate{certificate}
 	}
@@ -122,7 +123,7 @@ func configureTLS(params *tlsParameters) (*tls.Config, error) {
 	certPool := x509.NewCertPool()
 	ca, err := ioutil.ReadFile(params.caCert)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to read the CA certificate")
+		return nil, fmt.Errorf("failed to read the CA certificate: %w", err)
 	}
 
 	if ok := certPool.AppendCertsFromPEM(ca); !ok {

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // IsEmpty returns true of the trimmed input is empty.
@@ -28,4 +30,16 @@ func BoolToString(in bool) string {
 
 func PrependTimestamp(ts time.Time, in []byte) []byte {
 	return append([]byte(fmt.Sprintf("[%s]\n", FormatTimeUTC(ts))), in...)
+}
+
+func Title(err error) string {
+	if err == nil {
+		return ""
+	}
+	input := err.Error()
+	if input == "" {
+		return ""
+	}
+	r, n := utf8.DecodeRuneInString(input)
+	return string(unicode.ToUpper(r)) + input[n:]
 }

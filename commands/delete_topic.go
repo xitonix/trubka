@@ -1,10 +1,10 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 
-	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/internal"

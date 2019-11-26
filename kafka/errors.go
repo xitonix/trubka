@@ -1,6 +1,6 @@
 package kafka
 
-import "github.com/pkg/errors"
+import "errors"
 
 var (
 	// ErrEmptyEnvironment occurs when the provided environment is empty.
