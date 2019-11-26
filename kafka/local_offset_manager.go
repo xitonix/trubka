@@ -3,6 +3,7 @@ package kafka
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/kirsle/configdir"
 	"github.com/peterbourgon/diskv"
-	"github.com/pkg/errors"
 
 	"github.com/xitonix/trubka/internal"
 )
@@ -69,7 +69,7 @@ func (l *LocalOffsetManager) GetOffsetFiles(environment string, topicFilter *reg
 
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, errors.Errorf("The local offset directory could not be found at %s", root)
+			return nil, fmt.Errorf("the local offset directory could not be found at %s", root)
 		}
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (l *LocalOffsetManager) ReadLocalTopicOffsets(topic string, environment str
 	dec := gob.NewDecoder(buff)
 	err = dec.Decode(&stored)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to deserialize the value from local offset store for topic %s", topic)
+		return nil, fmt.Errorf("failed to deserialize the value from local offset store for topic %s: %w", topic, err)
 	}
 
 	return ToPartitionOffset(stored, false), nil

@@ -3,7 +3,6 @@ module github.com/xitonix/trubka
 go 1.12
 
 require (
-	github.com/DataDog/zstd v1.4.4 // indirect
 	github.com/Shopify/sarama v1.24.1
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
@@ -20,8 +19,6 @@ require (
 	github.com/olekukonko/tablewriter v0.0.3
 	github.com/peterbourgon/diskv v2.0.1+incompatible
 	github.com/pierrec/lz4 v2.3.0+incompatible // indirect
-	github.com/pkg/errors v0.8.1
-	github.com/pkg/profile v1.2.1 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
 	github.com/xitonix/flags v0.1.1

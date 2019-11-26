@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 type fileFinder struct {
@@ -16,7 +14,7 @@ type fileFinder struct {
 func newFileFinder(root string) (*fileFinder, error) {
 	dir, err := os.Stat(root)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to access %s", root)
+		return nil, fmt.Errorf("failed to access %s: %w", root, err)
 	}
 	if !dir.IsDir() {
 		return nil, fmt.Errorf("%s is not a directory", root)

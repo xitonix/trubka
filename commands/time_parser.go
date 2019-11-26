@@ -1,9 +1,8 @@
 package commands
 
 import (
+	"fmt"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 var (
@@ -55,5 +54,5 @@ func parseTime(input string) (time.Time, error) {
 			return t, nil
 		}
 	}
-	return time.Time{}, errors.Errorf("%v does not match with any of the expected time string formats.", input)
+	return time.Time{}, fmt.Errorf("%v does not match with any of the expected time string formats", input)
 }

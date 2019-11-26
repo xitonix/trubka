@@ -1,13 +1,13 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/olekukonko/tablewriter"
@@ -52,7 +52,7 @@ func (c *listBrokers) run(_ *kingpin.ParseContext) error {
 
 	brokers, err := manager.GetBrokers(ctx, c.includeMetadata)
 	if err != nil {
-		return errors.Wrap(err, "Failed to list the brokers.")
+		return fmt.Errorf("failed to list the brokers: %w", err)
 	}
 
 	if len(brokers) == 0 {

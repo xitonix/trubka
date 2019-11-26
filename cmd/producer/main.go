@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/golang/protobuf/proto"
-	"github.com/pkg/errors"
 	"github.com/xitonix/flags"
 
 	"github.com/xitonix/trubka/cmd/contracts"
@@ -49,12 +49,12 @@ func main() {
 
 	producer, err := sarama.NewSyncProducer(brokers.Get(), config)
 	if err != nil {
-		exit(errors.Wrap(err, "failed to create a new producer"))
+		exit(fmt.Errorf("failed to create a new producer: %w", err))
 	}
 
 	defer func() {
 		if err := producer.Close(); err != nil {
-			exit(errors.Wrap(err, "failed to close the producer"))
+			exit(fmt.Errorf("failed to close the producer: %w", err))
 		}
 	}()
 
@@ -74,7 +74,7 @@ func main() {
 
 		partition, offset, err := producer.SendMessage(message)
 		if err != nil {
-			exit(errors.Wrap(err, "failed to publish to Kafka"))
+			exit(fmt.Errorf("failed to publish to Kafka: %w", err))
 		}
 		fmt.Printf("A new message has been published to %s partition %d, offset: %d\n", message.Topic, partition, offset)
 	}
@@ -112,7 +112,7 @@ func populate(key string, format string) ([]byte, []byte, error) {
 	}
 
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to marshal the message")
+		return nil, nil, fmt.Errorf("failed to marshal the message: %w", err)
 	}
 
 	return []byte(key), val, nil

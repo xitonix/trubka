@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/internal"
@@ -96,7 +95,7 @@ func getLogWriter(logFile string) (io.Writer, bool, error) {
 	default:
 		lf, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 		if err != nil {
-			return nil, false, errors.Wrapf(err, "Failed to create: %s", logFile)
+			return nil, false, fmt.Errorf("failed to create %s: %w", logFile, err)
 		}
 		return lf, true, nil
 	}
@@ -145,14 +144,14 @@ func getOutputWriters(outputDir string, topics map[string]*kafka.Checkpoint) (ma
 
 	err := os.MkdirAll(outputDir, 0755)
 	if err != nil {
-		return nil, false, errors.Wrap(err, "Failed to create the output directory")
+		return nil, false, fmt.Errorf("failed to create the output directory: %w", err)
 	}
 
 	for topic := range topics {
 		file := filepath.Join(outputDir, topic)
 		lf, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 		if err != nil {
-			return nil, false, errors.Wrapf(err, "Failed to create: %s", file)
+			return nil, false, fmt.Errorf("failed to create %s: %w", file, err)
 		}
 		result[topic] = lf
 	}
