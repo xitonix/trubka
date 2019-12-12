@@ -6,7 +6,7 @@ LINUX=./bin/linux_amd64
 DARWIN=./bin/darwin_amd64
 VERSION=$(shell git describe --tags --abbrev=0)
 COMMIT=$(shell git rev-parse HEAD)
-BUILT := $(shell date -u '+%a, %d %b %Y %H:%M:%S GMT')
+BUILT := $(shell date -u '+%a %d %b %Y %H:%M:%S GMT')
 RUNTIME=$(shell go version | cut -d' ' -f 3)
 
 prepare:
