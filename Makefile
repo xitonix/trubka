@@ -5,6 +5,9 @@ WINDOWS=./bin/windows_amd64
 LINUX=./bin/linux_amd64
 DARWIN=./bin/darwin_amd64
 VERSION=$(shell git describe --tags --abbrev=0)
+COMMIT=$(shell git rev-parse HEAD)
+BUILT := $(shell date -u '+%a, %d %b %Y %H:%M:%S GMT')
+RUNTIME=$(shell go version | cut -d' ' -f 3)
 
 prepare:
 	@echo Cleaning the bin directory
@@ -12,15 +15,15 @@ prepare:
 
 windows:
 	@echo Building Windows amd64 binaries
-	@env GOOS=windows GOARCH=amd64 go build -i -v -o $(WINDOWS)/$(EXECUTABLE).exe -ldflags="-s -w -X main.version=$(VERSION)"  *.go
+	@env GOOS=windows GOARCH=amd64 go build -i -v -o $(WINDOWS)/$(EXECUTABLE).exe -ldflags="-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.runtimeVer=$(RUNTIME) -X 'main.built=$(BUILT)'"  *.go
 
 linux:
 	@echo Building Linux amd64 binaries
-	@env GOOS=linux GOARCH=amd64 go build -i -v -o $(LINUX)/$(EXECUTABLE) -ldflags="-s -w -X main.version=$(VERSION)"  *.go
+	@env GOOS=linux GOARCH=amd64 go build -i -v -o $(LINUX)/$(EXECUTABLE) -ldflags="-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.runtimeVer=$(RUNTIME) -X 'main.built=$(BUILT)'"  *.go
 
 darwin:
 	@echo Building Mac amd64 binaries
-	@env GOOS=darwin GOARCH=amd64 go build -i -v -o $(DARWIN)/$(EXECUTABLE) -ldflags="-s -w -X main.version=$(VERSION)"  *.go
+	@env GOOS=darwin GOARCH=amd64 go build -i -v -o $(DARWIN)/$(EXECUTABLE) -ldflags="-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.runtimeVer=$(RUNTIME) -X 'main.built=$(BUILT)'"  *.go
 
 build: ## Builds the binaries.
 build: windows linux darwin

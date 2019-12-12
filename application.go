@@ -16,7 +16,7 @@ func newApplication() error {
 	global := &commands.GlobalParameters{}
 	bindAppFlags(app, global)
 
-	commands.AddVersionCommand(app, version)
+	commands.AddVersionCommand(app, version, commit, built, runtimeVer)
 	commands.AddConsumeCommand(app, global)
 	commands.AddBrokerCommand(app, global)
 	commands.AddTopicCommand(app, global)

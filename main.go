@@ -7,7 +7,14 @@ import (
 	"github.com/xitonix/trubka/internal"
 )
 
-var version string
+// Version build flags
+var (
+	version    string
+	commit     string
+	runtimeVer string
+	built      string
+)
+
 var enabledColor bool
 
 func main() {
