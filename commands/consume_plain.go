@@ -36,7 +36,7 @@ type consumePlain struct {
 	includeTimestamp        bool
 	enableAutoTopicCreation bool
 	timeCheckpoint          time.Time
-	offsetCheckpoint        int64
+	offsetCheckpoints       []string
 	count                   bool
 }
 
@@ -69,7 +69,7 @@ func (c *consumePlain) bindCommandFlags(command *kingpin.CmdClause) {
 							If the most recent offset value of a partition is less than the specified value, this flag will be ignored.`).
 		Default("-1").
 		Short('o').
-		Int64Var(&c.offsetCheckpoint)
+		StringsVar(&c.offsetCheckpoints)
 	command.Flag("include-timestamp", "Prints the message timestamp before the content if it's been provided by Kafka.").
 		Short('T').
 		BoolVar(&c.includeTimestamp)
@@ -122,7 +122,7 @@ func (c *consumePlain) bindCommandFlags(command *kingpin.CmdClause) {
 
 func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	if !c.interactive && internal.IsEmpty(c.topic) {
-		return errors.New("Which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i).")
+		return errors.New("which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i)")
 	}
 
 	logFile, writeLogToFile, err := getLogWriter(c.logFile)
@@ -167,9 +167,12 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 		return nil
 	}
 
-	cp := getCheckpoint(c.rewind, c.offsetCheckpoint, c.timeCheckpoint)
-	topics := map[string]*kafka.Checkpoint{
-		c.topic: cp,
+	checkpoints, err := getCheckpoints(c.rewind, c.offsetCheckpoints, c.timeCheckpoint)
+	if err != nil {
+		return err
+	}
+	topics := map[string]*kafka.PartitionCheckpoints{
+		c.topic: checkpoints,
 	}
 
 	writers, writeEventsToFile, err := getOutputWriters(c.outputDir, topics)
@@ -185,7 +188,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	consumerCtx, stopConsumer := context.WithCancel(context.Background())
 	defer stopConsumer()
 	counter := &internal.Counter{}
-	prn.Infof(internal.Verbose, "Start consuming from %s offset.", cp.OffsetString())
+	
 	go func() {
 		defer wg.Done()
 		marshaller := internal.NewPlainTextMarshaller(c.format, c.includeTimestamp)

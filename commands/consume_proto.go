@@ -40,7 +40,7 @@ type consumeProto struct {
 	includeTimestamp        bool
 	enableAutoTopicCreation bool
 	timeCheckpoint          time.Time
-	offsetCheckpoint        int64
+	offsetCheckpoints       []string
 	count                   bool
 }
 
@@ -74,11 +74,10 @@ func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
 			return nil
 		}).
 		StringVar(&timeCheckpoint)
-	command.Flag("from-offset", `Starts consuming from the specified offset (if applicable). This will override --rewind and --from.
+	command.Flag("from-offsets", `Starts consuming from the specified offset (if applicable). This will override --rewind and --from.
 							If the most recent offset value of a partition is less than the specified value, this flag will be ignored.`).
-		Default("-1").
 		Short('o').
-		Int64Var(&c.offsetCheckpoint)
+		StringsVar(&c.offsetCheckpoints)
 	command.Flag("include-timestamp", "Prints the message timestamp before the content if it's been provided by Kafka.").
 		Short('T').
 		BoolVar(&c.includeTimestamp)
@@ -135,10 +134,10 @@ func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
 func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	if !c.interactive {
 		if internal.IsEmpty(c.topic) {
-			return errors.New("Which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i).")
+			return errors.New("which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i)")
 		}
 		if internal.IsEmpty(c.messageType) {
-			return fmt.Errorf("Which message type is stored in %s topic? Make sure you provide the fully qualified proto name as the second argument or switch to interactive mode (-i).", c.topic)
+			return fmt.Errorf("which message type is stored in %s topic? Make sure you provide the fully qualified proto name as the second argument or switch to interactive mode (-i)", c.topic)
 		}
 	}
 	logFile, writeLogToFile, err := getLogWriter(c.logFile)
@@ -177,17 +176,20 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		cancel()
 	}()
 
-	topics := make(map[string]*kafka.Checkpoint)
+	topics := make(map[string]*kafka.PartitionCheckpoints)
 	tm := make(map[string]string)
-	cp := getCheckpoint(c.rewind, c.offsetCheckpoint, c.timeCheckpoint)
+	checkpoints, err := getCheckpoints(c.rewind, c.offsetCheckpoints, c.timeCheckpoint)
+	if err != nil {
+		return err
+	}
 	if c.interactive {
-		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, cp)
+		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, checkpoints)
 		if err != nil {
 			return err
 		}
 	} else {
 		tm[c.topic] = c.messageType
-		topics = getTopics(tm, cp)
+		topics = getTopics(tm, checkpoints)
 	}
 
 	for _, messageType := range tm {
@@ -212,7 +214,6 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		wg.Add(1)
 		consumerCtx, stopConsumer := context.WithCancel(context.Background())
 		defer stopConsumer()
-		prn.Infof(internal.Verbose, "Start consuming from %s offset.", cp.OffsetString())
 		go func() {
 			defer wg.Done()
 			marshaller := protobuf.NewMarshaller(c.format, c.includeTimestamp)
