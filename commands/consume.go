@@ -22,11 +22,12 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 	searchQuery, topicFilter **regexp.Regexp) {
 
 	command.Arg("topic", "The Kafka topic to consume from.").StringVar(topic)
+
 	command.Flag("include-timestamp", "Prints the message timestamp before the content if it's been provided by Kafka.").
 		Short('T').
 		BoolVar(includeTimestamp)
 
-	command.Flag("auto-topic-creation", `Enables automatic Kafka topic creation before consuming (if it is allowed on the server). Enabling this option in production is not recommended since it may pollute the environment with unwanted topics.`).
+	command.Flag("auto-topic-creation", `Enables automatic topic creation before consuming if it's allowed by the server.`).
 		BoolVar(enableAutoTopicCreation)
 
 	command.Flag("format", "The format in which the Kafka messages will be written to the output.").
@@ -44,16 +45,16 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 		Default("local").
 		StringVar(environment)
 
-	command.Flag("output-dir", "The `directory` to write the Kafka messages to (Default: Stdout).").
-		Short('d').
-		StringVar(outputDir)
+	command.Flag("search-query", "The optional regular expression to filter the message content by.").
+		Short('q').
+		RegexpVar(searchQuery)
 
 	command.Flag("reverse", "If set, the messages which match the --search-query will be filtered out.").
 		BoolVar(reverse)
 
-	command.Flag("search-query", "The optional regular expression to filter the message content by.").
-		Short('q').
-		RegexpVar(searchQuery)
+	command.Flag("output-dir", "The `directory` to write the Kafka messages to (Default: Stdout).").
+		Short('d').
+		StringVar(outputDir)
 
 	command.Flag("log-file", "The `file` to write the logs to. Set to 'none' to discard (Default: stdout).").
 		Short('l').

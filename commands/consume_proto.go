@@ -223,10 +223,12 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 
 	// Do not write to Printer after this point
 	if writeLogToFile {
+		prn.Infof(internal.SuperVerbose, "Closing the log file %s", c.logFile)
 		closeFile(logFile.(*os.File), c.globalParams.EnableColor)
 	}
 
 	if writeEventsToFile {
+		prn.Info(internal.SuperVerbose, "Closing the output files")
 		for _, w := range writers {
 			closeFile(w.(*os.File), c.globalParams.EnableColor)
 		}
