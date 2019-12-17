@@ -27,8 +27,8 @@ func newCheckpoint(rewind bool) *Checkpoint {
 }
 
 func newOffsetCheckpoint(offset int64) *Checkpoint {
-	if offset < -2 {
-		offset = -2
+	if offset < sarama.OffsetOldest {
+		offset = sarama.OffsetOldest
 	}
 	return &Checkpoint{
 		offset: offset,
@@ -51,19 +51,6 @@ func newTimeCheckpoint(at time.Time) *Checkpoint {
 	}
 }
 
-// Offset returns the final offset value from which consuming will be started.
-//
-// In MillisecondsOffsetMode, the offset will be the milliseconds of the specified time.
-// This is what Kafka needs to figure out the closest available offset at the given time.
-func (c *Checkpoint) Offset() int64 {
-	return c.offset
-}
-
-// TimeOffset returns the originally provided time value of the time-based offset in MillisecondsOffsetMode mode.
-func (c *Checkpoint) TimeOffset() time.Time {
-	return c.at
-}
-
 // OffsetString returns the string representation of the time offset in `02-01-2006T15:04:05.999999999` format if in
 // MillisecondsOffsetMode mode, otherwise returns the string representation of the offset value.
 func (c *Checkpoint) OffsetString() string {
@@ -72,9 +59,9 @@ func (c *Checkpoint) OffsetString() string {
 	}
 	switch c.offset {
 	case sarama.OffsetNewest:
-		return "newest"
+		return "'newest'"
 	case sarama.OffsetOldest:
-		return "oldest"
+		return "'oldest'"
 	default:
 		return strconv.FormatInt(c.offset, 10)
 	}

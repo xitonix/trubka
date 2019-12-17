@@ -12,7 +12,6 @@ import (
 
 func newApplication() error {
 	app := kingpin.New("trubka", "A tool to consume protocol buffer events from Kafka.").DefaultEnvars()
-
 	global := &commands.GlobalParameters{}
 	bindAppFlags(app, global)
 

@@ -199,7 +199,6 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 	case <-ctx.Done():
 		return nil
 	default:
-		c.printer.Logf(internal.VeryVerbose, "Start consuming from partition %d of topic %s (offset: %v).", partition, topic, getOffsetString(offset.Current))
 		pc, err := c.internalConsumer.ConsumePartition(topic, partition, offset.Current)
 		if err != nil {
 			return fmt.Errorf("failed to start consuming partition %d of topic %s: %w", partition, topic, err)
@@ -267,43 +266,48 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*PartitionCheckpoints)
 			}
 		}
 		c.printer.Logf(internal.SuperVerbose, "Fetching partitions for topic %s.", topic)
-		offsets, err := localOffsetManager.ReadLocalTopicOffsets(topic, c.environment)
-		if err != nil {
-			return nil, err
+		offsets := make(PartitionOffset)
+		if checkpoints.mode == LocalOffsetMode {
+			localOffsets, err := localOffsetManager.ReadLocalTopicOffsets(topic, c.environment)
+			if err != nil {
+				return nil, err
+			}
+			offsets = localOffsets
 		}
 
 		partitions, err := c.internalConsumer.Partitions(topic)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch the partition offsets for topic %s: %w", topic, err)
 		}
+
 		for _, partition := range partitions {
 			offset := sarama.OffsetNewest
 			switch checkpoints.mode {
 			case ExplicitOffsetMode:
-				cp := checkpoints.Get(partition)
-				if cp == nil {
+				cp, found := checkpoints.Get(partition)
+				if !found {
 					// No need to start consuming the partition because it was not
 					// explicitly asked by the user
-					c.printer.Logf(internal.SuperVerbose, "Partition %d of topic %s has been ignored as per user request.", partition, topic)
-					delete(offsets, partition)
+					c.printer.Logf(internal.SuperVerbose, "Partition %d of topic %s has been ignored as per user request", partition, topic)
 					continue
 				}
-				c.printer.Logf(internal.SuperVerbose, "Reading the most recent offset of partition %d for topic %s from the server.", partition, topic)
+				c.printer.Logf(internal.SuperVerbose, "Reading the most recent offset of partition %d for topic %s from the server", partition, topic)
 				mostRecentOffset, err := c.internalClient.GetOffset(topic, partition, sarama.OffsetNewest)
 				if err != nil {
 					return nil, fmt.Errorf("failed to retrieve the current offset value for partition %d of topic %s: %w", partition, topic, err)
 				}
 				c.printer.Logf(internal.SuperVerbose,
-					"The most recent offset for partition %d of topic %s is %d on the server",
+					"The most recent offset for partition %d of topic %s is %v on the server. You asked for offset %v",
 					partition,
 					topic,
-					mostRecentOffset)
+					getOffsetString(mostRecentOffset),
+					cp.OffsetString())
 
 				offset = int64(math.Min(float64(cp.offset), float64(mostRecentOffset)))
 			case MillisecondsOffsetMode:
 				cp := checkpoints.GetDefault()
 				c.printer.Logf(internal.SuperVerbose,
-					"Reading the most recent offset value for partition %d of topic %s at %s from the server.",
+					"Reading the most recent offset value for partition %d of topic %s at %s from the server",
 					partition,
 					topic,
 					cp.OffsetString())
@@ -312,26 +316,41 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*PartitionCheckpoints)
 					return nil, fmt.Errorf("failed to retrieve the time-based offset for partition %d of topic %s: %w", partition, topic, err)
 				}
 				c.printer.Logf(internal.SuperVerbose,
-					"Time-based offset for partition %d of topic %s at %v = %v.",
+					"The most recent available offset of partition %d of topic %s at %v is %v",
 					partition,
 					topic,
 					internal.FormatTimeUTC(cp.at),
 					getOffsetString(offset))
-			default:
+			case LocalOffsetMode:
 				cp := checkpoints.GetDefault()
-				if cp.offset == sarama.OffsetOldest {
-					offset = cp.offset
-					// We are in rewind mode. No need to read the locally stored offset value.
-					break
-				}
+				offset = cp.offset
+				c.printer.Logf(internal.SuperVerbose,
+					"Checking the local offset store for partition %d of topic %s in %s environment",
+					partition,
+					topic,
+					c.environment)
 				if storedOffset, ok := offsets[partition]; ok {
 					offset = storedOffset.Current
+					c.printer.Logf(internal.SuperVerbose,
+						"The local offset for partition %d of topic %s in %s environment is %v",
+						partition,
+						topic,
+						c.environment,
+						getOffsetString(offset))
+				} else {
+					c.printer.Logf(internal.SuperVerbose,
+						"No local offset found for partition %d of topic %s",
+						partition,
+						topic)
 				}
+			default:
+				cp := checkpoints.GetDefault()
+				offset = cp.offset
 			}
 			c.printer.Logf(internal.SuperVerbose,
-				"Setting the offset of partition %d to %v for topic %s.",
-				partition,
+				"Consuming from offset %v of partition %d from topic %s.",
 				getOffsetString(offset),
+				partition,
 				topic)
 			offsets[partition] = Offset{Current: offset}
 		}
@@ -374,9 +393,9 @@ func initClient(brokers []string, ops *Options) (sarama.Client, error) {
 func getOffsetString(offset int64) interface{} {
 	switch offset {
 	case sarama.OffsetOldest:
-		return "oldest"
+		return "'oldest'"
 	case sarama.OffsetNewest:
-		return "newest"
+		return "'newest'"
 	default:
 		return offset
 	}

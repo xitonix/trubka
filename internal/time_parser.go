@@ -1,4 +1,4 @@
-package commands
+package internal
 
 import (
 	"fmt"
@@ -48,7 +48,7 @@ var (
 	}
 )
 
-func parseTime(input string) (time.Time, error) {
+func ParseTime(input string) (time.Time, error) {
 	for _, layout := range layouts {
 		if t, err := time.Parse(layout, input); err == nil {
 			return t, nil

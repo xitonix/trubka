@@ -11,7 +11,6 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/dustin/go-humanize"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -119,21 +118,6 @@ func closeFile(file *os.File, highlight bool) {
 		msg := fmt.Sprintf("Failed to close the file: %s", err)
 		fmt.Println(internal.Red(msg, highlight))
 	}
-}
-
-func getCheckpoints(rewind bool, offsetCheckpoints []string, timeCheckpoint time.Time) (*kafka.PartitionCheckpoints, error) {
-	checkpoints := kafka.NewPartitionCheckpoints(rewind)
-	switch {
-	case len(offsetCheckpoints) > 0:
-		for _, pcp := range offsetCheckpoints {
-			if err := checkpoints.Add(pcp); err != nil {
-				return nil, err
-			}
-		}
-	case !timeCheckpoint.IsZero():
-		checkpoints.SetToTimeCheckpoint(timeCheckpoint)
-	}
-	return checkpoints, nil
 }
 
 func getOutputWriters(outputDir string, topics map[string]*kafka.PartitionCheckpoints) (map[string]io.Writer, bool, error) {
