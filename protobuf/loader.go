@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 
 	"github.com/jhump/protoreflect/desc"
@@ -26,6 +25,7 @@ type FileLoader struct {
 	files   []*desc.FileDescriptor
 	cache   map[string]*desc.MessageDescriptor
 	factory *dynamic.MessageFactory
+	root    string
 }
 
 // NewFileLoader creates a new instance of local file loader.
@@ -71,13 +71,6 @@ func NewFileLoader(root string, files ...string) (*FileLoader, error) {
 		IncludeSourceCodeInfo: true,
 	}
 
-	// Temporary workaround for: https://github.com/jhump/protoreflect/issues/254
-	if runtime.GOOS == "windows" {
-		for i := range resolved {
-			resolved[i] = filepath.ToSlash(resolved[i])
-		}
-	}
-
 	fileDescriptors, err := parser.ParseFiles(resolved...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse the protocol buffer (*.proto) files: %w", err)
@@ -92,6 +85,7 @@ func NewFileLoader(root string, files ...string) (*FileLoader, error) {
 		files:   fileDescriptors,
 		cache:   make(map[string]*desc.MessageDescriptor),
 		factory: dynamic.NewMessageFactoryWithExtensionRegistry(er),
+		root:    root,
 	}, nil
 }
 
@@ -113,7 +107,7 @@ func (f *FileLoader) Load(messageName string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("%s not found. Make sure you use the fully qualified name of the message", messageName)
+	return fmt.Errorf("%s has not been found in %s", messageName, f.root)
 }
 
 // Get creates a new instance of the specified protocol buffer message.
@@ -124,7 +118,7 @@ func (f *FileLoader) Get(messageName string) (*dynamic.Message, error) {
 	if md, ok := f.cache[messageName]; ok {
 		return f.factory.NewDynamicMessage(md), nil
 	}
-	return nil, fmt.Errorf("%s not found. Make sure you Load the message first", messageName)
+	return nil, fmt.Errorf("%s has not been found in %s. Make sure you Load the message first", messageName, f.root)
 }
 
 // List returns a list of all the protocol buffer messages exist in the path.

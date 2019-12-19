@@ -5,12 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"os/signal"
 	"regexp"
 	"sync"
-	"syscall"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -71,12 +68,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 
 	prn := internal.NewPrinter(c.globalParams.Verbosity, logFile)
 
-	saramaLogWriter := ioutil.Discard
-	if c.globalParams.Verbosity >= internal.Chatty {
-		saramaLogWriter = logFile
-	}
-
-	consumer, err := c.kafkaParams.createConsumer(prn, c.environment, c.enableAutoTopicCreation, saramaLogWriter)
+	consumer, err := initialiseConsumer(c.kafkaParams, c.globalParams, c.environment, c.enableAutoTopicCreation, logFile, prn)
 	if err != nil {
 		return err
 	}
@@ -87,13 +79,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go func() {
-		signals := make(chan os.Signal, 1)
-		signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
-		<-signals
-		prn.Info(internal.Verbose, "Stopping Trubka.")
-		cancel()
-	}()
+	go monitorCancellation(prn, cancel)
 
 	if c.interactive {
 		c.topic, err = askUserForTopic(consumer, c.topicFilter)
@@ -110,6 +96,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	if err != nil {
 		return err
 	}
+
 	topics := map[string]*kafka.PartitionCheckpoints{
 		c.topic: checkpoints,
 	}

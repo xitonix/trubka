@@ -5,12 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"os/signal"
 	"regexp"
 	"sync"
-	"syscall"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -87,6 +84,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 			return fmt.Errorf("which message type is stored in %s topic? Make sure you provide the fully qualified proto name as the second argument or switch to interactive mode (-i)", c.topic)
 		}
 	}
+
 	logFile, writeLogToFile, err := getLogWriter(c.logFile)
 	if err != nil {
 		return err
@@ -94,17 +92,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 
 	prn := internal.NewPrinter(c.globalParams.Verbosity, logFile)
 
-	loader, err := protobuf.NewFileLoader(c.protoRoot)
-	if err != nil {
-		return err
-	}
-
-	saramaLogWriter := ioutil.Discard
-	if c.globalParams.Verbosity >= internal.Chatty {
-		saramaLogWriter = logFile
-	}
-
-	consumer, err := c.kafkaParams.createConsumer(prn, c.environment, c.enableAutoTopicCreation, saramaLogWriter)
+	consumer, err := initialiseConsumer(c.kafkaParams, c.globalParams, c.environment, c.enableAutoTopicCreation, logFile, prn)
 	if err != nil {
 		return err
 	}
@@ -115,13 +103,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go func() {
-		signals := make(chan os.Signal, 1)
-		signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
-		<-signals
-		prn.Info(internal.Verbose, "Stopping Trubka.")
-		cancel()
-	}()
+	go monitorCancellation(prn, cancel)
 
 	topics := make(map[string]*kafka.PartitionCheckpoints)
 	tm := make(map[string]string)
@@ -129,6 +111,12 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	if err != nil {
 		return err
 	}
+
+	loader, err := protobuf.NewFileLoader(c.protoRoot)
+	if err != nil {
+		return err
+	}
+
 	if c.interactive {
 		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, checkpoints)
 		if err != nil {

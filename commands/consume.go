@@ -1,11 +1,18 @@
 package commands
 
 import (
+	"context"
+	"io"
+	"io/ioutil"
+	"os"
+	"os/signal"
 	"regexp"
+	"syscall"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/kafka"
 )
 
 // AddConsumeCommand initialises the consume top level command and adds it to the application.
@@ -76,4 +83,30 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 		Short('f').
 		Default("newest").
 		StringVar(from)
+}
+
+func monitorCancellation(prn *internal.SyncPrinter, cancel context.CancelFunc) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
+	<-signals
+	prn.Info(internal.Verbose, "Stopping Trubka.")
+	cancel()
+}
+
+func initialiseConsumer(kafkaParams *kafkaParameters,
+	globalParams *GlobalParameters,
+	environment string,
+	enableAutoTopicCreation bool,
+	logFile io.Writer,
+	prn *internal.SyncPrinter) (*kafka.Consumer, error) {
+	saramaLogWriter := ioutil.Discard
+	if globalParams.Verbosity >= internal.Chatty {
+		saramaLogWriter = logFile
+	}
+
+	consumer, err := kafkaParams.createConsumer(prn, environment, enableAutoTopicCreation, saramaLogWriter)
+	if err != nil {
+		return nil, err
+	}
+	return consumer, nil
 }
