@@ -325,7 +325,7 @@ func (m *Manager) setGroupOffsets(ctx context.Context, consumerGroups ConsumerGr
 							continue
 						}
 						if _, ok := group.TopicOffsets[topic]; !ok {
-							// We add the topic, only if there is a group offset for one of its partitions
+							// We Add the topic, only if there is a group offset for one of its partitions
 							group.TopicOffsets[topic] = make(PartitionOffset)
 						}
 						m.Logf(internal.SuperVerbose, "Retrieving the latest offset of partition %d of %s topic from the server", partition, topic)

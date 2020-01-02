@@ -15,7 +15,7 @@ func (c *Counter) Print(highlight bool) {
 	succeeded := GreenIfTrue(c.success, func() bool {
 		return c.success > 0
 	}, highlight)
-	fmt.Printf("\nSummary:  \n  Succeeded: %s\n     Failed: %s", succeeded, failed)
+	fmt.Printf("\nSummary:  \n  Succeeded: %v\n     Failed: %v", succeeded, failed)
 }
 
 func (c *Counter) IncrSuccess() {

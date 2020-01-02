@@ -11,7 +11,6 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/dustin/go-humanize"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -101,10 +100,10 @@ func getLogWriter(logFile string) (io.Writer, bool, error) {
 	}
 }
 
-func getTopics(topicMap map[string]string, cp *kafka.Checkpoint) map[string]*kafka.Checkpoint {
-	topics := make(map[string]*kafka.Checkpoint)
+func getTopics(topicMap map[string]string, checkpoints *kafka.PartitionCheckpoints) map[string]*kafka.PartitionCheckpoints {
+	topics := make(map[string]*kafka.PartitionCheckpoints)
 	for topic := range topicMap {
-		topics[topic] = cp
+		topics[topic] = checkpoints
 	}
 	return topics
 }
@@ -121,18 +120,7 @@ func closeFile(file *os.File, highlight bool) {
 	}
 }
 
-func getCheckpoint(rewind bool, offsetCheckpoint int64, timeCheckpoint time.Time) *kafka.Checkpoint {
-	cp := kafka.NewCheckpoint(rewind)
-	switch {
-	case offsetCheckpoint != -1:
-		cp.SetOffset(offsetCheckpoint)
-	case !timeCheckpoint.IsZero():
-		cp.SetTimeOffset(timeCheckpoint)
-	}
-	return cp
-}
-
-func getOutputWriters(outputDir string, topics map[string]*kafka.Checkpoint) (map[string]io.Writer, bool, error) {
+func getOutputWriters(outputDir string, topics map[string]*kafka.PartitionCheckpoints) (map[string]io.Writer, bool, error) {
 	result := make(map[string]io.Writer)
 
 	if internal.IsEmpty(outputDir) {

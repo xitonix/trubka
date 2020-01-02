@@ -76,7 +76,7 @@ func (c *deleteTopic) run(_ *kingpin.ParseContext) error {
 
 func (c *deleteTopic) delete(manager *kafka.Manager, topic string) error {
 	if internal.IsEmpty(topic) {
-		return errors.New("Topic cannot be empty.")
+		return errors.New("topic cannot be empty")
 	}
 	if c.silent || askForConfirmation(fmt.Sprintf("Are you sure you want to delete %s", topic)) {
 		err := manager.DeleteTopic(topic)

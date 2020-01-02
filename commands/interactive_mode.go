@@ -28,7 +28,7 @@ func askUserForTopic(consumer *kafka.Consumer, topicFilter *regexp.Regexp) (stri
 	return remoteTopics[topicIndex], nil
 }
 
-func readUserData(consumer *kafka.Consumer, loader protobuf.Loader, topicFilter, typeFilter *regexp.Regexp, cp *kafka.Checkpoint) (map[string]*kafka.Checkpoint, map[string]string, error) {
+func readUserData(consumer *kafka.Consumer, loader protobuf.Loader, topicFilter, typeFilter *regexp.Regexp, checkpoints *kafka.PartitionCheckpoints) (map[string]*kafka.PartitionCheckpoints, map[string]string, error) {
 	remoteTopic, err := consumer.GetTopics(topicFilter)
 	if err != nil {
 		return nil, nil, err
@@ -42,7 +42,7 @@ func readUserData(consumer *kafka.Consumer, loader protobuf.Loader, topicFilter,
 	sort.Strings(types)
 
 	tm := make(map[string]string)
-	topics := make(map[string]*kafka.Checkpoint, 0)
+	topics := make(map[string]*kafka.PartitionCheckpoints, 0)
 	topicIndex := pickAnIndex("Choose the topic to consume from", "topic", remoteTopic)
 	if topicIndex < 0 {
 		return nil, nil, nil
@@ -55,16 +55,16 @@ func readUserData(consumer *kafka.Consumer, loader protobuf.Loader, topicFilter,
 	tm[topic] = types[typeIndex]
 
 	var msg string
-	switch cp.Mode() {
+	switch checkpoints.Mode() {
 	case kafka.MillisecondsOffsetMode:
-		msg = fmt.Sprintf("Start consuming from the closest offset available at %s of topic %s?", cp.OffsetString(), topic)
+		msg = fmt.Sprintf("Start consuming from the closest offset available at %s of topic %s?", checkpoints.GetDefault().OffsetString(), topic)
 	case kafka.ExplicitOffsetMode:
-		msg = fmt.Sprintf("Start consuming from offset %s of %s topic?", cp.OffsetString(), topic)
+		msg = fmt.Sprintf("Start consuming from offset %s of %s topic?", checkpoints.GetExplicitOffsets(), topic)
 	default:
 		msg = fmt.Sprintf("Start consuming from %s topic?", topic)
 	}
 
-	topics[topic] = cp
+	topics[topic] = checkpoints
 
 	proceed := askForConfirmation(msg)
 	if !proceed {
