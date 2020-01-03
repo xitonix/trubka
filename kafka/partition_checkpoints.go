@@ -42,12 +42,12 @@ type PartitionCheckpoints struct {
 
 // NewPartitionCheckpoints creates a new instance of partition checkpoints.
 func NewPartitionCheckpoints(from string) (*PartitionCheckpoints, error) {
-	from = strings.TrimSpace(strings.ToLower(from))
+	from = strings.TrimSpace(from)
 	if from == "" {
 		return nil, errors.New("the from offset cannot be empty")
 	}
 
-	switch from {
+	switch strings.ToLower(from) {
 	case "local", "stored":
 		return newPartitionCheckpoint(LocalOffsetMode, false), nil
 	case "newest", "latest", "end":
@@ -68,7 +68,7 @@ func newPartitionCheckpoint(mode OffsetMode, rewind bool) *PartitionCheckpoints 
 }
 
 func parseExplicitOffsets(from string) (*PartitionCheckpoints, error) {
-
+	from = strings.ToUpper(from)
 	t, err := internal.ParseTime(from)
 	if err == nil {
 		return &PartitionCheckpoints{
