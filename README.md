@@ -163,3 +163,17 @@ Using environment variables is very useful in a multi-environment workspace.
 **NOTE**
 
 Providing the same cli flag when running trubka will override its environment variable counterpart. That means  `--proto-root=/tmp/protos` will override `TRUBKA_PROTO_ROOT=/dev/contracts` and trubka will run with `/tmp/protos` as proto root.
+
+# Enable Auto Completion
+
+In order to enable auto completion in bash or zsh, you can add the following line to your shell's startup script:
+
+ZSH
+```shell script
+eval "$(trubka --completion-script-zsh)"
+```
+
+BASH
+```shell script
+eval "$(trubka --completion-script-bash)"
+```
