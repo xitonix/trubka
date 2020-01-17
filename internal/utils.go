@@ -21,15 +21,16 @@ func FormatTimeUTC(t time.Time) string {
 	return FormatTime(t) + " UTC"
 }
 
-func BoolToString(in bool) string {
-	if in {
-		return "Yes"
-	}
-	return "No"
+func PrependTimestamp(ts time.Time, in []byte) []byte {
+	return append([]byte(fmt.Sprintf("%s\n", FormatTimeUTC(ts))), in...)
 }
 
-func PrependTimestamp(ts time.Time, in []byte) []byte {
-	return append([]byte(fmt.Sprintf("[%s]\n", FormatTimeUTC(ts))), in...)
+func PrependTopic(topic string, in []byte) []byte {
+	return append([]byte(fmt.Sprintf("%s\n", topic)), in...)
+}
+
+func PrependKey(key, in []byte) []byte {
+	return append([]byte(fmt.Sprintf("%X\n", key)), in...)
 }
 
 func Title(err error) string {

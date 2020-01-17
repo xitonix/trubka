@@ -29,6 +29,8 @@ type consumePlain struct {
 	topicFilter             *regexp.Regexp
 	reverse                 bool
 	includeTimestamp        bool
+	includeKey              bool
+	includeTopicName        bool
 	enableAutoTopicCreation bool
 	from                    string
 	count                   bool
@@ -48,6 +50,8 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 		&cmd.logFile,
 		&cmd.from,
 		&cmd.includeTimestamp,
+		&cmd.includeKey,
+		&cmd.includeTopicName,
 		&cmd.enableAutoTopicCreation,
 		&cmd.reverse,
 		&cmd.interactive,
@@ -117,7 +121,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 
 	go func() {
 		defer wg.Done()
-		marshaller := internal.NewPlainTextMarshaller(c.format, c.includeTimestamp)
+		marshaller := internal.NewPlainTextMarshaller(c.format, c.includeTimestamp, c.includeTopicName, c.includeKey)
 
 		var cancelled bool
 		for {
@@ -192,7 +196,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *consumePlain) process(event *kafka.Event, marshaller *internal.Marshaller, highlight bool) ([]byte, error) {
-	output, err := marshaller.Marshal(event.Value, event.Timestamp)
+	output, err := marshaller.Marshal(event.Value, event.Key, event.Timestamp, event.Topic)
 	if err != nil {
 		return nil, fmt.Errorf("invalid '%s' message received from Kafka: %w", c.format, err)
 	}

@@ -26,14 +26,22 @@ func AddConsumeCommand(app *kingpin.Application, global *GlobalParameters) {
 
 func bindCommonConsumeFlags(command *kingpin.CmdClause,
 	topic, format, environment, outputDir, logFile, from *string,
-	includeTimestamp, enableAutoTopicCreation, reverse, interactive, count *bool,
+	includeTimestamp, includeKey, includeTopicName, enableAutoTopicCreation, reverse, interactive, count *bool,
 	searchQuery, topicFilter **regexp.Regexp) {
 
 	command.Arg("topic", "The Kafka topic to consume from.").StringVar(topic)
 
 	command.Flag("include-timestamp", "Prints the message timestamp before the content if it's been provided by Kafka.").
-		Short('T').
+		Short('S').
 		BoolVar(includeTimestamp)
+
+	command.Flag("include-partition-key", "Prints the partition key before the content.").
+		Short('K').
+		BoolVar(includeKey)
+
+	command.Flag("include-topic-name", "Prints the topic name before the content.").
+		Short('T').
+		BoolVar(includeTopicName)
 
 	command.Flag("auto-topic-creation", `Enables automatic topic creation before consuming if it's allowed by the server.`).
 		BoolVar(enableAutoTopicCreation)

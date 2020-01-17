@@ -33,6 +33,8 @@ type consumeProto struct {
 	interactive             bool
 	reverse                 bool
 	includeTimestamp        bool
+	includeKey              bool
+	includeTopicName        bool
 	enableAutoTopicCreation bool
 	count                   bool
 	from                    string
@@ -52,6 +54,8 @@ func addConsumeProtoCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 		&cmd.logFile,
 		&cmd.from,
 		&cmd.includeTimestamp,
+		&cmd.includeKey,
+		&cmd.includeTopicName,
 		&cmd.enableAutoTopicCreation,
 		&cmd.reverse,
 		&cmd.interactive,
@@ -151,7 +155,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		defer stopConsumer()
 		go func() {
 			defer wg.Done()
-			marshaller := protobuf.NewMarshaller(c.format, c.includeTimestamp)
+			marshaller := protobuf.NewMarshaller(c.format, c.includeTimestamp, c.includeTopicName, c.includeKey)
 			var cancelled bool
 			for {
 				select {
@@ -246,7 +250,7 @@ func (c *consumeProto) process(messageType string,
 		return nil, err
 	}
 
-	output, err := marshaller.Marshal(msg, event.Timestamp)
+	output, err := marshaller.Marshal(msg, event.Key, event.Timestamp, event.Topic)
 	if err != nil {
 		return nil, err
 	}
