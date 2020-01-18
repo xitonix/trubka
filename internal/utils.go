@@ -2,7 +2,10 @@ package internal
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -31,6 +34,12 @@ func PrependTopic(topic string, in []byte) []byte {
 
 func PrependKey(key, in []byte) []byte {
 	return append([]byte(fmt.Sprintf("%X\n", key)), in...)
+}
+
+func WaitForCancellationSignal() {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
+	<-signals
 }
 
 func Title(err error) string {

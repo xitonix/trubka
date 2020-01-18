@@ -31,6 +31,7 @@ type consumeProto struct {
 	protoFilter             *regexp.Regexp
 	searchQuery             *regexp.Regexp
 	interactive             bool
+	interactiveWithOffset   bool
 	reverse                 bool
 	includeTimestamp        bool
 	includeKey              bool
@@ -59,6 +60,7 @@ func addConsumeProtoCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 		&cmd.enableAutoTopicCreation,
 		&cmd.reverse,
 		&cmd.interactive,
+		&cmd.interactiveWithOffset,
 		&cmd.count,
 		&cmd.searchQuery,
 		&cmd.topicFilter)
@@ -80,7 +82,8 @@ func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
 }
 
 func (c *consumeProto) run(_ *kingpin.ParseContext) error {
-	if !c.interactive {
+	interactive := c.interactive || c.interactiveWithOffset
+	if !interactive {
 		if internal.IsEmpty(c.topic) {
 			return errors.New("which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i)")
 		}
@@ -121,8 +124,8 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	if c.interactive {
-		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, checkpoints)
+	if interactive {
+		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, c.interactiveWithOffset, checkpoints)
 		if err != nil {
 			return err
 		}

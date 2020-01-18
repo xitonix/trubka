@@ -66,11 +66,11 @@ func (c *deleteTopic) run(_ *kingpin.ParseContext) error {
 	}
 
 	names := topics.SortedTopics()
-	index := pickAnIndex("Choose a topic to delete", "topic", names)
-	if index < 0 {
+	indices, exit := pickAnIndex("to delete", "topic", names, false)
+	if exit || len(indices) == 0 {
 		return nil
 	}
-	toRemove := names[index]
+	toRemove := names[indices[0]]
 	return c.delete(manager, toRemove)
 }
 

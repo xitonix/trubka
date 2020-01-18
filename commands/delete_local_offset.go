@@ -51,10 +51,12 @@ func (c *deleteLocalOffsets) run(_ *kingpin.ParseContext) error {
 
 	topics[len(files)] = "All"
 
-	index := pickAnIndex("Choose the topic to delete the offsets", "topic", topics)
-	if index < 0 {
+	indices, exit := pickAnIndex("to delete the offsets", "topic", topics, false)
+	if exit || len(indices) == 0 {
 		return nil
 	}
+
+	index := indices[0]
 
 	removeAll := index == (len(topics) - 1)
 	var path, msg string

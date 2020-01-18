@@ -26,6 +26,7 @@ type consumePlain struct {
 	logFile                 string
 	searchQuery             *regexp.Regexp
 	interactive             bool
+	interactiveWithOffset   bool
 	topicFilter             *regexp.Regexp
 	reverse                 bool
 	includeTimestamp        bool
@@ -55,13 +56,16 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 		&cmd.enableAutoTopicCreation,
 		&cmd.reverse,
 		&cmd.interactive,
+		&cmd.interactiveWithOffset,
 		&cmd.count,
 		&cmd.searchQuery,
 		&cmd.topicFilter)
 }
 
 func (c *consumePlain) run(_ *kingpin.ParseContext) error {
-	if !c.interactive && internal.IsEmpty(c.topic) {
+
+	interactive := c.interactive || c.interactiveWithOffset
+	if !interactive && internal.IsEmpty(c.topic) {
 		return errors.New("which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i)")
 	}
 
@@ -85,24 +89,24 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 
 	go monitorCancellation(prn, cancel)
 
-	if c.interactive {
-		c.topic, err = askUserForTopic(consumer, c.topicFilter)
-		if err != nil {
-			return err
-		}
-	}
-
-	if internal.IsEmpty(c.topic) {
-		return nil
-	}
-
-	checkpoints, err := kafka.NewPartitionCheckpoints(c.from)
+	defaultCheckpoint, err := kafka.NewPartitionCheckpoints(c.from)
 	if err != nil {
 		return err
 	}
 
-	topics := map[string]*kafka.PartitionCheckpoints{
-		c.topic: checkpoints,
+	topics := make(map[string]*kafka.PartitionCheckpoints)
+
+	if interactive {
+		topics, err = askUserForTopics(consumer, c.topicFilter, c.interactiveWithOffset, defaultCheckpoint)
+		if err != nil {
+			return err
+		}
+	} else {
+		topics[c.topic] = defaultCheckpoint
+	}
+
+	if len(topics) == 0 {
+		return nil
 	}
 
 	writers, writeEventsToFile, err := getOutputWriters(c.outputDir, topics)

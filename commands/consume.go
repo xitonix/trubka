@@ -4,10 +4,7 @@ import (
 	"context"
 	"io"
 	"io/ioutil"
-	"os"
-	"os/signal"
 	"regexp"
-	"syscall"
 	"time"
 
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -26,7 +23,7 @@ func AddConsumeCommand(app *kingpin.Application, global *GlobalParameters) {
 
 func bindCommonConsumeFlags(command *kingpin.CmdClause,
 	topic, format, environment, outputDir, logFile, from *string,
-	includeTimestamp, includeKey, includeTopicName, enableAutoTopicCreation, reverse, interactive, count *bool,
+	includeTimestamp, includeKey, includeTopicName, enableAutoTopicCreation, reverse, interactive, interactiveWithCustomOffset, count *bool,
 	searchQuery, topicFilter **regexp.Regexp) {
 
 	command.Arg("topic", "The Kafka topic to consume from.").StringVar(topic)
@@ -76,9 +73,13 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 		Short('l').
 		StringVar(logFile)
 
-	command.Flag("interactive", "Runs the consumer in interactive mode.").
+	command.Flag("interactive", "Runs the consumer in interactive mode. Use --interactive-with-offset to set the starting offset for each topic.").
 		Short('i').
 		BoolVar(interactive)
+
+	command.Flag("interactive-with-offset", "Runs the consumer in interactive mode. In this mode, you will be able to define the starting offset for each topic.").
+		Short('I').
+		BoolVar(interactiveWithCustomOffset)
 
 	command.Flag("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").
 		Short('t').
@@ -97,9 +98,7 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 }
 
 func monitorCancellation(prn *internal.SyncPrinter, cancel context.CancelFunc) {
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
-	<-signals
+	internal.WaitForCancellationSignal()
 	prn.Info(internal.Verbose, "Stopping Trubka.")
 	cancel()
 }
