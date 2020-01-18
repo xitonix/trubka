@@ -68,8 +68,7 @@ func addConsumeProtoCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 }
 
 func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
-
-	command.Arg("proto", "The fully qualified name of the protocol buffers type, stored in the given topic.").
+	command.Arg("contract", "The fully qualified name of the protocol buffers type, stored in the given topic. The default value is the same as the topic name.").
 		StringVar(&c.messageType)
 	command.Flag("proto-root", "The path to the folder where your *.proto files live.").
 		Short('r').
@@ -83,12 +82,14 @@ func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
 
 func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	interactive := c.interactive || c.interactiveWithOffset
+	var implicitContract bool
 	if !interactive {
 		if internal.IsEmpty(c.topic) {
 			return errors.New("which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i)")
 		}
 		if internal.IsEmpty(c.messageType) {
-			return fmt.Errorf("which message type is stored in %s topic? Make sure you provide the fully qualified proto name as the second argument or switch to interactive mode (-i)", c.topic)
+			c.messageType = c.topic
+			implicitContract = true
 		}
 	}
 
@@ -137,7 +138,14 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	for _, messageType := range tm {
 		err := loader.Load(messageType)
 		if err != nil {
-			return err
+			if implicitContract && !interactive {
+				msg := "Most likely the message type is not exactly the same as the topic name."
+				msg += "You may need to explicitly specify the fully qualified type name as the second argument to the consume command"
+				msg += fmt.Sprintf("\nExample: trubka consume proto <flags...> %s <fully qualified type name>", c.topic)
+				return fmt.Errorf("%w. %s", err, msg)
+			} else {
+				return err
+			}
 		}
 	}
 
