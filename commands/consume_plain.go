@@ -121,7 +121,12 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 
 	go func() {
 		defer wg.Done()
-		marshaller := internal.NewPlainTextMarshaller(c.format, c.includeTimestamp, c.includeTopicName && !writeEventsToFile, c.includeKey)
+
+		marshaller := internal.NewPlainTextMarshaller(c.format,
+			c.includeTimestamp,
+			c.includeTopicName && !writeEventsToFile,
+			c.includeKey,
+			c.globalParams.EnableColor && !writeEventsToFile)
 
 		var cancelled bool
 		for {

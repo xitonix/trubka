@@ -22,14 +22,16 @@ type Marshaller struct {
 	includeTimeStamp bool
 	includeTopicName bool
 	includeKey       bool
+	enableColor      bool
 }
 
-func NewPlainTextMarshaller(format string, includeTimeStamp, includeTopicName, includeKey bool) *Marshaller {
+func NewPlainTextMarshaller(format string, includeTimeStamp, includeTopicName, includeKey, enableColor bool) *Marshaller {
 	return &Marshaller{
 		format:           strings.TrimSpace(strings.ToLower(format)),
 		includeTimeStamp: includeTimeStamp,
 		includeTopicName: includeTopicName,
 		includeKey:       includeKey,
+		enableColor:      enableColor,
 	}
 }
 
@@ -52,14 +54,14 @@ func (m *Marshaller) Marshal(msg, key []byte, ts time.Time, topic string, partit
 		return nil, err
 	}
 	if m.includeTimeStamp && !ts.IsZero() {
-		result = PrependTimestamp(ts, result)
+		result = PrependTimestamp(ts, m.enableColor, result)
 	}
 	if m.includeKey {
-		result = PrependKey(key, partition, result)
+		result = PrependKey(key, partition, m.enableColor, result)
 	}
 
 	if m.includeTopicName {
-		result = PrependTopic(topic, result)
+		result = PrependTopic(topic, m.enableColor, result)
 	}
 	return result, nil
 }

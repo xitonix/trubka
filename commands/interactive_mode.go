@@ -128,7 +128,7 @@ func pickAnIndex(msgSuffix, entryName string, input []string, multiSelect bool) 
 
 	multiSelect = multiSelect && len(input) > 1
 	scanner := bufio.NewScanner(os.Stdin)
-	message := fmt.Sprintf("Pick a %s index %s (Q to quit): ", entryName, msgSuffix)
+	message := fmt.Sprintf("Enter the index of the %s %s (Q to quit): ", entryName, msgSuffix)
 	if multiSelect {
 		message = fmt.Sprintf("Enter a comma separated list of %s indices %s (Q to quit): ", entryName, msgSuffix)
 	}

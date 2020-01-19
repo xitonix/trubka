@@ -166,7 +166,13 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		defer stopConsumer()
 		go func() {
 			defer wg.Done()
-			marshaller := protobuf.NewMarshaller(c.format, c.includeTimestamp, c.includeTopicName && !writeEventsToFile, c.includeKey)
+
+			marshaller := protobuf.NewMarshaller(c.format,
+				c.includeTimestamp,
+				c.includeTopicName && !writeEventsToFile,
+				c.includeKey,
+				c.globalParams.EnableColor && !writeEventsToFile)
+
 			var cancelled bool
 			for {
 				select {

@@ -24,16 +24,17 @@ func FormatTimeUTC(t time.Time) string {
 	return FormatTime(t) + " UTC"
 }
 
-func PrependTimestamp(ts time.Time, in []byte) []byte {
-	return append([]byte(fmt.Sprintf("%s\n", FormatTimeUTC(ts))), in...)
+func PrependTimestamp(ts time.Time, enableColor bool, in []byte) []byte {
+	return append([]byte(fmt.Sprintf("%s\n", Green(FormatTimeUTC(ts), enableColor))), in...)
 }
 
-func PrependTopic(topic string, in []byte) []byte {
-	return append([]byte(fmt.Sprintf("%s\n", topic)), in...)
+func PrependTopic(topic string, enableColor bool, in []byte) []byte {
+	return append([]byte(fmt.Sprintf("%s\n", Green(topic, enableColor))), in...)
 }
 
-func PrependKey(key []byte, partition int32, in []byte) []byte {
-	return append([]byte(fmt.Sprintf("P%d: %X\n", partition, key)), in...)
+func PrependKey(key []byte, partition int32, enableColor bool, in []byte) []byte {
+	pk := fmt.Sprintf("P%d: %X\n", partition, key)
+	return append([]byte(fmt.Sprint(Green(pk, enableColor))), in...)
 }
 
 func WaitForCancellationSignal() {
