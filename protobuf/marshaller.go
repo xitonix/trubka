@@ -26,7 +26,7 @@ func NewMarshaller(format string, includeTimeStamp, includeTopicName, includeKey
 	}
 }
 
-func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, topic string) ([]byte, error) {
+func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, topic string, partition int32) ([]byte, error) {
 	var (
 		result []byte
 		err    error
@@ -55,7 +55,7 @@ func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, top
 		result = internal.PrependTimestamp(ts, result)
 	}
 	if m.includeKey {
-		result = internal.PrependKey(key, result)
+		result = internal.PrependKey(key, partition, result)
 	}
 
 	if m.includeTopicName {

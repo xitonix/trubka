@@ -73,7 +73,7 @@ func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
 	command.Flag("proto-root", "The path to the folder where your *.proto files live.").
 		Short('r').
 		Required().
-		ExistingDirVar(&c.protoRoot)
+		StringVar(&c.protoRoot)
 
 	command.Flag("proto-filter", "The optional regular expression to filter the proto types by (Interactive mode only).").
 		Short('p').
@@ -128,7 +128,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	if interactive {
 		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, c.interactiveWithOffset, checkpoints)
 		if err != nil {
-			return err
+			return filterError(err)
 		}
 	} else {
 		tm[c.topic] = c.messageType
@@ -158,7 +158,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 
 	wg := sync.WaitGroup{}
 
-	counter := &internal.Counter{}
+	counter := internal.NewCounter()
 
 	if len(tm) > 0 {
 		wg.Add(1)
@@ -166,7 +166,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		defer stopConsumer()
 		go func() {
 			defer wg.Done()
-			marshaller := protobuf.NewMarshaller(c.format, c.includeTimestamp, c.includeTopicName, c.includeKey)
+			marshaller := protobuf.NewMarshaller(c.format, c.includeTimestamp, c.includeTopicName && !writeEventsToFile, c.includeKey)
 			var cancelled bool
 			for {
 				select {
@@ -190,13 +190,13 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 						prn.WriteEvent(event.Topic, output)
 						consumer.StoreOffset(event)
 						if c.count {
-							counter.IncrSuccess()
+							counter.IncrSuccess(event.Topic)
 						}
 						continue
 					}
 
 					if c.count {
-						counter.IncrFailure()
+						counter.IncrFailure(event.Topic)
 					}
 					prn.Errorf(internal.Forced,
 						"Failed to process the message at offset %d of partition %d, topic %s: %s",
@@ -239,9 +239,8 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	prn.Close()
 
 	if c.count {
-		counter.Print(c.globalParams.EnableColor)
+		counter.PrintAsTable(c.globalParams.EnableColor)
 	}
-
 	return nil
 }
 
@@ -261,7 +260,7 @@ func (c *consumeProto) process(messageType string,
 		return nil, err
 	}
 
-	output, err := marshaller.Marshal(msg, event.Key, event.Timestamp, event.Topic)
+	output, err := marshaller.Marshal(msg, event.Key, event.Timestamp, event.Topic, event.Partition)
 	if err != nil {
 		return nil, err
 	}

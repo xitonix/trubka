@@ -99,14 +99,10 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	if interactive {
 		topics, err = askUserForTopics(consumer, c.topicFilter, c.interactiveWithOffset, defaultCheckpoint)
 		if err != nil {
-			return err
+			return filterError(err)
 		}
 	} else {
 		topics[c.topic] = defaultCheckpoint
-	}
-
-	if len(topics) == 0 {
-		return nil
 	}
 
 	writers, writeEventsToFile, err := getOutputWriters(c.outputDir, topics)
@@ -121,11 +117,11 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	wg.Add(1)
 	consumerCtx, stopConsumer := context.WithCancel(context.Background())
 	defer stopConsumer()
-	counter := &internal.Counter{}
+	counter := internal.NewCounter()
 
 	go func() {
 		defer wg.Done()
-		marshaller := internal.NewPlainTextMarshaller(c.format, c.includeTimestamp, c.includeTopicName, c.includeKey)
+		marshaller := internal.NewPlainTextMarshaller(c.format, c.includeTimestamp, c.includeTopicName && !writeEventsToFile, c.includeKey)
 
 		var cancelled bool
 		for {
@@ -149,12 +145,12 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 					prn.WriteEvent(event.Topic, output)
 					consumer.StoreOffset(event)
 					if c.count {
-						counter.IncrSuccess()
+						counter.IncrSuccess(event.Topic)
 					}
 					continue
 				}
 				if c.count {
-					counter.IncrFailure()
+					counter.IncrFailure(event.Topic)
 				}
 				prn.Errorf(internal.Forced,
 					"Failed to process the message at offset %d of partition %d, topic %s: %s",
@@ -193,14 +189,14 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	prn.Close()
 
 	if c.count {
-		counter.Print(c.globalParams.EnableColor)
+		counter.PrintAsTable(c.globalParams.EnableColor)
 	}
 
 	return nil
 }
 
 func (c *consumePlain) process(event *kafka.Event, marshaller *internal.Marshaller, highlight bool) ([]byte, error) {
-	output, err := marshaller.Marshal(event.Value, event.Key, event.Timestamp, event.Topic)
+	output, err := marshaller.Marshal(event.Value, event.Key, event.Timestamp, event.Topic, event.Partition)
 	if err != nil {
 		return nil, fmt.Errorf("invalid '%s' message received from Kafka: %w", c.format, err)
 	}

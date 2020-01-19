@@ -32,8 +32,8 @@ func PrependTopic(topic string, in []byte) []byte {
 	return append([]byte(fmt.Sprintf("%s\n", topic)), in...)
 }
 
-func PrependKey(key, in []byte) []byte {
-	return append([]byte(fmt.Sprintf("%X\n", key)), in...)
+func PrependKey(key []byte, partition int32, in []byte) []byte {
+	return append([]byte(fmt.Sprintf("P%d: %X\n", partition, key)), in...)
 }
 
 func WaitForCancellationSignal() {

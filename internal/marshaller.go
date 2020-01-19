@@ -33,7 +33,7 @@ func NewPlainTextMarshaller(format string, includeTimeStamp, includeTopicName, i
 	}
 }
 
-func (m *Marshaller) Marshal(msg, key []byte, ts time.Time, topic string) ([]byte, error) {
+func (m *Marshaller) Marshal(msg, key []byte, ts time.Time, topic string, partition int32) ([]byte, error) {
 	var (
 		result []byte
 		err    error
@@ -55,7 +55,7 @@ func (m *Marshaller) Marshal(msg, key []byte, ts time.Time, topic string) ([]byt
 		result = PrependTimestamp(ts, result)
 	}
 	if m.includeKey {
-		result = PrependKey(key, result)
+		result = PrependKey(key, partition, result)
 	}
 
 	if m.includeTopicName {

@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -145,4 +146,11 @@ func getOutputWriters(outputDir string, topics map[string]*kafka.PartitionCheckp
 	}
 
 	return result, true, nil
+}
+
+func filterError(err error) error {
+	if errors.Is(err, errExitInteractiveMode) {
+		return nil
+	}
+	return err
 }

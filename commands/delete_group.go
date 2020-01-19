@@ -68,9 +68,9 @@ func (c *deleteGroup) run(_ *kingpin.ParseContext) error {
 
 	names := groups.Names()
 	sort.Strings(names)
-	indices, exit := pickAnIndex("to delete", "consumer group", names, false)
-	if exit || len(indices) == 0 {
-		return nil
+	indices, err := pickAnIndex("to delete", "consumer group", names, false)
+	if err != nil {
+		return filterError(err)
 	}
 	toRemove := names[indices[0]]
 	return c.delete(manager, toRemove)
