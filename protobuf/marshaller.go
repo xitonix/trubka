@@ -16,15 +16,17 @@ type Marshaller struct {
 	includeTopicName bool
 	includeKey       bool
 	enableColor      bool
+	highlighter      *internal.JsonHighlighter
 }
 
-func NewMarshaller(format string, includeTimeStamp, includeTopicName, includeKey bool, enableColor bool) *Marshaller {
+func NewMarshaller(format string, includeTimeStamp, includeTopicName, includeKey bool, enableColor bool, highlightStyle string) *Marshaller {
 	return &Marshaller{
 		format:           strings.TrimSpace(strings.ToLower(format)),
 		includeTimeStamp: includeTimeStamp,
 		includeTopicName: includeTopicName,
 		includeKey:       includeKey,
 		enableColor:      enableColor,
+		highlighter:      internal.NewJsonHighlighter(highlightStyle, enableColor),
 	}
 }
 
@@ -45,6 +47,11 @@ func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, top
 		result, err = m.marshal(msg.MarshalTextIndent)
 	case internal.Json:
 		result, err = m.marshal(msg.MarshalJSON)
+	case internal.JsonIndent:
+		result, err = m.marshal(msg.MarshalJSONIndent)
+		if m.enableColor {
+			result = m.highlighter.Highlight(result)
+		}
 	default:
 		result, err = m.marshal(msg.MarshalJSONIndent)
 	}
@@ -54,14 +61,14 @@ func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, top
 	}
 
 	if m.includeTimeStamp && !ts.IsZero() {
-		result = internal.PrependTimestamp(ts, m.enableColor, result)
+		result = internal.PrependTimestamp(ts, result)
 	}
 	if m.includeKey {
-		result = internal.PrependKey(key, partition, m.enableColor, result)
+		result = internal.PrependKey(key, partition, result)
 	}
 
 	if m.includeTopicName {
-		result = internal.PrependTopic(topic, m.enableColor, result)
+		result = internal.PrependTopic(topic, result)
 	}
 
 	return result, nil

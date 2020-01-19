@@ -35,6 +35,7 @@ type consumePlain struct {
 	enableAutoTopicCreation bool
 	from                    string
 	count                   bool
+	highlightStyle          string
 }
 
 func addConsumePlainCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
@@ -59,7 +60,8 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 		&cmd.interactiveWithOffset,
 		&cmd.count,
 		&cmd.searchQuery,
-		&cmd.topicFilter)
+		&cmd.topicFilter,
+		&cmd.highlightStyle)
 }
 
 func (c *consumePlain) run(_ *kingpin.ParseContext) error {
@@ -126,7 +128,8 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 			c.includeTimestamp,
 			c.includeTopicName && !writeEventsToFile,
 			c.includeKey,
-			c.globalParams.EnableColor && !writeEventsToFile)
+			c.globalParams.EnableColor && !writeEventsToFile,
+			c.highlightStyle)
 
 		var cancelled bool
 		for {
