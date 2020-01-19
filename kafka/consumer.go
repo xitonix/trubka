@@ -163,6 +163,7 @@ func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets Topi
 	defer cancel()
 	var cancelled bool
 	for topic, partitionOffsets := range topicPartitionOffsets {
+		t := topic
 		if cancelled {
 			break
 		}
@@ -172,6 +173,8 @@ func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets Topi
 			break
 		default:
 			for partition, offset := range partitionOffsets {
+				p := partition
+				o := offset
 				if cancelled {
 					break
 				}
@@ -180,12 +183,16 @@ func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets Topi
 					cancelled = true
 					break
 				default:
-					err := c.consumePartition(cn, topic, partition, offset)
-					if err != nil {
-						c.printer.Errorf(internal.Forced, "Failed to start consuming from %v offset of topic %s, partition %d: %s", getOffsetString(offset.Current), topic, partition, err)
-						cancel()
-						cancelled = true
-					}
+					c.wg.Add(1)
+					go func() {
+						err := c.consumePartition(cn, t, p, o)
+						if err != nil {
+							c.printer.Errorf(internal.Forced, "Failed to start consuming from %v offset of topic %s, partition %d: %s", getOffsetString(offset.Current), t, p, err)
+							cancel()
+							cancelled = true
+						}
+					}()
+
 				}
 			}
 		}
@@ -195,6 +202,7 @@ func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets Topi
 }
 
 func (c *Consumer) consumePartition(ctx context.Context, topic string, partition int32, offset Offset) error {
+	defer c.wg.Done()
 	select {
 	case <-ctx.Done():
 		return nil

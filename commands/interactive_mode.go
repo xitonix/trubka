@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -9,27 +10,58 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/olekukonko/tablewriter"
+
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 	"github.com/xitonix/trubka/protobuf"
 )
 
-func askUserForTopic(consumer *kafka.Consumer, topicFilter *regexp.Regexp) (string, error) {
+var errExitInteractiveMode = errors.New("exit")
+
+func askUserForTopics(consumer *kafka.Consumer,
+	topicFilter *regexp.Regexp,
+	offsetInteractiveMode bool,
+	defaultCheckpoint *kafka.PartitionCheckpoints) (map[string]*kafka.PartitionCheckpoints, error) {
+
 	remoteTopics, err := consumer.GetTopics(topicFilter)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	sort.Strings(remoteTopics)
-	topicIndex := pickAnIndex("Choose the topic to consume from", "topic", remoteTopics)
-	if topicIndex < 0 {
-		return "", nil
+	indexes, err := pickAnIndex("to consume from", "topic", remoteTopics, true)
+	if err != nil {
+		return nil, err
 	}
 
-	return remoteTopics[topicIndex], nil
+	result := make(map[string]*kafka.PartitionCheckpoints)
+	for _, index := range indexes {
+		topic := remoteTopics[index]
+		result[topic] = defaultCheckpoint
+		if offsetInteractiveMode {
+			cp, err := askForStartingOffset(topic, defaultCheckpoint)
+			if err != nil {
+				return nil, err
+			}
+			result[topic] = cp
+		}
+	}
+
+	if !confirmConsumerStart(result, nil) {
+		return nil, errExitInteractiveMode
+	}
+
+	return result, nil
 }
 
-func readUserData(consumer *kafka.Consumer, loader protobuf.Loader, topicFilter, typeFilter *regexp.Regexp, checkpoints *kafka.PartitionCheckpoints) (map[string]*kafka.PartitionCheckpoints, map[string]string, error) {
-	remoteTopic, err := consumer.GetTopics(topicFilter)
+func readUserData(consumer *kafka.Consumer,
+	loader protobuf.Loader,
+	topicFilter, typeFilter *regexp.Regexp,
+	offsetInteractiveMode bool,
+	defaultCheckpoint *kafka.PartitionCheckpoints) (map[string]*kafka.PartitionCheckpoints, map[string]string, error) {
+
+	remoteTopics, err := consumer.GetTopics(topicFilter)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -38,75 +70,120 @@ func readUserData(consumer *kafka.Consumer, loader protobuf.Loader, topicFilter,
 		return nil, nil, err
 	}
 
-	sort.Strings(remoteTopic)
-	sort.Strings(types)
+	sort.Strings(remoteTopics)
 
 	tm := make(map[string]string)
 	topics := make(map[string]*kafka.PartitionCheckpoints, 0)
-	topicIndex := pickAnIndex("Choose the topic to consume from", "topic", remoteTopic)
-	if topicIndex < 0 {
-		return nil, nil, nil
-	}
-	topic := remoteTopic[topicIndex]
-	typeIndex := pickAnIndex(fmt.Sprintf("Select the message type stored in %s", topic), "message type", types)
-	if typeIndex < 0 {
-		return nil, nil, nil
-	}
-	tm[topic] = types[typeIndex]
 
-	var msg string
-	switch checkpoints.Mode() {
-	case kafka.MillisecondsOffsetMode:
-		msg = fmt.Sprintf("Start consuming from the closest offset available at %s of topic %s?", checkpoints.GetDefault().OffsetString(), topic)
-	case kafka.ExplicitOffsetMode:
-		msg = fmt.Sprintf("Start consuming from offset %s of %s topic?", checkpoints.GetExplicitOffsets(), topic)
-	default:
-		msg = fmt.Sprintf("Start consuming from %s topic?", topic)
+	topicIndexes, err := pickAnIndex("to consume from", "topic", remoteTopics, true)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	topics[topic] = checkpoints
+	sort.Strings(types)
+	for _, index := range topicIndexes {
+		topic := remoteTopics[index]
+		topics[topic] = defaultCheckpoint
+		typeIndexes, err := pickAnIndex(fmt.Sprintf("stored in '%s' topic", topic), "message type", types, false)
+		if err != nil {
+			return nil, nil, err
+		}
+		tm[topic] = types[typeIndexes[0]]
+		if offsetInteractiveMode {
+			cp, err := askForStartingOffset(topic, defaultCheckpoint)
+			if err != nil {
+				return nil, nil, err
+			}
+			topics[topic] = cp
+		}
+	}
 
-	proceed := askForConfirmation(msg)
-	if !proceed {
-		return nil, nil, nil
+	if !confirmConsumerStart(topics, tm) {
+		return nil, nil, errExitInteractiveMode
 	}
 
 	return topics, tm, nil
 }
 
 // pickAnIndex returns the index of one of the items within the list
-func pickAnIndex(message, entryName string, input []string) int {
+func pickAnIndex(msgSuffix, entryName string, input []string, multiSelect bool) (results []int, err error) {
+	var cancelled bool
+	go func() {
+		internal.WaitForCancellationSignal()
+		cancelled = true
+	}()
+	defer func() {
+		if cancelled {
+			results = nil
+			err = errExitInteractiveMode
+		}
+	}()
+
 	if len(input) == 0 {
-		fmt.Printf("No %s has been found. You may need to tweak the %[1]s filter.\n", entryName)
-		return -1
+		return nil, fmt.Errorf("no %s has been found. You may need to tweak the %[1]s filter", entryName)
 	}
 	for i, t := range input {
 		fmt.Printf("%2d: %v\n", i+1, t)
 	}
-	scanner := bufio.NewScanner(os.Stdin)
-	msg := fmt.Sprintf("%s (Q to quit): ", message)
-	for fmt.Print(msg); scanner.Scan(); fmt.Print(msg) {
 
+	multiSelect = multiSelect && len(input) > 1
+	scanner := bufio.NewScanner(os.Stdin)
+	message := fmt.Sprintf("Enter the index of the %s %s (Q to quit): ", entryName, msgSuffix)
+	if multiSelect {
+		message = fmt.Sprintf("Enter a comma separated list of %s indices %s (Q to quit): ", entryName, msgSuffix)
+	}
+
+	for fmt.Print(message); scanner.Scan(); fmt.Print(message) {
 		trimmed := strings.TrimSpace(scanner.Text())
 		if len(trimmed) == 0 {
-			fmt.Printf("One %s should be selected.\n", entryName)
+			prefix := "O"
+			if multiSelect {
+				prefix = "At least o"
+			}
+			fmt.Printf("%sne %s must be selected.\n", prefix, entryName)
 			continue
 		}
 
-		if strings.EqualFold(trimmed, "Q") ||
-			strings.EqualFold(trimmed, "Quit") ||
-			strings.EqualFold(trimmed, "Exit") {
-			return -1
+		if askedToExit(trimmed) {
+			return nil, errExitInteractiveMode
 		}
 
-		i, err := strconv.Atoi(strings.TrimSpace(trimmed))
-		if err != nil || i > len(input) || i < 1 {
-			fmt.Printf("The selected %s index should be between 1 and %d\n", entryName, len(input))
+		results = make([]int, 0)
+
+		if !multiSelect {
+			index := parseIndex(trimmed, entryName, len(input))
+			if index < 0 {
+				continue
+			}
+			results = append(results, index)
+			return results, nil
+		}
+
+		parts := strings.Split(trimmed, ",")
+		for _, part := range parts {
+			index := parseIndex(part, entryName, len(input))
+			if index < 0 {
+				break
+			}
+			results = append(results, index)
+		}
+		if len(results) != len(parts) {
 			continue
 		}
-		return i - 1
+		return results, nil
 	}
-	return -1
+
+	return nil, errExitInteractiveMode
+}
+
+func parseIndex(input, entryName string, length int) int {
+	trimmed := strings.TrimSpace(input)
+	i, err := strconv.Atoi(strings.TrimSpace(trimmed))
+	if err != nil || i > length || i < 1 {
+		fmt.Printf("The selected %s index should be between 1 and %d\n", entryName, len(input))
+		return -1
+	}
+	return i - 1
 }
 
 // askForConfirmation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"
@@ -121,9 +198,73 @@ func askForConfirmation(s string) bool {
 		switch r {
 		case "y", "yes":
 			return true
-		case "n", "no":
+		case "n", "no", "q", "quit", "exit":
 			return false
 		}
+	}
+	return false
+}
+
+func askForStartingOffset(topic string, defaultCP *kafka.PartitionCheckpoints) (cp *kafka.PartitionCheckpoints, err error) {
+	var cancelled bool
+	go func() {
+		internal.WaitForCancellationSignal()
+		cancelled = true
+	}()
+	defer func() {
+		if cancelled {
+			cp = nil
+			err = errExitInteractiveMode
+		}
+	}()
+	scanner := bufio.NewScanner(os.Stdin)
+	msg := fmt.Sprintf("Enter the starting offset for %s topic. Press Enter to go with '%s' (Q to quit): ", topic, defaultCP.OriginalFromValue())
+	for fmt.Print(msg); scanner.Scan(); fmt.Print(msg) {
+		trimmed := strings.TrimSpace(scanner.Text())
+		if len(trimmed) == 0 {
+			return defaultCP, nil
+		}
+		if askedToExit(trimmed) {
+			return nil, errExitInteractiveMode
+		}
+		cp, err := kafka.NewPartitionCheckpoints(trimmed)
+		if err != nil {
+			fmt.Printf("%s\n", internal.Title(err))
+			continue
+		}
+		return cp, nil
+	}
+	return nil, errExitInteractiveMode
+}
+
+func confirmConsumerStart(topics map[string]*kafka.PartitionCheckpoints, contracts map[string]string) bool {
+	table := tablewriter.NewWriter(os.Stdout)
+	headers := []string{"Topic"}
+	isProto := len(contracts) != 0
+	if isProto {
+		headers = append(headers, "Contract")
+	}
+	headers = append(headers, "Offset")
+	table.SetHeader(headers)
+	table.SetRowLine(true)
+	for topic, cp := range topics {
+		row := []string{topic}
+		if isProto {
+			row = append(row, contracts[topic])
+		}
+		row = append(row, cp.OriginalFromValue())
+		table.Append(row)
+	}
+	fmt.Println()
+	table.Render()
+	return askForConfirmation("Start consuming")
+}
+
+func askedToExit(input string) bool {
+	if strings.EqualFold(input, "Q") ||
+		strings.EqualFold(input, "Quit") ||
+		strings.EqualFold(input, "Exit") {
+		return true
 	}
 	return false
 }

@@ -31,8 +31,11 @@ type consumeProto struct {
 	protoFilter             *regexp.Regexp
 	searchQuery             *regexp.Regexp
 	interactive             bool
+	interactiveWithOffset   bool
 	reverse                 bool
 	includeTimestamp        bool
+	includeKey              bool
+	includeTopicName        bool
 	enableAutoTopicCreation bool
 	count                   bool
 	from                    string
@@ -52,9 +55,12 @@ func addConsumeProtoCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 		&cmd.logFile,
 		&cmd.from,
 		&cmd.includeTimestamp,
+		&cmd.includeKey,
+		&cmd.includeTopicName,
 		&cmd.enableAutoTopicCreation,
 		&cmd.reverse,
 		&cmd.interactive,
+		&cmd.interactiveWithOffset,
 		&cmd.count,
 		&cmd.searchQuery,
 		&cmd.topicFilter)
@@ -62,13 +68,12 @@ func addConsumeProtoCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 }
 
 func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
-
-	command.Arg("proto", "The fully qualified name of the protocol buffers type, stored in the given topic.").
+	command.Arg("contract", "The fully qualified name of the protocol buffers type, stored in the given topic. The default value is the same as the topic name.").
 		StringVar(&c.messageType)
 	command.Flag("proto-root", "The path to the folder where your *.proto files live.").
 		Short('r').
 		Required().
-		ExistingDirVar(&c.protoRoot)
+		StringVar(&c.protoRoot)
 
 	command.Flag("proto-filter", "The optional regular expression to filter the proto types by (Interactive mode only).").
 		Short('p').
@@ -76,12 +81,15 @@ func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
 }
 
 func (c *consumeProto) run(_ *kingpin.ParseContext) error {
-	if !c.interactive {
+	interactive := c.interactive || c.interactiveWithOffset
+	var implicitContract bool
+	if !interactive {
 		if internal.IsEmpty(c.topic) {
 			return errors.New("which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i)")
 		}
 		if internal.IsEmpty(c.messageType) {
-			return fmt.Errorf("which message type is stored in %s topic? Make sure you provide the fully qualified proto name as the second argument or switch to interactive mode (-i)", c.topic)
+			c.messageType = c.topic
+			implicitContract = true
 		}
 	}
 
@@ -117,10 +125,10 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	if c.interactive {
-		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, checkpoints)
+	if interactive {
+		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, c.interactiveWithOffset, checkpoints)
 		if err != nil {
-			return err
+			return filterError(err)
 		}
 	} else {
 		tm[c.topic] = c.messageType
@@ -130,7 +138,14 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	for _, messageType := range tm {
 		err := loader.Load(messageType)
 		if err != nil {
-			return err
+			if implicitContract && !interactive {
+				msg := "Most likely the message type is not exactly the same as the topic name."
+				msg += "You may need to explicitly specify the fully qualified type name as the second argument to the consume command"
+				msg += fmt.Sprintf("\nExample: trubka consume proto <flags...> %s <fully qualified type name>", c.topic)
+				return fmt.Errorf("%w. %s", err, msg)
+			} else {
+				return err
+			}
 		}
 	}
 
@@ -143,7 +158,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 
 	wg := sync.WaitGroup{}
 
-	counter := &internal.Counter{}
+	counter := internal.NewCounter()
 
 	if len(tm) > 0 {
 		wg.Add(1)
@@ -151,7 +166,13 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		defer stopConsumer()
 		go func() {
 			defer wg.Done()
-			marshaller := protobuf.NewMarshaller(c.format, c.includeTimestamp)
+
+			marshaller := protobuf.NewMarshaller(c.format,
+				c.includeTimestamp,
+				c.includeTopicName && !writeEventsToFile,
+				c.includeKey,
+				c.globalParams.EnableColor && !writeEventsToFile)
+
 			var cancelled bool
 			for {
 				select {
@@ -175,13 +196,13 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 						prn.WriteEvent(event.Topic, output)
 						consumer.StoreOffset(event)
 						if c.count {
-							counter.IncrSuccess()
+							counter.IncrSuccess(event.Topic)
 						}
 						continue
 					}
 
 					if c.count {
-						counter.IncrFailure()
+						counter.IncrFailure(event.Topic)
 					}
 					prn.Errorf(internal.Forced,
 						"Failed to process the message at offset %d of partition %d, topic %s: %s",
@@ -224,9 +245,8 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	prn.Close()
 
 	if c.count {
-		counter.Print(c.globalParams.EnableColor)
+		counter.PrintAsTable(c.globalParams.EnableColor)
 	}
-
 	return nil
 }
 
@@ -246,7 +266,7 @@ func (c *consumeProto) process(messageType string,
 		return nil, err
 	}
 
-	output, err := marshaller.Marshal(msg, event.Timestamp)
+	output, err := marshaller.Marshal(msg, event.Key, event.Timestamp, event.Topic, event.Partition)
 	if err != nil {
 		return nil, err
 	}

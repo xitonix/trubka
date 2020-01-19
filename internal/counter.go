@@ -1,27 +1,68 @@
 package internal
 
-import "fmt"
+import (
+	"fmt"
+	"os"
 
+	"github.com/dustin/go-humanize"
+	"github.com/olekukonko/tablewriter"
+)
+
+type stats struct {
+	success int64
+	failure int64
+}
 type Counter struct {
-	success uint64
-	failure uint64
+	topicStats map[string]*stats
 }
 
-func (c *Counter) Print(highlight bool) {
-	failed := RedIfTrue(c.failure, func() bool {
-		return c.failure > 0
-	}, highlight)
-
-	succeeded := GreenIfTrue(c.success, func() bool {
-		return c.success > 0
-	}, highlight)
-	fmt.Printf("\nSummary:  \n  Succeeded: %v\n     Failed: %v", succeeded, failed)
+func NewCounter() *Counter {
+	return &Counter{
+		topicStats: make(map[string]*stats),
+	}
 }
 
-func (c *Counter) IncrSuccess() {
-	c.success++
+func (c *Counter) PrintAsTable(highlight bool) {
+	if c == nil || len(c.topicStats) == 0 {
+		return
+	}
+	table := tablewriter.NewWriter(os.Stdout)
+	headers := []string{"Topic", "Succeeded", "Failed"}
+	table.SetHeader(headers)
+	table.SetColumnAlignment([]int{
+		tablewriter.ALIGN_LEFT,
+		tablewriter.ALIGN_CENTER,
+		tablewriter.ALIGN_CENTER,
+	})
+	table.SetRowLine(true)
+
+	rows := make([][]string, 0)
+
+	for topic, s := range c.topicStats {
+		failed := RedIfTrue(humanize.Comma(s.failure), func() bool {
+			return s.failure > 0
+		}, highlight)
+
+		succeeded := GreenIfTrue(humanize.Comma(s.success), func() bool {
+			return s.success > 0
+		}, highlight)
+		rows = append(rows, []string{topic, fmt.Sprint(succeeded), fmt.Sprint(failed)})
+	}
+	fmt.Print("\nSUMMARY\n")
+	table.AppendBulk(rows)
+	table.Render()
 }
 
-func (c *Counter) IncrFailure() {
-	c.failure++
+func (c *Counter) IncrSuccess(topic string) {
+	if _, ok := c.topicStats[topic]; !ok {
+		c.topicStats[topic] = &stats{}
+	}
+	c.topicStats[topic].success++
+}
+
+func (c *Counter) IncrFailure(topic string) {
+	if _, ok := c.topicStats[topic]; !ok {
+		c.topicStats[topic] = &stats{}
+	}
+	c.topicStats[topic].failure++
 }
