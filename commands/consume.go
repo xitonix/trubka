@@ -4,10 +4,7 @@ import (
 	"context"
 	"io"
 	"io/ioutil"
-	"os"
-	"os/signal"
 	"regexp"
-	"syscall"
 	"time"
 
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -26,14 +23,22 @@ func AddConsumeCommand(app *kingpin.Application, global *GlobalParameters) {
 
 func bindCommonConsumeFlags(command *kingpin.CmdClause,
 	topic, format, environment, outputDir, logFile, from *string,
-	includeTimestamp, enableAutoTopicCreation, reverse, interactive, count *bool,
+	includeTimestamp, includeKey, includeTopicName, enableAutoTopicCreation, reverse, interactive, interactiveWithCustomOffset, count *bool,
 	searchQuery, topicFilter **regexp.Regexp) {
 
 	command.Arg("topic", "The Kafka topic to consume from.").StringVar(topic)
 
 	command.Flag("include-timestamp", "Prints the message timestamp before the content if it's been provided by Kafka.").
-		Short('T').
+		Short('S').
 		BoolVar(includeTimestamp)
+
+	command.Flag("include-partition-key", "Prints the partition key before the content.").
+		Short('K').
+		BoolVar(includeKey)
+
+	command.Flag("include-topic-name", "Prints the topic name before the content.").
+		Short('T').
+		BoolVar(includeTopicName)
 
 	command.Flag("auto-topic-creation", `Enables automatic topic creation before consuming if it's allowed by the server.`).
 		BoolVar(enableAutoTopicCreation)
@@ -68,9 +73,13 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 		Short('l').
 		StringVar(logFile)
 
-	command.Flag("interactive", "Runs the consumer in interactive mode.").
+	command.Flag("interactive", "Runs the consumer in interactive mode. Use --interactive-with-offset to set the starting offset for each topic.").
 		Short('i').
 		BoolVar(interactive)
+
+	command.Flag("interactive-with-offset", "Runs the consumer in interactive mode. In this mode, you will be able to define the starting offset for each topic.").
+		Short('I').
+		BoolVar(interactiveWithCustomOffset)
 
 	command.Flag("topic-filter", "The optional regular expression to filter the remote topics by (Interactive mode only).").
 		Short('t').
@@ -89,9 +98,7 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 }
 
 func monitorCancellation(prn *internal.SyncPrinter, cancel context.CancelFunc) {
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
-	<-signals
+	internal.WaitForCancellationSignal()
 	prn.Info(internal.Verbose, "Stopping Trubka.")
 	cancel()
 }

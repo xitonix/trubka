@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/mitchellh/go-homedir"
 )
 
 type fileFinder struct {
@@ -12,9 +14,16 @@ type fileFinder struct {
 }
 
 func newFileFinder(root string) (*fileFinder, error) {
+	if strings.HasPrefix(root, "~") {
+		expanded, err := homedir.Expand(root)
+		if err != nil {
+			return nil, err
+		}
+		root = expanded
+	}
 	dir, err := os.Stat(root)
 	if err != nil {
-		return nil, fmt.Errorf("failed to access %s: %w", root, err)
+		return nil, err
 	}
 	if !dir.IsDir() {
 		return nil, fmt.Errorf("%s is not a directory", root)

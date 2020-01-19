@@ -13,33 +13,61 @@ import (
 type Marshaller struct {
 	format           string
 	includeTimeStamp bool
+	includeTopicName bool
+	includeKey       bool
+	enableColor      bool
 }
 
-func NewMarshaller(format string, includeTimeStamp bool) *Marshaller {
+func NewMarshaller(format string, includeTimeStamp, includeTopicName, includeKey bool, enableColor bool) *Marshaller {
 	return &Marshaller{
 		format:           strings.TrimSpace(strings.ToLower(format)),
 		includeTimeStamp: includeTimeStamp,
+		includeTopicName: includeTopicName,
+		includeKey:       includeKey,
+		enableColor:      enableColor,
 	}
 }
 
-func (m *Marshaller) Marshal(msg *dynamic.Message, ts time.Time) ([]byte, error) {
+func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, topic string, partition int32) ([]byte, error) {
+	var (
+		result []byte
+		err    error
+	)
+
 	switch m.format {
 	case internal.Hex:
-		return m.marshalHex(msg, ts, false)
+		result, err = m.marshalHex(msg, false)
 	case internal.HexIndent:
-		return m.marshalHex(msg, ts, true)
+		result, err = m.marshalHex(msg, true)
 	case internal.Text:
-		return m.marshal(msg.MarshalText, ts)
+		result, err = m.marshal(msg.MarshalText)
 	case internal.TextIndent:
-		return m.marshal(msg.MarshalTextIndent, ts)
+		result, err = m.marshal(msg.MarshalTextIndent)
 	case internal.Json:
-		return m.marshal(msg.MarshalJSON, ts)
+		result, err = m.marshal(msg.MarshalJSON)
 	default:
-		return m.marshal(msg.MarshalJSONIndent, ts)
+		result, err = m.marshal(msg.MarshalJSONIndent)
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if m.includeTimeStamp && !ts.IsZero() {
+		result = internal.PrependTimestamp(ts, m.enableColor, result)
+	}
+	if m.includeKey {
+		result = internal.PrependKey(key, partition, m.enableColor, result)
+	}
+
+	if m.includeTopicName {
+		result = internal.PrependTopic(topic, m.enableColor, result)
+	}
+
+	return result, nil
 }
 
-func (m *Marshaller) marshalHex(msg *dynamic.Message, ts time.Time, indent bool) ([]byte, error) {
+func (m *Marshaller) marshalHex(msg *dynamic.Message, indent bool) ([]byte, error) {
 	output, err := msg.Marshal()
 	if err != nil {
 		return nil, err
@@ -49,19 +77,13 @@ func (m *Marshaller) marshalHex(msg *dynamic.Message, ts time.Time, indent bool)
 		fm = "% X"
 	}
 	out := []byte(fmt.Sprintf(fm, output))
-	if m.includeTimeStamp && !ts.IsZero() {
-		return internal.PrependTimestamp(ts, out), nil
-	}
 	return out, nil
 }
 
-func (m *Marshaller) marshal(fn func() ([]byte, error), ts time.Time) ([]byte, error) {
+func (m *Marshaller) marshal(fn func() ([]byte, error)) ([]byte, error) {
 	out, err := fn()
 	if err != nil {
 		return nil, err
-	}
-	if m.includeTimeStamp && !ts.IsZero() {
-		return internal.PrependTimestamp(ts, out), nil
 	}
 	return out, nil
 }

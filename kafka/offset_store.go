@@ -52,7 +52,7 @@ func newOffsetStore(printer internal.Printer, environment string) (*offsetStore,
 		db:          db,
 		printer:     printer,
 		writeErrors: make(chan error),
-		in:          make(chan *progress, 10),
+		in:          make(chan *progress, 500),
 		checksum:    make(map[string]interface{}),
 	}, nil
 }

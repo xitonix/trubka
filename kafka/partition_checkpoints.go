@@ -38,10 +38,11 @@ type PartitionCheckpoints struct {
 	mode                     OffsetMode
 	partitionCheckpoints     map[int32]*Checkpoint
 	applyExplicitOffsetToAll bool
+	from                     string
 }
 
 // NewPartitionCheckpoints creates a new instance of partition checkpoints.
-func NewPartitionCheckpoints(from string) (*PartitionCheckpoints, error) {
+func NewPartitionCheckpoints(from string) (cp *PartitionCheckpoints, err error) {
 	from = strings.TrimSpace(from)
 	if from == "" {
 		return nil, errors.New("the from offset cannot be empty")
@@ -49,14 +50,18 @@ func NewPartitionCheckpoints(from string) (*PartitionCheckpoints, error) {
 
 	switch strings.ToLower(from) {
 	case "local", "stored":
-		return newPartitionCheckpoint(LocalOffsetMode, false), nil
+		cp = newPartitionCheckpoint(LocalOffsetMode, false)
 	case "newest", "latest", "end":
-		return newPartitionCheckpoint(UndefinedOffsetMode, false), nil
+		cp = newPartitionCheckpoint(UndefinedOffsetMode, false)
 	case "oldest", "earliest", "beginning", "start":
-		return newPartitionCheckpoint(UndefinedOffsetMode, true), nil
+		cp = newPartitionCheckpoint(UndefinedOffsetMode, true)
 	default:
-		return parseExplicitOffsets(from)
+		cp, err = parseExplicitOffsets(from)
 	}
+	if cp != nil {
+		cp.from = from
+	}
+	return
 }
 
 func newPartitionCheckpoint(mode OffsetMode, rewind bool) *PartitionCheckpoints {
@@ -92,7 +97,7 @@ func parseExplicitOffsets(from string) (*PartitionCheckpoints, error) {
 func (p *PartitionCheckpoints) add(pcp string) error {
 	parts := strings.Split(pcp, ":")
 	if len(parts) != 2 {
-		return errors.New("invalid partition offset string")
+		return errors.New(`invalid partition offset string. Available options are newest, oldest, local, time (eg. 25-01-2020T15:04:05) or a string of comma separated Partition:Offset pairs (eg. "10:150, :0"")`)
 	}
 	partitionStr := strings.TrimSpace(parts[0])
 	offsetStr := strings.TrimSpace(parts[1])
@@ -134,12 +139,23 @@ func (p *PartitionCheckpoints) add(pcp string) error {
 //
 // This checkpoint must ONLY be used when no partition offset has been explicitly requested by the user.
 func (p *PartitionCheckpoints) GetDefault() *Checkpoint {
+	if p == nil {
+		return nil
+	}
 	return p.partitionCheckpoints[allPartitions]
+}
+
+// OriginalFromValue returns the raw From value from which the checkpoint has been parsed.
+func (p *PartitionCheckpoints) OriginalFromValue() string {
+	if p == nil {
+		return ""
+	}
+	return p.from
 }
 
 // GetExplicitOffsets returns the string representation of all the explicitly requested partition offsets.
 func (p *PartitionCheckpoints) GetExplicitOffsets() string {
-	if p.mode != ExplicitOffsetMode {
+	if p == nil || p.mode != ExplicitOffsetMode {
 		return ""
 	}
 	offsets := make([]string, 0)

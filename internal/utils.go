@@ -2,7 +2,10 @@ package internal
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -21,15 +24,23 @@ func FormatTimeUTC(t time.Time) string {
 	return FormatTime(t) + " UTC"
 }
 
-func BoolToString(in bool) string {
-	if in {
-		return "Yes"
-	}
-	return "No"
+func PrependTimestamp(ts time.Time, enableColor bool, in []byte) []byte {
+	return append([]byte(fmt.Sprintf("%s\n", Green(FormatTimeUTC(ts), enableColor))), in...)
 }
 
-func PrependTimestamp(ts time.Time, in []byte) []byte {
-	return append([]byte(fmt.Sprintf("[%s]\n", FormatTimeUTC(ts))), in...)
+func PrependTopic(topic string, enableColor bool, in []byte) []byte {
+	return append([]byte(fmt.Sprintf("%s\n", Green(topic, enableColor))), in...)
+}
+
+func PrependKey(key []byte, partition int32, enableColor bool, in []byte) []byte {
+	pk := fmt.Sprintf("P%d: %X\n", partition, key)
+	return append([]byte(fmt.Sprint(Green(pk, enableColor))), in...)
+}
+
+func WaitForCancellationSignal() {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
+	<-signals
 }
 
 func Title(err error) string {

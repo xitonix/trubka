@@ -26,9 +26,12 @@ type consumePlain struct {
 	logFile                 string
 	searchQuery             *regexp.Regexp
 	interactive             bool
+	interactiveWithOffset   bool
 	topicFilter             *regexp.Regexp
 	reverse                 bool
 	includeTimestamp        bool
+	includeKey              bool
+	includeTopicName        bool
 	enableAutoTopicCreation bool
 	from                    string
 	count                   bool
@@ -48,16 +51,21 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 		&cmd.logFile,
 		&cmd.from,
 		&cmd.includeTimestamp,
+		&cmd.includeKey,
+		&cmd.includeTopicName,
 		&cmd.enableAutoTopicCreation,
 		&cmd.reverse,
 		&cmd.interactive,
+		&cmd.interactiveWithOffset,
 		&cmd.count,
 		&cmd.searchQuery,
 		&cmd.topicFilter)
 }
 
 func (c *consumePlain) run(_ *kingpin.ParseContext) error {
-	if !c.interactive && internal.IsEmpty(c.topic) {
+
+	interactive := c.interactive || c.interactiveWithOffset
+	if !interactive && internal.IsEmpty(c.topic) {
 		return errors.New("which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i)")
 	}
 
@@ -81,24 +89,20 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 
 	go monitorCancellation(prn, cancel)
 
-	if c.interactive {
-		c.topic, err = askUserForTopic(consumer, c.topicFilter)
-		if err != nil {
-			return err
-		}
-	}
-
-	if internal.IsEmpty(c.topic) {
-		return nil
-	}
-
-	checkpoints, err := kafka.NewPartitionCheckpoints(c.from)
+	defaultCheckpoint, err := kafka.NewPartitionCheckpoints(c.from)
 	if err != nil {
 		return err
 	}
 
-	topics := map[string]*kafka.PartitionCheckpoints{
-		c.topic: checkpoints,
+	topics := make(map[string]*kafka.PartitionCheckpoints)
+
+	if interactive {
+		topics, err = askUserForTopics(consumer, c.topicFilter, c.interactiveWithOffset, defaultCheckpoint)
+		if err != nil {
+			return filterError(err)
+		}
+	} else {
+		topics[c.topic] = defaultCheckpoint
 	}
 
 	writers, writeEventsToFile, err := getOutputWriters(c.outputDir, topics)
@@ -113,11 +117,16 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	wg.Add(1)
 	consumerCtx, stopConsumer := context.WithCancel(context.Background())
 	defer stopConsumer()
-	counter := &internal.Counter{}
+	counter := internal.NewCounter()
 
 	go func() {
 		defer wg.Done()
-		marshaller := internal.NewPlainTextMarshaller(c.format, c.includeTimestamp)
+
+		marshaller := internal.NewPlainTextMarshaller(c.format,
+			c.includeTimestamp,
+			c.includeTopicName && !writeEventsToFile,
+			c.includeKey,
+			c.globalParams.EnableColor && !writeEventsToFile)
 
 		var cancelled bool
 		for {
@@ -141,12 +150,12 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 					prn.WriteEvent(event.Topic, output)
 					consumer.StoreOffset(event)
 					if c.count {
-						counter.IncrSuccess()
+						counter.IncrSuccess(event.Topic)
 					}
 					continue
 				}
 				if c.count {
-					counter.IncrFailure()
+					counter.IncrFailure(event.Topic)
 				}
 				prn.Errorf(internal.Forced,
 					"Failed to process the message at offset %d of partition %d, topic %s: %s",
@@ -185,14 +194,14 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	prn.Close()
 
 	if c.count {
-		counter.Print(c.globalParams.EnableColor)
+		counter.PrintAsTable(c.globalParams.EnableColor)
 	}
 
 	return nil
 }
 
 func (c *consumePlain) process(event *kafka.Event, marshaller *internal.Marshaller, highlight bool) ([]byte, error) {
-	output, err := marshaller.Marshal(event.Value, event.Timestamp)
+	output, err := marshaller.Marshal(event.Value, event.Key, event.Timestamp, event.Topic, event.Partition)
 	if err != nil {
 		return nil, fmt.Errorf("invalid '%s' message received from Kafka: %w", c.format, err)
 	}
