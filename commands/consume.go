@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"regexp"
@@ -24,7 +25,7 @@ func AddConsumeCommand(app *kingpin.Application, global *GlobalParameters) {
 func bindCommonConsumeFlags(command *kingpin.CmdClause,
 	topic, format, environment, outputDir, logFile, from *string,
 	includeTimestamp, includeKey, includeTopicName, enableAutoTopicCreation, reverse, interactive, interactiveWithCustomOffset, count *bool,
-	searchQuery, topicFilter **regexp.Regexp) {
+	searchQuery, topicFilter **regexp.Regexp, highlightStyle *string) {
 
 	command.Arg("topic", "The Kafka topic to consume from.").StringVar(topic)
 
@@ -95,6 +96,11 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 		Default("newest").
 		HintOptions("newest", "oldest", pastHour, "0:10,1:20,:0").
 		StringVar(from)
+
+	command.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --format=%s only. Set to 'none' to disable.", internal.JsonIndent)).
+		Default(internal.DefaultHighlightStyle).
+		EnumVar(highlightStyle,
+			internal.HighlightStyles...)
 }
 
 func monitorCancellation(prn *internal.SyncPrinter, cancel context.CancelFunc) {

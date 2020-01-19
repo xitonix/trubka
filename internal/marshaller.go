@@ -17,21 +17,54 @@ const (
 	HexIndent  = "hex-indent"
 )
 
+var HighlightStyles = []string{
+	"autumn",
+	"dracula",
+	"emacs",
+	"friendly",
+	"fruity",
+	"github",
+	"lovelace",
+	"monokai",
+	"monokailight",
+	"native",
+	"paraiso-dark",
+	"paraiso-light",
+	"pygments",
+	"rrt",
+	"solarized-dark",
+	"solarized-light",
+	"swapoff",
+	"tango",
+	"trac",
+	"vim",
+	"none",
+}
+
+const DefaultHighlightStyle = "fruity"
+
 type Marshaller struct {
 	format           string
 	includeTimeStamp bool
 	includeTopicName bool
 	includeKey       bool
 	enableColor      bool
+	highlighter      *JsonHighlighter
 }
 
-func NewPlainTextMarshaller(format string, includeTimeStamp, includeTopicName, includeKey, enableColor bool) *Marshaller {
+func NewPlainTextMarshaller(format string,
+	includeTimeStamp bool,
+	includeTopicName bool,
+	includeKey bool,
+	enableColor bool,
+	highlightStyle string) *Marshaller {
 	return &Marshaller{
 		format:           strings.TrimSpace(strings.ToLower(format)),
 		includeTimeStamp: includeTimeStamp,
 		includeTopicName: includeTopicName,
 		includeKey:       includeKey,
 		enableColor:      enableColor,
+		highlighter:      NewJsonHighlighter(highlightStyle, enableColor),
 	}
 }
 
@@ -53,15 +86,16 @@ func (m *Marshaller) Marshal(msg, key []byte, ts time.Time, topic string, partit
 	if err != nil {
 		return nil, err
 	}
+
 	if m.includeTimeStamp && !ts.IsZero() {
-		result = PrependTimestamp(ts, m.enableColor, result)
+		result = PrependTimestamp(ts, result)
 	}
 	if m.includeKey {
-		result = PrependKey(key, partition, m.enableColor, result)
+		result = PrependKey(key, partition, result)
 	}
 
 	if m.includeTopicName {
-		result = PrependTopic(topic, m.enableColor, result)
+		result = PrependTopic(topic, result)
 	}
 	return result, nil
 }
@@ -81,6 +115,9 @@ func (m *Marshaller) indentJson(msg []byte) ([]byte, error) {
 	err := json.Indent(&buf, msg, "", "   ")
 	if err != nil {
 		return nil, err
+	}
+	if m.enableColor {
+		return m.highlighter.Highlight(buf.Bytes()), nil
 	}
 	return buf.Bytes(), nil
 }

@@ -39,6 +39,7 @@ type consumeProto struct {
 	enableAutoTopicCreation bool
 	count                   bool
 	from                    string
+	highlightStyle          string
 }
 
 func addConsumeProtoCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
@@ -63,7 +64,9 @@ func addConsumeProtoCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 		&cmd.interactiveWithOffset,
 		&cmd.count,
 		&cmd.searchQuery,
-		&cmd.topicFilter)
+		&cmd.topicFilter,
+		&cmd.highlightStyle)
+
 	cmd.bindCommandFlags(c)
 }
 
@@ -171,7 +174,8 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 				c.includeTimestamp,
 				c.includeTopicName && !writeEventsToFile,
 				c.includeKey,
-				c.globalParams.EnableColor && !writeEventsToFile)
+				c.globalParams.EnableColor && !writeEventsToFile,
+				c.highlightStyle)
 
 			var cancelled bool
 			for {
