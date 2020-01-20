@@ -27,6 +27,8 @@ type ConsumerGroup struct {
 	Members []GroupMember
 	// TopicOffsets the offsets of each topic belong to the group.
 	TopicOffsets TopicPartitionOffset
+	// Coordinator the coordinator of the consumer group
+	Coordinator Broker
 }
 
 func (c *ConsumerGroup) addMembers(members map[string]*sarama.GroupMemberDescription, memberFilter *regexp.Regexp) {

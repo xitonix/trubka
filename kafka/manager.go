@@ -225,6 +225,35 @@ func (m *Manager) GetGroupTopics(ctx context.Context, group string, includeOffse
 	return result, nil
 }
 
+func (m *Manager) DescribeConsumerGroup(ctx context.Context, group string, memberFilter *regexp.Regexp) (*ConsumerGroup, error) {
+	m.Logf(internal.Verbose, "Retrieving consumer group members of %s", group)
+	groupsMeta, err := m.admin.DescribeConsumerGroups([]string{group})
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve the group members from the server: %w", err)
+	}
+	result := &ConsumerGroup{}
+	for _, gm := range groupsMeta {
+		select {
+		case <-ctx.Done():
+			return result, nil
+		default:
+			m.Logf(internal.VeryVerbose, "Retrieving the members of %s consumer group", gm.GroupId)
+			result.addMembers(gm.Members, memberFilter)
+		}
+	}
+	m.Logf(internal.Verbose, "Retrieving the consumer group coordinator of %s", group)
+	c, err := m.client.Coordinator(group)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve the group coordinator of %s: %w", group, err)
+	}
+	result.Coordinator = Broker{
+		Address: c.Addr(),
+		ID:      int(c.ID()),
+		Meta:    &BrokerMetadata{},
+	}
+	return result, nil
+}
+
 func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, memberFilter, groupFilter *regexp.Regexp, topics []string) (ConsumerGroups, error) {
 	result := make(ConsumerGroups)
 	select {
