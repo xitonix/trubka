@@ -372,6 +372,7 @@ func initClient(brokers []string, ops *Options) (sarama.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	config := sarama.NewConfig()
 	config.Version = version
 	config.Consumer.Return.Errors = true

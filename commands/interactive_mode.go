@@ -84,7 +84,7 @@ func readUserData(consumer *kafka.Consumer,
 	for _, index := range topicIndexes {
 		topic := remoteTopics[index]
 		topics[topic] = defaultCheckpoint
-		typeIndexes, err := pickAnIndex(fmt.Sprintf("stored in '%s' topic", topic), "message type", types, false)
+		typeIndexes, err := pickAnIndex(fmt.Sprintf("stored in %s topic", topic), "message type", types, false)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -130,7 +130,7 @@ func pickAnIndex(msgSuffix, entryName string, input []string, multiSelect bool) 
 	scanner := bufio.NewScanner(os.Stdin)
 	message := fmt.Sprintf("Enter the index of the %s %s (Q to quit): ", entryName, msgSuffix)
 	if multiSelect {
-		message = fmt.Sprintf("Enter a comma separated list of %s indices %s (Q to quit): ", entryName, msgSuffix)
+		message = fmt.Sprintf("Enter a comma separated list of %s indices %s (-:All, m-n:Range, Q to quit): ", entryName, msgSuffix)
 	}
 
 	for fmt.Print(message); scanner.Scan(); fmt.Print(message) {
@@ -148,42 +148,104 @@ func pickAnIndex(msgSuffix, entryName string, input []string, multiSelect bool) 
 			return nil, errExitInteractiveMode
 		}
 
-		results = make([]int, 0)
+		results := make(map[int]interface{})
 
 		if !multiSelect {
-			index := parseIndex(trimmed, entryName, len(input))
-			if index < 0 {
+			indices, err := parseIndices(trimmed, entryName, len(input))
+			if err != nil {
+				printError(err)
 				continue
 			}
-			results = append(results, index)
-			return results, nil
+			if len(indices) > 1 {
+				fmt.Printf("Only one %s can be selected.\n", entryName)
+				continue
+			}
+			return []int{indices[0]}, nil
 		}
 
 		parts := strings.Split(trimmed, ",")
+		var failed bool
 		for _, part := range parts {
-			index := parseIndex(part, entryName, len(input))
-			if index < 0 {
+			indices, err := parseIndices(part, entryName, len(input))
+			if err != nil {
+				failed = true
+				printError(err)
 				break
 			}
-			results = append(results, index)
+			for _, index := range indices {
+				results[index] = nil
+			}
 		}
-		if len(results) != len(parts) {
+		if failed {
 			continue
 		}
-		return results, nil
+		return toIndices(results), nil
 	}
 
 	return nil, errExitInteractiveMode
 }
 
-func parseIndex(input, entryName string, length int) int {
-	trimmed := strings.TrimSpace(input)
-	i, err := strconv.Atoi(strings.TrimSpace(trimmed))
-	if err != nil || i > length || i < 1 {
-		fmt.Printf("The selected %s index should be between 1 and %d\n", entryName, len(input))
-		return -1
+func printError(err error) {
+	fmt.Printf("%s.\n", internal.Title(err))
+}
+
+func toIndices(m map[int]interface{}) []int {
+	result := make([]int, 0)
+	for k := range m {
+		result = append(result, k)
 	}
-	return i - 1
+	return result
+}
+
+func parseIndices(input, entryName string, length int) ([]int, error) {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "-" {
+		return getRange(0, length-1), nil
+	}
+	ranges := strings.Split(trimmed, "-")
+	if len(ranges) == 2 {
+		from, err := parseIndex(ranges[0], entryName, length)
+		if err != nil {
+			return nil, err
+		}
+		to, err := parseIndex(ranges[1], entryName, length)
+		if err != nil {
+			return nil, err
+		}
+		if from == to {
+			return []int{to}, nil
+		}
+		if to < from {
+			return nil, fmt.Errorf("invalid index range")
+		}
+		return getRange(from, to), nil
+	}
+
+	index, err := parseIndex(trimmed, entryName, length)
+	if err != nil {
+		return nil, err
+	}
+	return []int{index}, nil
+}
+
+func getRange(from, to int) []int {
+	result := make([]int, 0)
+	for i := from; i <= to; i++ {
+		result = append(result, i)
+	}
+	return result
+}
+
+func parseIndex(input, entryName string, length int) (int, error) {
+	trimmed := strings.TrimSpace(input)
+	i, err := strconv.Atoi(trimmed)
+	if err != nil {
+		return -1, errors.New("invalid index")
+	}
+	if i > length || i < 1 {
+		return -1, fmt.Errorf("the selected %s index must be between 1 and %d", entryName, length)
+	}
+	return i - 1, nil
 }
 
 // askForConfirmation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"
