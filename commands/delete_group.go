@@ -14,14 +14,14 @@ import (
 
 type deleteGroup struct {
 	globalParams *GlobalParameters
-	kafkaParams  *kafkaParameters
+	kafkaParams  *KafkaParameters
 	group        string
 	interactive  bool
 	groupFilter  *regexp.Regexp
 	silent       bool
 }
 
-func addDeleteGroupSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
+func addDeleteGroupSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *KafkaParameters) {
 	cmd := &deleteGroup{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
@@ -42,7 +42,7 @@ func addDeleteGroupSubCommand(parent *kingpin.CmdClause, global *GlobalParameter
 }
 
 func (c *deleteGroup) run(_ *kingpin.ParseContext) error {
-	manager, ctx, cancel, err := initKafkaManager(c.globalParams, c.kafkaParams)
+	manager, ctx, cancel, err := InitKafkaManager(c.globalParams, c.kafkaParams)
 
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func (c *deleteGroup) run(_ *kingpin.ParseContext) error {
 	}
 
 	if len(groups) == 0 {
-		fmt.Println(getNotFoundMessage("consumer group", "group", c.groupFilter))
+		fmt.Println(GetNotFoundMessage("consumer group", "group", c.groupFilter))
 		return nil
 	}
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -13,14 +14,14 @@ import (
 
 type deleteTopic struct {
 	globalParams *GlobalParameters
-	kafkaParams  *kafkaParameters
+	kafkaParams  *KafkaParameters
 	topic        string
 	interactive  bool
 	topicFilter  *regexp.Regexp
 	silent       bool
 }
 
-func addDeleteTopicSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
+func addDeleteTopicSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *KafkaParameters) {
 	cmd := &deleteTopic{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
@@ -41,7 +42,7 @@ func addDeleteTopicSubCommand(parent *kingpin.CmdClause, global *GlobalParameter
 }
 
 func (c *deleteTopic) run(_ *kingpin.ParseContext) error {
-	manager, ctx, cancel, err := initKafkaManager(c.globalParams, c.kafkaParams)
+	manager, ctx, cancel, err := InitKafkaManager(c.globalParams, c.kafkaParams)
 
 	if err != nil {
 		return err
@@ -55,17 +56,20 @@ func (c *deleteTopic) run(_ *kingpin.ParseContext) error {
 	if !c.interactive {
 		return c.delete(manager, c.topic)
 	}
-	topics, err := manager.GetTopics(ctx, c.topicFilter, false, "")
+	topics, err := manager.GetTopics(ctx, c.topicFilter)
 	if err != nil {
 		return err
 	}
 
 	if len(topics) == 0 {
-		fmt.Println(getNotFoundMessage("topic", "topic", c.topicFilter))
+		fmt.Println(GetNotFoundMessage("topic", "topic", c.topicFilter))
 		return nil
 	}
 
-	names := topics.SortedTopics()
+	sort.Sort(kafka.TopicsByName(topics))
+
+	names := kafka.TopicsByName(topics).GetNames()
+
 	indices, err := pickAnIndex("to delete", "topic", names, false)
 	if err != nil {
 		return filterError(err)

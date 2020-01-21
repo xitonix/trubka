@@ -5,9 +5,8 @@ import (
 )
 
 // AddTopicCommand initialises the topic top level command and adds it to the application.
-func AddTopicCommand(app *kingpin.Application, global *GlobalParameters) {
+func AddTopicCommand(app *kingpin.Application, global *GlobalParameters, kafkaParams *KafkaParameters) {
 	parent := app.Command("topic", "A command to manage Kafka topics.")
-	kafkaParams := bindKafkaFlags(parent)
-	addListTopicsSubCommand(parent, global, kafkaParams)
+	//addListTopicsSubCommand(parent, global, kafkaParams)
 	addDeleteTopicSubCommand(parent, global, kafkaParams)
 }

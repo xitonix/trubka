@@ -18,14 +18,14 @@ import (
 
 type listGroupTopics struct {
 	globalParams   *GlobalParameters
-	kafkaParams    *kafkaParameters
+	kafkaParams    *KafkaParameters
 	includeOffsets bool
 	topicFilter    *regexp.Regexp
 	group          string
 	format         string
 }
 
-func addListGroupTopicsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
+func addListGroupTopicsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *KafkaParameters) {
 	cmd := &listGroupTopics{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
@@ -43,11 +43,11 @@ func addListGroupTopicsSubCommand(parent *kingpin.CmdClause, global *GlobalParam
 		Short('o').
 		BoolVar(&cmd.includeOffsets)
 
-	addFormatFlag(c, &cmd.format)
+	AddFormatFlag(c, &cmd.format)
 }
 
 func (c *listGroupTopics) run(_ *kingpin.ParseContext) error {
-	manager, ctx, cancel, err := initKafkaManager(c.globalParams, c.kafkaParams)
+	manager, ctx, cancel, err := InitKafkaManager(c.globalParams, c.kafkaParams)
 
 	if err != nil {
 		return err
@@ -68,14 +68,14 @@ func (c *listGroupTopics) listTopics(ctx context.Context, manager *kafka.Manager
 	}
 
 	if len(topics) == 0 {
-		fmt.Println(getNotFoundMessage("topic", "topic", c.topicFilter))
+		fmt.Println(GetNotFoundMessage("topic", "topic", c.topicFilter))
 		return nil
 	}
 
 	switch c.format {
-	case plainTextFormat:
+	case PlainTextFormat:
 		c.printPlainTextOutput(topics)
-	case tableFormat:
+	case TableFormat:
 		c.printTableOutput(topics)
 	}
 	return nil

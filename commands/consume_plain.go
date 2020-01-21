@@ -17,7 +17,7 @@ import (
 
 type consumePlain struct {
 	globalParams *GlobalParameters
-	kafkaParams  *kafkaParameters
+	kafkaParams  *KafkaParameters
 
 	topic                   string
 	format                  string
@@ -38,7 +38,7 @@ type consumePlain struct {
 	highlightStyle          string
 }
 
-func addConsumePlainCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
+func addConsumePlainCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *KafkaParameters) {
 	cmd := &consumePlain{
 		globalParams: global,
 		kafkaParams:  kafkaParams,

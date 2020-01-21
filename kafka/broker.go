@@ -1,13 +1,26 @@
 package kafka
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Broker struct {
 	Address string
 	ID      int
-	Meta    *BrokerMetadata
 }
 
 func (b Broker) String() string {
-	return fmt.Sprintf("%s (ID: %d)", b.Address, b.ID)
+	return fmt.Sprintf("%d: %s", b.ID, b.Address)
+}
+
+type BrokersById []Broker
+
+func (b BrokersById) Len() int {
+	return len(b)
+}
+func (b BrokersById) Swap(i, j int) {
+	b[i], b[j] = b[j], b[i]
+}
+func (b BrokersById) Less(i, j int) bool {
+	return b[i].ID < b[j].ID
 }

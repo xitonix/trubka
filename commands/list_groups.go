@@ -19,7 +19,7 @@ import (
 
 type listGroups struct {
 	globalParams   *GlobalParameters
-	kafkaParams    *kafkaParameters
+	kafkaParams    *KafkaParameters
 	includeMembers bool
 	memberFilter   *regexp.Regexp
 	groupFilter    *regexp.Regexp
@@ -27,7 +27,7 @@ type listGroups struct {
 	format         string
 }
 
-func addListGroupsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
+func addListGroupsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *KafkaParameters) {
 	cmd := &listGroups{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
@@ -45,11 +45,11 @@ func addListGroupsSubCommand(parent *kingpin.CmdClause, global *GlobalParameters
 	c.Flag("group-filter", "An optional regular expression to filter the groups by.").
 		Short('g').
 		RegexpVar(&cmd.groupFilter)
-	addFormatFlag(c, &cmd.format)
+	AddFormatFlag(c, &cmd.format)
 }
 
 func (c *listGroups) run(_ *kingpin.ParseContext) error {
-	manager, ctx, cancel, err := initKafkaManager(c.globalParams, c.kafkaParams)
+	manager, ctx, cancel, err := InitKafkaManager(c.globalParams, c.kafkaParams)
 
 	if err != nil {
 		return err
@@ -71,14 +71,14 @@ func (c *listGroups) listGroups(ctx context.Context, manager *kafka.Manager) err
 	}
 
 	if len(groups) == 0 {
-		fmt.Println(getNotFoundMessage("consumer group", "group", c.groupFilter))
+		fmt.Println(GetNotFoundMessage("consumer group", "group", c.groupFilter))
 		return nil
 	}
 
 	switch c.format {
-	case plainTextFormat:
+	case PlainTextFormat:
 		c.printPlainTextOutput(groups)
-	case tableFormat:
+	case TableFormat:
 		c.printTableOutput(groups)
 	}
 	return nil

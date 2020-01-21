@@ -18,7 +18,7 @@ import (
 
 type consumeProto struct {
 	globalParams *GlobalParameters
-	kafkaParams  *kafkaParameters
+	kafkaParams  *KafkaParameters
 
 	protoRoot               string
 	topic                   string
@@ -42,7 +42,7 @@ type consumeProto struct {
 	highlightStyle          string
 }
 
-func addConsumeProtoCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
+func addConsumeProtoCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *KafkaParameters) {
 	cmd := &consumeProto{
 		globalParams: global,
 		kafkaParams:  kafkaParams,

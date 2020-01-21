@@ -15,9 +15,8 @@ import (
 )
 
 // AddConsumeCommand initialises the consume top level command and adds it to the application.
-func AddConsumeCommand(app *kingpin.Application, global *GlobalParameters) {
+func AddConsumeCommand(app *kingpin.Application, global *GlobalParameters, kafkaParams *KafkaParameters) {
 	parent := app.Command("consume", "A command to consume events from Kafka.")
-	kafkaParams := bindKafkaFlags(parent)
 	addConsumeProtoCommand(parent, global, kafkaParams)
 	addConsumePlainCommand(parent, global, kafkaParams)
 }
@@ -109,7 +108,7 @@ func monitorCancellation(prn *internal.SyncPrinter, cancel context.CancelFunc) {
 	cancel()
 }
 
-func initialiseConsumer(kafkaParams *kafkaParameters,
+func initialiseConsumer(kafkaParams *KafkaParameters,
 	globalParams *GlobalParameters,
 	environment string,
 	enableAutoTopicCreation bool,

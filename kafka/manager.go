@@ -29,7 +29,7 @@ type Manager struct {
 // NewManager creates a new instance of Kafka manager
 func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...Option) (*Manager, error) {
 	if len(brokers) == 0 {
-		return nil, errors.New("The brokers list cannot be empty")
+		return nil, errors.New("the brokers list cannot be empty")
 	}
 	ops := NewOptions()
 	for _, option := range options {
@@ -69,70 +69,70 @@ func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...
 	}, nil
 }
 
-// GetTopics loads a list of the available topics from the server.
-func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeOffsets bool, environment string) (TopicPartitionOffset, error) {
-	m.Log(internal.Verbose, "Retrieving topic list from the server")
-	topics, err := m.client.Topics()
-	if err != nil {
-		return nil, err
-	}
-
-	result := make(TopicPartitionOffset)
-	queryLocal := !internal.IsEmpty(environment)
-	for _, topic := range topics {
-		m.Logf(internal.SuperVerbose, "Topic %s has been found on the server", topic)
-		select {
-		case <-ctx.Done():
-			return result, nil
-		default:
-			if filter != nil && !filter.Match([]byte(topic)) {
-				m.Logf(internal.SuperVerbose, "Filtering out %s topic", topic)
-				continue
-			}
-			result[topic] = make(PartitionOffset)
-			if !includeOffsets {
-				continue
-			}
-			m.Logf(internal.VeryVerbose, "Retrieving the partition(s) of %s topic from the server", topic)
-			partitions, err := m.client.Partitions(topic)
-			if err != nil {
-				return nil, err
-			}
-			local := make(PartitionOffset)
-
-			if queryLocal {
-				m.Logf(internal.VeryVerbose, "Reading local offsets of %s topic", topic)
-				local, err = m.localOffsets.ReadLocalTopicOffsets(topic, environment)
-				if err != nil {
-					return nil, err
-				}
-			}
-			for _, partition := range partitions {
-				select {
-				case <-ctx.Done():
-					return result, nil
-				default:
-					offset := newOffset()
-					m.Logf(internal.SuperVerbose, "Reading the latest offset of partition %d for %s topic from the server", partition, topic)
-					latestOffset, err := m.client.GetOffset(topic, partition, sarama.OffsetNewest)
-					if err != nil {
-						return nil, err
-					}
-					offset.Latest = latestOffset
-					lo, ok := local[partition]
-					if !ok && queryLocal {
-						offset.Current = offsetNotFound
-					}
-					if ok && lo.Current >= 0 {
-						offset.Current = lo.Current
-					}
-					result[topic][partition] = offset
-				}
-			}
-		}
-	}
-	return result, nil
-}
+//// GetTopics loads a list of the available topics from the server.
+//func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeOffsets bool, environment string) (TopicPartitionOffset, error) {
+//	m.Log(internal.Verbose, "Retrieving topic list from the server")
+//	topics, err := m.client.Topics()
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	result := make(TopicPartitionOffset)
+//	queryLocal := !internal.IsEmpty(environment)
+//	for _, topic := range topics {
+//		m.Logf(internal.SuperVerbose, "Topic %s has been found on the server", topic)
+//		select {
+//		case <-ctx.Done():
+//			return result, nil
+//		default:
+//			if filter != nil && !filter.Match([]byte(topic)) {
+//				m.Logf(internal.SuperVerbose, "Filtering out %s topic", topic)
+//				continue
+//			}
+//			result[topic] = make(PartitionOffset)
+//			if !includeOffsets {
+//				continue
+//			}
+//			m.Logf(internal.VeryVerbose, "Retrieving the partition(s) of %s topic from the server", topic)
+//			partitions, err := m.client.Partitions(topic)
+//			if err != nil {
+//				return nil, err
+//			}
+//			local := make(PartitionOffset)
+//
+//			if queryLocal {
+//				m.Logf(internal.VeryVerbose, "Reading local offsets of %s topic", topic)
+//				local, err = m.localOffsets.ReadLocalTopicOffsets(topic, environment)
+//				if err != nil {
+//					return nil, err
+//				}
+//			}
+//			for _, partition := range partitions {
+//				select {
+//				case <-ctx.Done():
+//					return result, nil
+//				default:
+//					offset := newOffset()
+//					m.Logf(internal.SuperVerbose, "Reading the latest offset of partition %d for %s topic from the server", partition, topic)
+//					latestOffset, err := m.client.GetOffset(topic, partition, sarama.OffsetNewest)
+//					if err != nil {
+//						return nil, err
+//					}
+//					offset.Latest = latestOffset
+//					lo, ok := local[partition]
+//					if !ok && queryLocal {
+//						offset.Current = offsetNotFound
+//					}
+//					if ok && lo.Current >= 0 {
+//						offset.Current = lo.Current
+//					}
+//					result[topic][partition] = offset
+//				}
+//			}
+//		}
+//	}
+//	return result, nil
+//}
 
 func (m *Manager) DeleteConsumerGroup(group string) error {
 	return m.admin.DeleteConsumerGroup(group)
@@ -249,7 +249,6 @@ func (m *Manager) DescribeConsumerGroup(ctx context.Context, group string, membe
 	result.Coordinator = Broker{
 		Address: c.Addr(),
 		ID:      int(c.ID()),
-		Meta:    &BrokerMetadata{},
 	}
 	return result, nil
 }
@@ -374,31 +373,31 @@ func (m *Manager) setGroupOffsets(ctx context.Context, consumerGroups ConsumerGr
 	return nil
 }
 
-// GetBrokers returns the current set of active brokers as retrieved from cluster metadata.
-func (m *Manager) GetBrokers(ctx context.Context, includeMetadata bool) ([]Broker, error) {
-	m.Log(internal.Verbose, "Retrieving broker list from the server")
-	result := make([]Broker, 0)
-	for _, broker := range m.servers {
-		select {
-		case <-ctx.Done():
-			return result, nil
-		default:
-			b := Broker{
-				ID:      int(broker.ID()),
-				Address: broker.Addr(),
-			}
-			if includeMetadata {
-				m, err := m.getMetadata(broker)
-				if err != nil {
-					return nil, err
-				}
-				b.Meta = m
-			}
-			result = append(result, b)
-		}
-	}
-	return result, nil
-}
+//// GetBrokers returns the current set of active brokers as retrieved from cluster metadata.
+//func (m *Manager) GetBrokers(ctx context.Context, includeMetadata bool) ([]Broker, error) {
+//	m.Log(internal.Verbose, "Retrieving broker list from the server")
+//	result := make([]Broker, 0)
+//	for _, broker := range m.servers {
+//		select {
+//		case <-ctx.Done():
+//			return result, nil
+//		default:
+//			b := Broker{
+//				ID:      int(broker.ID()),
+//				Address: broker.Addr(),
+//			}
+//			if includeMetadata {
+//				m, err := m.getMetadata(broker)
+//				if err != nil {
+//					return nil, err
+//				}
+//				b.Meta = m
+//			}
+//			result = append(result, b)
+//		}
+//	}
+//	return result, nil
+//}
 
 // Close closes the underlying Kafka connection.
 func (m *Manager) Close() {
@@ -439,7 +438,7 @@ func (m *Manager) getMetadata(broker *sarama.Broker) (*BrokerMetadata, error) {
 			m.Logf(internal.SuperVerbose, "The metadata of topic %s has been retrieved from broker ID #%d", topic.Name, broker.ID())
 			meta.Topics = append(meta.Topics, Topic{
 				Name:               topic.Name,
-				NumberOdPartitions: len(topic.Partitions),
+				NumberOfPartitions: int32(len(topic.Partitions)),
 			})
 		}
 	}

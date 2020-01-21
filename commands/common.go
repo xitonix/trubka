@@ -21,20 +21,20 @@ import (
 )
 
 const (
-	plainTextFormat = "plain"
-	tableFormat     = "table"
+	PlainTextFormat = "plain"
+	TableFormat     = "table"
 )
 
-func initKafkaManager(globalParams *GlobalParameters, kafkaParams *kafkaParameters) (*kafka.Manager, context.Context, context.CancelFunc, error) {
-	brokers := getBrokers(kafkaParams.brokers)
+func InitKafkaManager(globalParams *GlobalParameters, kafkaParams *KafkaParameters) (*kafka.Manager, context.Context, context.CancelFunc, error) {
+	brokers := getBrokers(kafkaParams.Brokers)
 	manager, err := kafka.NewManager(brokers,
 		globalParams.Verbosity,
-		kafka.WithClusterVersion(kafkaParams.version),
-		kafka.WithTLS(kafkaParams.tls),
-		kafka.WithClusterVersion(kafkaParams.version),
-		kafka.WithSASL(kafkaParams.saslMechanism,
-			kafkaParams.saslUsername,
-			kafkaParams.saslPassword))
+		kafka.WithClusterVersion(kafkaParams.Version),
+		kafka.WithTLS(kafkaParams.TLS),
+		kafka.WithClusterVersion(kafkaParams.Version),
+		kafka.WithSASL(kafkaParams.SASLMechanism,
+			kafkaParams.SASLUsername,
+			kafkaParams.SASLPassword))
 
 	if err != nil {
 		return nil, nil, nil, err
@@ -63,7 +63,7 @@ func highlightLag(input int64, colorEnabled bool) interface{} {
 	return internal.Green(humanised, true)
 }
 
-func getNotFoundMessage(entity, filterName string, ex *regexp.Regexp) string {
+func GetNotFoundMessage(entity, filterName string, ex *regexp.Regexp) string {
 	msg := fmt.Sprintf("No %s has been found.", entity)
 	if ex != nil {
 		msg += fmt.Sprintf(" You might need to tweak the %s filter (%s).", filterName, ex.String())
@@ -71,11 +71,11 @@ func getNotFoundMessage(entity, filterName string, ex *regexp.Regexp) string {
 	return msg
 }
 
-func addFormatFlag(c *kingpin.CmdClause, format *string) {
+func AddFormatFlag(c *kingpin.CmdClause, format *string) {
 	c.Flag("format", "Sets the output format.").
-		Default(tableFormat).
+		Default(TableFormat).
 		Short('f').
-		EnumVar(format, plainTextFormat, tableFormat)
+		EnumVar(format, PlainTextFormat, TableFormat)
 }
 
 func getBrokers(commaSeparated string) []string {
