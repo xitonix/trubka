@@ -29,6 +29,7 @@ func addGroupsSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParam
 	c.Flag("group-filter", "An optional regular expression to filter the groups by.").
 		Short('g').
 		RegexpVar(&cmd.groupFilter)
+
 	commands.AddFormatFlag(c, &cmd.format)
 }
 
@@ -73,11 +74,8 @@ func (c *groups) printPlainTextOutput(groups []string) {
 }
 
 func (c *groups) printTableOutput(groups []string) {
-	table := tablewriter.NewWriter(os.Stdout)
-	headers := []string{"Consumer Group"}
-	table.SetHeader(headers)
-	table.SetColumnAlignment([]int{
-		tablewriter.ALIGN_LEFT,
+	table := commands.InitStaticTable(os.Stdout, map[string]int{
+		"Consumer Group": tablewriter.ALIGN_LEFT,
 	})
 	rows := make([][]string, 0)
 	for _, group := range groups {

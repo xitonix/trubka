@@ -248,7 +248,7 @@ func (m *Manager) DescribeConsumerGroup(ctx context.Context, group string, membe
 	}
 	result.Coordinator = Broker{
 		Address: c.Addr(),
-		ID:      int(c.ID()),
+		ID:      c.ID(),
 	}
 	return result, nil
 }

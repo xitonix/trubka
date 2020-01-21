@@ -6,7 +6,7 @@ import (
 
 type Broker struct {
 	Address string
-	ID      int
+	ID      int32
 }
 
 func (b Broker) String() string {

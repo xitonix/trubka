@@ -63,13 +63,12 @@ func (c *brokers) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *brokers) printTableOutput(brokers []kafka.Broker) {
-	table := tablewriter.NewWriter(os.Stdout)
-	headers := []string{"ID", "Address"}
-	table.SetHeader(headers)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetAutoWrapText(false)
+	table := commands.InitStaticTable(os.Stdout, map[string]int{
+		"ID":      tablewriter.ALIGN_LEFT,
+		"Address": tablewriter.ALIGN_LEFT,
+	})
 	for _, broker := range brokers {
-		row := []string{strconv.Itoa(broker.ID), broker.Address}
+		row := []string{strconv.FormatInt(int64(broker.ID), 10), broker.Address}
 		table.Append(row)
 	}
 	table.Render()

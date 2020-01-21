@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/dustin/go-humanize"
+	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/internal"
@@ -119,6 +120,28 @@ func closeFile(file *os.File, highlight bool) {
 		msg := fmt.Sprintf("Failed to close the file: %s", err)
 		fmt.Println(internal.Red(msg, highlight))
 	}
+}
+
+func InitStaticTable(writer io.Writer, headers map[string]int) *tablewriter.Table {
+	table := tablewriter.NewWriter(writer)
+	headerTitles := make([]string, len(headers))
+	alignments := make([]int, len(headers))
+	var i int
+	for h, a := range headers {
+		headerTitles[i] = h
+		alignments[i] = a
+		i++
+	}
+	table.SetHeader(headerTitles)
+	table.SetColumnAlignment(alignments)
+	table.SetAutoWrapText(false)
+	table.SetBorders(tablewriter.Border{
+		Left:   true,
+		Right:  true,
+		Top:    true,
+		Bottom: true,
+	})
+	return table
 }
 
 func getOutputWriters(outputDir string, topics map[string]*kafka.PartitionCheckpoints) (map[string]io.Writer, bool, error) {

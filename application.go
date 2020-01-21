@@ -12,6 +12,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/commands/describe"
 	"github.com/xitonix/trubka/commands/list"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
@@ -24,6 +25,7 @@ func newApplication() error {
 	commands.AddVersionCommand(app, version, commit, built, runtimeVer)
 	kafkaParams := bindKafkaFlags(app)
 	list.AddCommand(app, global, kafkaParams)
+	describe.AddCommand(app, global, kafkaParams)
 	//commands.AddConsumeCommand(app, global)
 	//commands.AddTopicCommand(app, global)
 	//commands.AddGroupCommand(app, global)

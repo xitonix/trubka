@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 
 	"github.com/xitonix/trubka/internal"
@@ -16,7 +17,7 @@ func (m *Manager) GetBrokers(ctx context.Context) ([]Broker, error) {
 			return result, nil
 		default:
 			b := Broker{
-				ID:      int(broker.ID()),
+				ID:      broker.ID(),
 				Address: broker.Addr(),
 			}
 			result = append(result, b)
@@ -59,7 +60,6 @@ func (m *Manager) GetGroups(ctx context.Context, filter *regexp.Regexp) ([]strin
 	if err != nil {
 		return nil, err
 	}
-
 	result := make([]string, 0)
 	for group := range groups {
 		m.Logf(internal.SuperVerbose, "Consumer group %s has been found on the server", group)
@@ -75,4 +75,48 @@ func (m *Manager) GetGroups(ctx context.Context, filter *regexp.Regexp) ([]strin
 		}
 	}
 	return result, nil
+}
+
+func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMembers bool) (*ConsumerGroupDetails, error) {
+	m.Logf(internal.Verbose, "Retrieving %s consumer group details from the server", group)
+	details, err := m.admin.DescribeConsumerGroups([]string{group})
+	if err != nil {
+		return nil, err
+	}
+
+	cgd := &ConsumerGroupDetails{
+		Members: make(map[string]*GroupMemberDetails),
+	}
+	select {
+	case <-ctx.Done():
+		return cgd, nil
+	default:
+		if len(details) == 0 {
+			return nil, fmt.Errorf("failed to retrieve the consumer group details of %s", group)
+		}
+		d := details[0]
+		cgd.State = d.State
+		cgd.Protocol = d.Protocol
+		cgd.ProtocolType = d.ProtocolType
+		coordinator, err := m.client.Coordinator(group)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch the group coordinator details: %w", err)
+		}
+		cgd.Coordinator = Broker{
+			Address: coordinator.Addr(),
+			ID:      coordinator.ID(),
+		}
+		if includeMembers {
+			for name, description := range d.Members {
+				md, err := fromSaramaGroupMemberDescription(description)
+				if err != nil {
+					return nil, err
+				}
+				cgd.Members[name] = md
+			}
+		}
+
+	}
+
+	return cgd, nil
 }

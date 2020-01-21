@@ -79,14 +79,12 @@ func (c *topics) printPlainTextOutput(topics []kafka.Topic) {
 }
 
 func (c *topics) printTableOutput(topics []kafka.Topic) {
-	table := tablewriter.NewWriter(os.Stdout)
-	headers := []string{"Topic", "Number of Partitions", "Replication Factor"}
-	table.SetHeader(headers)
-	table.SetColumnAlignment([]int{
-		tablewriter.ALIGN_LEFT,
-		tablewriter.ALIGN_CENTER,
-		tablewriter.ALIGN_CENTER,
+	table := commands.InitStaticTable(os.Stdout, map[string]int{
+		"Topic":                tablewriter.ALIGN_LEFT,
+		"Number of Partitions": tablewriter.ALIGN_CENTER,
+		"Replication Factor":   tablewriter.ALIGN_CENTER,
 	})
+
 	rows := make([][]string, 0)
 	var totalPartitions int64
 	for _, topic := range topics {
