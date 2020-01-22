@@ -18,11 +18,12 @@ import (
 
 // Manager a type to query Kafka metadata.
 type Manager struct {
-	config       *Options
-	client       sarama.Client
-	admin        sarama.ClusterAdmin
-	localOffsets *LocalOffsetManager
-	servers      []*sarama.Broker
+	config           *Options
+	client           sarama.Client
+	admin            sarama.ClusterAdmin
+	localOffsets     *LocalOffsetManager
+	servers          []*sarama.Broker
+	serversByAddress map[string]*sarama.Broker
 	*internal.Logger
 }
 
@@ -50,8 +51,15 @@ func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...
 
 	servers := client.Brokers()
 	addresses := make([]string, len(servers))
+	sm := make(map[string]*sarama.Broker)
 	for i, broker := range servers {
-		addresses[i] = broker.Addr()
+		addr := broker.Addr()
+		addresses[i] = addr
+		sm[addr] = broker
+		index := strings.Index(addr, ":")
+		if index > 0 {
+			sm[addr[:index]] = broker
+		}
 	}
 
 	admin, err := sarama.NewClusterAdmin(addresses, client.Config())
@@ -60,19 +68,20 @@ func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...
 	}
 
 	return &Manager{
-		config:       ops,
-		client:       client,
-		Logger:       internal.NewLogger(verbosity),
-		localOffsets: NewLocalOffsetManager(verbosity),
-		admin:        admin,
-		servers:      servers,
+		config:           ops,
+		client:           client,
+		Logger:           internal.NewLogger(verbosity),
+		localOffsets:     NewLocalOffsetManager(verbosity),
+		admin:            admin,
+		servers:          servers,
+		serversByAddress: sm,
 	}, nil
 }
 
 //// GetTopics loads a list of the available topics from the server.
 //func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeOffsets bool, environment string) (TopicPartitionOffset, error) {
 //	m.Log(internal.Verbose, "Retrieving topic list from the server")
-//	topics, err := m.client.Topics()
+//	topics, err := m.client.aggregated()
 //	if err != nil {
 //		return nil, err
 //	}

@@ -80,9 +80,9 @@ package commands
 //	table.SetAutoWrapText(false)
 //	for _, broker := range brokers {
 //		row := []string{strconv.Itoa(broker.ID), broker.Address}
-//		if c.includeMetadata && len(broker.Meta.Topics) > 0 {
+//		if c.includeMetadata && len(broker.Meta.aggregated) > 0 {
 //			topics := make([]string, 0)
-//			for _, topic := range broker.Meta.Topics {
+//			for _, topic := range broker.Meta.aggregated {
 //				if c.topicFilter != nil && !c.topicFilter.Match([]byte(topic.Name)) {
 //					continue
 //				}
@@ -106,9 +106,9 @@ package commands
 //func (c *listBrokers) printPlainTextOutput(brokers []kafka.Broker) {
 //	for _, broker := range brokers {
 //		fmt.Printf("%s: %s\n", internal.Bold("Broker", c.globalParams.EnableColor), broker.String())
-//		if c.includeMetadata && len(broker.Meta.Topics) > 0 {
+//		if c.includeMetadata && len(broker.Meta.aggregated) > 0 {
 //			topics := make([]string, 0)
-//			for _, topic := range broker.Meta.Topics {
+//			for _, topic := range broker.Meta.aggregated {
 //				if c.topicFilter != nil && !c.topicFilter.Match([]byte(topic.Name)) {
 //					continue
 //				}

@@ -124,6 +124,64 @@ func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMember
 	return cgd, nil
 }
 
+func (m *Manager) DescribeBroker(ctx context.Context, address string, includeLogs bool, topicFilter *regexp.Regexp) (*BrokerMeta, error) {
+	meta := &BrokerMeta{
+		Logs: make([]*LogFile, 0),
+	}
+	select {
+	case <-ctx.Done():
+		return meta, nil
+	default:
+		broker, ok := m.serversByAddress[address]
+		if !ok {
+			return nil, fmt.Errorf("broker %s not found", address)
+		}
+		m.Logf(internal.Verbose, "Connecting to %s", address)
+		err := broker.Open(m.client.Config())
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to %s: %w", address, err)
+		}
+		defer func() {
+			_ = broker.Close()
+		}()
+		m.Logf(internal.Verbose, "Fetching consumer groups from %s", address)
+		response, err := broker.ListGroups(&sarama.ListGroupsRequest{})
+		if err != nil {
+			return nil, err
+		}
+		meta.ConsumerGroups = make([]string, len(response.Groups))
+		var i int
+		for group := range response.Groups {
+			m.Logf(internal.VeryVerbose, "Consumer group %s has been retrieved from %s", group, address)
+			meta.ConsumerGroups[i] = group
+			i++
+		}
+
+		if includeLogs {
+			m.Logf(internal.VeryVerbose, "Retrieving broker log details from %s", address)
+			logs, err := broker.DescribeLogDirs(&sarama.DescribeLogDirsRequest{})
+			if err != nil {
+				return nil, err
+			}
+			for _, l := range logs.LogDirs {
+				lf := newLogFile(l.Path)
+				for _, topicLog := range l.Topics {
+					for _, partitionLog := range topicLog.Partitions {
+						if topicFilter != nil && !topicFilter.Match([]byte(topicLog.Topic)) {
+							m.Logf(internal.SuperVerbose, "The provided topic filter (%s) does not match with %s topic", topicFilter.String(), topicLog.Topic)
+							continue
+						}
+						m.Logf(internal.Chatty, "Log file entry retrieved for partition %d of topic %s", partitionLog.PartitionID, topicLog.Topic)
+						lf.set(topicLog.Topic, partitionLog.Size, partitionLog.IsTemporary)
+					}
+				}
+				meta.Logs = append(meta.Logs, lf)
+			}
+		}
+	}
+	return meta, nil
+}
+
 func (m *Manager) GetGroupOffsets(ctx context.Context, group string, topicFilter *regexp.Regexp) (TopicPartitionOffset, error) {
 	result := make(TopicPartitionOffset)
 	select {
