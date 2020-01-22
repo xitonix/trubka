@@ -1,8 +1,10 @@
 package describe
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -59,14 +61,27 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *group) printPlainTextOutput(details *kafka.ConsumerGroupDetails) {
-	//var totalPartitions int64
-	//for _, topic := range topics {
-	//	totalPartitions += int64(topic.NumberOfPartitions)
-	//	fmt.Printf("%s\n", topic)
-	//}
-	//fmt.Println("\nTotal\n-----")
-	//fmt.Printf("Number of topics: %s\n", humanize.Comma(int64(len(topics))))
-	//fmt.Printf("Number of partitions: %s", humanize.Comma(totalPartitions))
+	fmt.Println(details.String())
+	if c.includeMembers {
+		fmt.Println()
+		fmt.Printf("\n%s\n\n", commands.Underline("Members"))
+
+		for member, md := range details.Members {
+			fmt.Println("  ID: " + member)
+			fmt.Printf("HOST: %s\n\n", md.ClientHost)
+			if len(details.Members[member].TopicPartitions) == 0 {
+				continue
+			}
+			fmt.Println(commands.Underline("Assignments"))
+			tps := details.Members[member].TopicPartitions
+			sortedTopics := tps.SortedTopics()
+			for _, topic := range sortedTopics {
+				space := strings.Repeat(" ", 2)
+				fmt.Printf("%s- %s: %s\n", space, topic, tps.SortedPartitionsString(topic))
+			}
+			fmt.Println()
+		}
+	}
 }
 
 func (c *group) printTableOutput(details *kafka.ConsumerGroupDetails) {
@@ -92,10 +107,27 @@ func (c *group) printMemberDetailsTable(members map[string]*kafka.GroupMemberDet
 		"Client Host": tablewriter.ALIGN_CENTER,
 		"Assignments": tablewriter.ALIGN_CENTER,
 	})
+
 	rows := make([][]string, 0)
 	for name, desc := range members {
-		//TODO: Print the Assignments
-		row := []string{name, desc.ClientHost, " "}
+		var buf bytes.Buffer
+		inner := commands.InitStaticTable(&buf, map[string]int{
+			"Topic":     tablewriter.ALIGN_LEFT,
+			"Partition": tablewriter.ALIGN_CENTER,
+		})
+		sortedTopics := desc.TopicPartitions.SortedTopics()
+		for _, topic := range sortedTopics {
+			inner.Append([]string{
+				commands.SpaceIfEmpty(topic),
+				commands.SpaceIfEmpty(desc.TopicPartitions.SortedPartitionsString(topic)),
+			})
+		}
+		inner.Render()
+		row := []string{
+			commands.SpaceIfEmpty(name),
+			commands.SpaceIfEmpty(desc.ClientHost),
+			commands.SpaceIfEmpty(buf.String()),
+		}
 		rows = append(rows, row)
 	}
 	table.AppendBulk(rows)

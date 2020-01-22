@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -40,6 +41,17 @@ func WaitForCancellationSignal() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
 	<-signals
+}
+
+func IgnoreRegexCase(r *regexp.Regexp) (*regexp.Regexp, error) {
+	if r == nil {
+		return r, nil
+	}
+	ex, err := regexp.Compile("(?i)" + r.String())
+	if err != nil {
+		return nil, err
+	}
+	return ex, nil
 }
 
 func Title(err error) string {

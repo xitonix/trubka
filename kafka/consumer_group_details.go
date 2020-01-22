@@ -1,21 +1,35 @@
 package kafka
 
-import "github.com/Shopify/sarama"
+import (
+	"fmt"
+
+	"github.com/Shopify/sarama"
+)
+
+type GroupMembers map[string]*GroupMemberDetails
 
 type ConsumerGroupDetails struct {
 	State        string
-	Members      map[string]*GroupMemberDetails
+	Members      GroupMembers
 	Protocol     string
 	Coordinator  Broker
 	ProtocolType string
 }
 
-type GroupMemberDetails struct {
-	ClientHost      string
-	TopicPartitions map[string][]int32
+func (c *ConsumerGroupDetails) String() string {
+	return fmt.Sprintf("  Coordinator: %s\n        State: %s\n     Protocol: %s\nProtocol Type: %s",
+		c.Coordinator.Address,
+		c.State,
+		c.Protocol,
+		c.ProtocolType)
 }
 
-func fromSaramaGroupMemberDescription(md *sarama.GroupMemberDescription) (*GroupMemberDetails, error) {
+type GroupMemberDetails struct {
+	ClientHost      string
+	TopicPartitions TopicPartitions
+}
+
+func fromGroupMemberDescription(md *sarama.GroupMemberDescription) (*GroupMemberDetails, error) {
 	assignments, err := md.GetMemberAssignment()
 	if err != nil {
 		return nil, err

@@ -91,7 +91,11 @@ func (c *topics) printTableOutput(topics []kafka.Topic) {
 		np := strconv.FormatInt(int64(topic.NumberOfPartitions), 10)
 		rf := strconv.FormatInt(int64(topic.ReplicationFactor), 10)
 		totalPartitions += int64(topic.NumberOfPartitions)
-		rows = append(rows, []string{topic.Name, np, rf})
+		rows = append(rows, []string{
+			commands.SpaceIfEmpty(topic.Name),
+			commands.SpaceIfEmpty(np),
+			commands.SpaceIfEmpty(rf),
+		})
 	}
 	table.AppendBulk(rows)
 	table.SetFooter([]string{fmt.Sprintf("Total: %s", humanize.Comma(int64(len(topics)))), humanize.Comma(totalPartitions), " "})

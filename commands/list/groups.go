@@ -79,7 +79,7 @@ func (c *groups) printTableOutput(groups []string) {
 	})
 	rows := make([][]string, 0)
 	for _, group := range groups {
-		rows = append(rows, []string{group})
+		rows = append(rows, []string{commands.SpaceIfEmpty(group)})
 	}
 	table.AppendBulk(rows)
 	table.SetFooter([]string{fmt.Sprintf("Total: %s", humanize.Comma(int64(len(groups))))})

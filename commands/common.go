@@ -53,7 +53,7 @@ func InitKafkaManager(globalParams *GlobalParameters, kafkaParams *KafkaParamete
 	return manager, ctx, cancel, nil
 }
 
-func highlightLag(input int64, colorEnabled bool) interface{} {
+func HighlightLag(input int64, colorEnabled bool) interface{} {
 	humanised := humanize.Comma(input)
 	if !colorEnabled {
 		return humanised
@@ -70,6 +70,14 @@ func GetNotFoundMessage(entity, filterName string, ex *regexp.Regexp) string {
 		msg += fmt.Sprintf(" You might need to tweak the %s filter (%s).", filterName, ex.String())
 	}
 	return msg
+}
+
+func Underline(in string) string {
+	in = strings.TrimSpace(in)
+	if len(in) == 0 {
+		return ""
+	}
+	return in + "\n" + strings.Repeat("-", len(in))
 }
 
 func AddFormatFlag(c *kingpin.CmdClause, format *string) {
@@ -135,13 +143,15 @@ func InitStaticTable(writer io.Writer, headers map[string]int) *tablewriter.Tabl
 	table.SetHeader(headerTitles)
 	table.SetColumnAlignment(alignments)
 	table.SetAutoWrapText(false)
-	table.SetBorders(tablewriter.Border{
-		Left:   true,
-		Right:  true,
-		Top:    true,
-		Bottom: true,
-	})
+	table.SetRowLine(true)
 	return table
+}
+
+func SpaceIfEmpty(in string) string {
+	if len(in) > 0 {
+		return in
+	}
+	return " "
 }
 
 func getOutputWriters(outputDir string, topics map[string]*kafka.PartitionCheckpoints) (map[string]io.Writer, bool, error) {

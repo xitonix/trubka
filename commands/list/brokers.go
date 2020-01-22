@@ -68,7 +68,11 @@ func (c *brokers) printTableOutput(brokers []kafka.Broker) {
 		"Address": tablewriter.ALIGN_LEFT,
 	})
 	for _, broker := range brokers {
-		row := []string{strconv.FormatInt(int64(broker.ID), 10), broker.Address}
+		id := strconv.FormatInt(int64(broker.ID), 10)
+		row := []string{
+			commands.SpaceIfEmpty(id),
+			commands.SpaceIfEmpty(broker.Address),
+		}
 		table.Append(row)
 	}
 	table.Render()

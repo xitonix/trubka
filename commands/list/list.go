@@ -11,4 +11,7 @@ func AddCommand(app *kingpin.Application, global *commands.GlobalParameters, kaf
 	addBrokersSubCommand(parent, global, kafkaParams)
 	addTopicsSubCommand(parent, global, kafkaParams)
 	addGroupsSubCommand(parent, global, kafkaParams)
+	addGroupOffsetsSubCommand(parent, global, kafkaParams)
+	addLocalOffsetsSubCommand(parent, global, kafkaParams)
+	addLocalTopicsSubCommand(parent, global)
 }
