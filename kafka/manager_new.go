@@ -123,7 +123,25 @@ func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMember
 
 	return cgd, nil
 }
+func (m *Manager) DescribeTopic(ctx context.Context, topic string) (*TopicMetadata, error) {
+	m.Logf(internal.Verbose, "Retrieving %s topic details from the server", topic)
+	result := &TopicMetadata{}
+	select {
+	case <-ctx.Done():
+		return result, nil
+	default:
+		response, err := m.admin.DescribeTopics([]string{topic})
+		if err != nil {
+			return nil, err
+		}
+		if len(response) == 0 {
+			return nil, fmt.Errorf("%s topic metadata was not found on the server", topic)
+		}
+		fmt.Printf("%+v\n", response[0].Partitions[0])
+	}
 
+	return result, nil
+}
 func (m *Manager) DescribeBroker(ctx context.Context, address string, includeLogs bool, topicFilter *regexp.Regexp) (*BrokerMeta, error) {
 	meta := &BrokerMeta{
 		Logs: make([]*LogFile, 0),
@@ -156,7 +174,6 @@ func (m *Manager) DescribeBroker(ctx context.Context, address string, includeLog
 			meta.ConsumerGroups[i] = group
 			i++
 		}
-
 		if includeLogs {
 			m.Logf(internal.VeryVerbose, "Retrieving broker log details from %s", address)
 			logs, err := broker.DescribeLogDirs(&sarama.DescribeLogDirsRequest{})

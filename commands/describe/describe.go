@@ -10,4 +10,5 @@ func AddCommand(app *kingpin.Application, global *commands.GlobalParameters, kaf
 	parent := app.Command("describe", "A command to describe a Kafka entity.")
 	addGroupSubCommand(parent, global, kafkaParams)
 	addBrokerSubCommand(parent, global, kafkaParams)
+	addTopicSubCommand(parent, global, kafkaParams)
 }

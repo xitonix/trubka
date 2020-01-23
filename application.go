@@ -26,7 +26,7 @@ func newApplication() error {
 	kafkaParams := bindKafkaFlags(app)
 	list.AddCommand(app, global, kafkaParams)
 	describe.AddCommand(app, global, kafkaParams)
-	//commands.AddConsumeCommand(app, global)
+	commands.AddConsumeCommand(app, global, kafkaParams)
 	//commands.AddTopicCommand(app, global)
 	//commands.AddGroupCommand(app, global)
 	//commands.AddLocalOffsetCommand(app, global)

@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/Shopify/sarama"
@@ -151,88 +150,88 @@ func (m *Manager) DeleteTopic(topic string) error {
 	return m.admin.DeleteTopic(topic)
 }
 
-func (m *Manager) GetGroupTopics(ctx context.Context, group string, includeOffsets bool, topicFilter *regexp.Regexp) (TopicPartitionOffset, error) {
-	result := make(TopicPartitionOffset)
-	select {
-	case <-ctx.Done():
-		return result, nil
-	default:
-		m.Log(internal.Verbose, "Retrieving consumer group details")
-		groupDescriptions, err := m.admin.DescribeConsumerGroups([]string{group})
-		if err != nil {
-			return nil, err
-		}
-
-		if len(groupDescriptions) != 1 {
-			return nil, errors.New("failed to retrieve consumer group details from the server")
-		}
-		topicPartitions := make(map[string][]int32)
-		for _, member := range groupDescriptions[0].Members {
-			select {
-			case <-ctx.Done():
-				return result, nil
-			default:
-				m.Logf(internal.VeryVerbose, "Retrieving the topic assignments for %s", member.ClientId)
-				assignments, err := member.GetMemberAssignment()
-				if err != nil {
-					return nil, fmt.Errorf("failed to retrieve the topic/partition assignments: %w", err)
-				}
-
-				for topic, partitions := range assignments.Topics {
-					if topicFilter != nil && !topicFilter.Match([]byte(topic)) {
-						continue
-					}
-					if _, ok := topicPartitions[topic]; !ok {
-						topicPartitions[topic] = make([]int32, 0)
-					}
-					for _, partition := range partitions {
-						topicPartitions[topic] = append(topicPartitions[topic], partition)
-					}
-				}
-
-				for topic, partitions := range topicPartitions {
-					result[topic] = make(PartitionOffset)
-					for _, partition := range partitions {
-						result[topic][partition] = Offset{}
-					}
-				}
-			}
-		}
-
-		if !includeOffsets {
-			return result, nil
-		}
-
-		m.Logf(internal.VeryVerbose, "Retrieving the offsets for %s consumer group", group)
-		cgOffsets, err := m.admin.ListConsumerGroupOffsets(group, topicPartitions)
-		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve the consumer group offsets: %w", err)
-		}
-
-		for topic, blocks := range cgOffsets.Blocks {
-			for partition, group := range blocks {
-				select {
-				case <-ctx.Done():
-					return result, nil
-				default:
-					if group.Offset < 0 {
-						continue
-					}
-					m.Logf(internal.SuperVerbose, "Retrieving the latest offset of partition %d of %s topic from the server", partition, topic)
-					latestTopicOffset, err := m.client.GetOffset(topic, partition, sarama.OffsetNewest)
-					if err != nil {
-						return nil, err
-					}
-					result[topic][partition] = Offset{
-						Current: group.Offset,
-						Latest:  latestTopicOffset,
-					}
-				}
-			}
-		}
-	}
-	return result, nil
-}
+//func (m *Manager) GetGroupTopics(ctx context.Context, group string, includeOffsets bool, topicFilter *regexp.Regexp) (TopicPartitionOffset, error) {
+//	result := make(TopicPartitionOffset)
+//	select {
+//	case <-ctx.Done():
+//		return result, nil
+//	default:
+//		m.Log(internal.Verbose, "Retrieving consumer group details")
+//		groupDescriptions, err := m.admin.DescribeConsumerGroups([]string{group})
+//		if err != nil {
+//			return nil, err
+//		}
+//
+//		if len(groupDescriptions) != 1 {
+//			return nil, errors.New("failed to retrieve consumer group details from the server")
+//		}
+//		topicPartitions := make(map[string][]int32)
+//		for _, member := range groupDescriptions[0].Members {
+//			select {
+//			case <-ctx.Done():
+//				return result, nil
+//			default:
+//				m.Logf(internal.VeryVerbose, "Retrieving the topic assignments for %s", member.ClientId)
+//				assignments, err := member.GetMemberAssignment()
+//				if err != nil {
+//					return nil, fmt.Errorf("failed to retrieve the topic/partition assignments: %w", err)
+//				}
+//
+//				for topic, partitions := range assignments.Topics {
+//					if topicFilter != nil && !topicFilter.Match([]byte(topic)) {
+//						continue
+//					}
+//					if _, ok := topicPartitions[topic]; !ok {
+//						topicPartitions[topic] = make([]int32, 0)
+//					}
+//					for _, partition := range partitions {
+//						topicPartitions[topic] = append(topicPartitions[topic], partition)
+//					}
+//				}
+//
+//				for topic, partitions := range topicPartitions {
+//					result[topic] = make(PartitionOffset)
+//					for _, partition := range partitions {
+//						result[topic][partition] = Offset{}
+//					}
+//				}
+//			}
+//		}
+//
+//		if !includeOffsets {
+//			return result, nil
+//		}
+//
+//		m.Logf(internal.VeryVerbose, "Retrieving the offsets for %s consumer group", group)
+//		cgOffsets, err := m.admin.ListConsumerGroupOffsets(group, topicPartitions)
+//		if err != nil {
+//			return nil, fmt.Errorf("failed to retrieve the consumer group offsets: %w", err)
+//		}
+//
+//		for topic, blocks := range cgOffsets.Blocks {
+//			for partition, group := range blocks {
+//				select {
+//				case <-ctx.Done():
+//					return result, nil
+//				default:
+//					if group.Offset < 0 {
+//						continue
+//					}
+//					m.Logf(internal.SuperVerbose, "Retrieving the latest offset of partition %d of %s topic from the server", partition, topic)
+//					latestTopicOffset, err := m.client.GetOffset(topic, partition, sarama.OffsetNewest)
+//					if err != nil {
+//						return nil, err
+//					}
+//					result[topic][partition] = Offset{
+//						Current: group.Offset,
+//						Latest:  latestTopicOffset,
+//					}
+//				}
+//			}
+//		}
+//	}
+//	return result, nil
+//}
 
 func (m *Manager) GetConsumerGroups(ctx context.Context, includeMembers bool, memberFilter, groupFilter *regexp.Regexp, topics []string) (ConsumerGroups, error) {
 	result := make(ConsumerGroups)
@@ -396,33 +395,33 @@ func (m *Manager) Close() {
 	m.Logf(internal.Verbose, "Kafka manager has been closed successfully.")
 }
 
-func (m *Manager) getMetadata(broker *sarama.Broker) (*BrokerMetadata, error) {
-	meta := &BrokerMetadata{
-		Topics: make([]Topic, 0),
-	}
-	m.Logf(internal.VeryVerbose, "Connecting to broker ID #%d", broker.ID())
-	if err := broker.Open(m.client.Config()); err != nil {
-		return nil, err
-	}
-	defer func() {
-		m.Logf(internal.VeryVerbose, "Closing the connection to broker ID #%d", broker.ID())
-		_ = broker.Close()
-	}()
-	m.Logf(internal.Verbose, "Retrieving metadata for broker ID #%d", broker.ID())
-	mt, err := broker.GetMetadata(&sarama.MetadataRequest{})
-	if err != nil {
-		return nil, err
-	}
-	meta.Version = int(mt.Version)
-	for _, topic := range mt.Topics {
-		if topic != nil {
-			m.Logf(internal.SuperVerbose, "The metadata of topic %s has been retrieved from broker ID #%d", topic.Name, broker.ID())
-			meta.Topics = append(meta.Topics, Topic{
-				Name:               topic.Name,
-				NumberOfPartitions: int32(len(topic.Partitions)),
-			})
-		}
-	}
-	sort.Sort(TopicsByName(meta.Topics))
-	return meta, nil
-}
+//func (m *Manager) getMetadata(broker *sarama.Broker) (*BrokerMetadata, error) {
+//	meta := &BrokerMetadata{
+//		Topics: make([]Topic, 0),
+//	}
+//	m.Logf(internal.VeryVerbose, "Connecting to broker ID #%d", broker.ID())
+//	if err := broker.Open(m.client.Config()); err != nil {
+//		return nil, err
+//	}
+//	defer func() {
+//		m.Logf(internal.VeryVerbose, "Closing the connection to broker ID #%d", broker.ID())
+//		_ = broker.Close()
+//	}()
+//	m.Logf(internal.Verbose, "Retrieving metadata for broker ID #%d", broker.ID())
+//	mt, err := broker.GetMetadata(&sarama.MetadataRequest{})
+//	if err != nil {
+//		return nil, err
+//	}
+//	meta.Version = int(mt.Version)
+//	for _, topic := range mt.Topics {
+//		if topic != nil {
+//			m.Logf(internal.SuperVerbose, "The metadata of topic %s has been retrieved from broker ID #%d", topic.Name, broker.ID())
+//			meta.Topics = append(meta.Topics, Topic{
+//				Name:               topic.Name,
+//				NumberOfPartitions: int32(len(topic.Partitions)),
+//			})
+//		}
+//	}
+//	sort.Sort(TopicsByName(meta.Topics))
+//	return meta, nil
+//}
