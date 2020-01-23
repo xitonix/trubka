@@ -1,4 +1,4 @@
-package commands
+package consume
 
 import (
 	"bytes"
@@ -11,13 +11,14 @@ import (
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 )
 
 type consumePlain struct {
-	globalParams *GlobalParameters
-	kafkaParams  *KafkaParameters
+	globalParams *commands.GlobalParameters
+	kafkaParams  *commands.KafkaParameters
 
 	topic                   string
 	format                  string
@@ -38,7 +39,7 @@ type consumePlain struct {
 	highlightStyle          string
 }
 
-func addConsumePlainCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *KafkaParameters) {
+func addConsumePlainCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	cmd := &consumePlain{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
@@ -101,7 +102,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	if interactive {
 		topics, err = askUserForTopics(consumer, c.topicFilter, c.interactiveWithOffset, defaultCheckpoint)
 		if err != nil {
-			return FilterError(err)
+			return commands.FilterError(err)
 		}
 	} else {
 		topics[c.topic] = defaultCheckpoint

@@ -1,21 +1,25 @@
-package commands
+package consume
 
 import (
 	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 )
 
-// AddConsumeCommand initialises the consume top level command and adds it to the application.
-func AddConsumeCommand(app *kingpin.Application, global *GlobalParameters, kafkaParams *KafkaParameters) {
+// AddCommands initialises the consume top level command and adds it to the application.
+func AddCommands(app *kingpin.Application, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	parent := app.Command("consume", "A command to consume events from Kafka.")
 	addConsumeProtoCommand(parent, global, kafkaParams)
 	addConsumePlainCommand(parent, global, kafkaParams)
@@ -108,8 +112,8 @@ func monitorCancellation(prn *internal.SyncPrinter, cancel context.CancelFunc) {
 	cancel()
 }
 
-func initialiseConsumer(kafkaParams *KafkaParameters,
-	globalParams *GlobalParameters,
+func initialiseConsumer(kafkaParams *commands.KafkaParameters,
+	globalParams *commands.GlobalParameters,
 	environment string,
 	enableAutoTopicCreation bool,
 	logFile io.Writer,
@@ -119,9 +123,82 @@ func initialiseConsumer(kafkaParams *KafkaParameters,
 		saramaLogWriter = logFile
 	}
 
-	consumer, err := kafkaParams.createConsumer(prn, environment, enableAutoTopicCreation, saramaLogWriter)
+	brokers := commands.GetBrokers(kafkaParams.Brokers)
+	consumer, err := kafka.NewConsumer(
+		brokers, prn,
+		environment,
+		enableAutoTopicCreation,
+		kafka.WithClusterVersion(kafkaParams.Version),
+		kafka.WithTLS(kafkaParams.TLS),
+		kafka.WithLogWriter(saramaLogWriter),
+		kafka.WithSASL(kafkaParams.SASLMechanism,
+			kafkaParams.SASLUsername,
+			kafkaParams.SASLPassword))
+
 	if err != nil {
 		return nil, err
 	}
 	return consumer, nil
+}
+
+func getOutputWriters(outputDir string, topics map[string]*kafka.PartitionCheckpoints) (map[string]io.Writer, bool, error) {
+	result := make(map[string]io.Writer)
+
+	if internal.IsEmpty(outputDir) {
+		for topic := range topics {
+			result[topic] = os.Stdout
+		}
+		return result, false, nil
+	}
+
+	err := os.MkdirAll(outputDir, 0755)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to create the output directory: %w", err)
+	}
+
+	for topic := range topics {
+		file := filepath.Join(outputDir, topic)
+		lf, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to create %s: %w", file, err)
+		}
+		result[topic] = lf
+	}
+
+	return result, true, nil
+}
+
+func getLogWriter(logFile string) (io.Writer, bool, error) {
+	switch strings.TrimSpace(strings.ToLower(logFile)) {
+	case "none":
+		return ioutil.Discard, false, nil
+	case "":
+		return os.Stdout, false, nil
+	default:
+		lf, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to create %s: %w", logFile, err)
+		}
+		return lf, true, nil
+	}
+}
+
+func getTopics(topicMap map[string]string, checkpoints *kafka.PartitionCheckpoints) map[string]*kafka.PartitionCheckpoints {
+	topics := make(map[string]*kafka.PartitionCheckpoints)
+	for topic := range topicMap {
+		topics[topic] = checkpoints
+	}
+	return topics
+}
+
+func closeFile(file *os.File, highlight bool) {
+	err := file.Sync()
+	if err != nil {
+		msg := fmt.Sprintf("Failed to sync the file: %s", err)
+		fmt.Println(internal.Red(msg, highlight))
+	}
+	if err := file.Close(); err != nil {
+		msg := fmt.Sprintf("Failed to close the file: %s", err)
+		fmt.Println(internal.Red(msg, highlight))
+	}
 }

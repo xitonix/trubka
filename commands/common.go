@@ -1,14 +1,13 @@
 package commands
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
@@ -26,8 +25,10 @@ const (
 	TableFormat     = "table"
 )
 
+var ErrExitInteractiveMode = errors.New("exit")
+
 func InitKafkaManager(globalParams *GlobalParameters, kafkaParams *KafkaParameters) (*kafka.Manager, context.Context, context.CancelFunc, error) {
-	brokers := getBrokers(kafkaParams.Brokers)
+	brokers := GetBrokers(kafkaParams.Brokers)
 	manager, err := kafka.NewManager(brokers,
 		globalParams.Verbosity,
 		kafka.WithClusterVersion(kafkaParams.Version),
@@ -92,47 +93,12 @@ func AddFormatFlag(c *kingpin.CmdClause, format *string) {
 		EnumVar(format, PlainTextFormat, TableFormat)
 }
 
-func getBrokers(commaSeparated string) []string {
+func GetBrokers(commaSeparated string) []string {
 	brokers := strings.Split(commaSeparated, ",")
 	for i := 0; i < len(brokers); i++ {
 		brokers[i] = strings.TrimSpace(brokers[i])
 	}
 	return brokers
-}
-
-func getLogWriter(logFile string) (io.Writer, bool, error) {
-	switch strings.TrimSpace(strings.ToLower(logFile)) {
-	case "none":
-		return ioutil.Discard, false, nil
-	case "":
-		return os.Stdout, false, nil
-	default:
-		lf, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
-		if err != nil {
-			return nil, false, fmt.Errorf("failed to create %s: %w", logFile, err)
-		}
-		return lf, true, nil
-	}
-}
-
-func getTopics(topicMap map[string]string, checkpoints *kafka.PartitionCheckpoints) map[string]*kafka.PartitionCheckpoints {
-	topics := make(map[string]*kafka.PartitionCheckpoints)
-	for topic := range topicMap {
-		topics[topic] = checkpoints
-	}
-	return topics
-}
-
-func closeFile(file *os.File, highlight bool) {
-	err := file.Sync()
-	if err != nil {
-		msg := fmt.Sprintf("Failed to sync the file: %s", err)
-		fmt.Println(internal.Red(msg, highlight))
-	}
-	if err := file.Close(); err != nil {
-		msg := fmt.Sprintf("Failed to close the file: %s", err)
-		fmt.Println(internal.Red(msg, highlight))
-	}
 }
 
 func InitStaticTable(writer io.Writer, headers ...TableHeader) *tablewriter.Table {
@@ -159,36 +125,28 @@ func SpaceIfEmpty(in string) string {
 	return " "
 }
 
-func getOutputWriters(outputDir string, topics map[string]*kafka.PartitionCheckpoints) (map[string]io.Writer, bool, error) {
-	result := make(map[string]io.Writer)
-
-	if internal.IsEmpty(outputDir) {
-		for topic := range topics {
-			result[topic] = os.Stdout
-		}
-		return result, false, nil
-	}
-
-	err := os.MkdirAll(outputDir, 0755)
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to create the output directory: %w", err)
-	}
-
-	for topic := range topics {
-		file := filepath.Join(outputDir, topic)
-		lf, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
-		if err != nil {
-			return nil, false, fmt.Errorf("failed to create %s: %w", file, err)
-		}
-		result[topic] = lf
-	}
-
-	return result, true, nil
-}
-
 func FilterError(err error) error {
-	if errors.Is(err, errExitInteractiveMode) {
+	if errors.Is(err, ErrExitInteractiveMode) {
 		return nil
 	}
 	return err
+}
+
+// AskForConfirmation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"
+// and then press enter. It has fuzzy matching, so "y", "Y", "yes", "YES", and "Yes" all count as
+// confirmations. If the input is not recognized, it will ask again. The function does not return
+// until it gets a valid response from the user.
+func AskForConfirmation(s string) bool {
+	scanner := bufio.NewScanner(os.Stdin)
+	msg := fmt.Sprintf("%s [y/n]?: ", s)
+	for fmt.Print(msg); scanner.Scan(); fmt.Print(msg) {
+		r := strings.ToLower(strings.TrimSpace(scanner.Text()))
+		switch r {
+		case "y", "yes":
+			return true
+		case "n", "no", "q", "quit", "exit":
+			return false
+		}
+	}
+	return false
 }

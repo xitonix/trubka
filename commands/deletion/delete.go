@@ -6,7 +6,9 @@ import (
 	"github.com/xitonix/trubka/commands"
 )
 
-func AddCommand(app *kingpin.Application, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
+func AddCommands(app *kingpin.Application, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	parent := app.Command("delete", "A command to delete Kafka entities.")
 	addDeleteTopicSubCommand(parent, global, kafkaParams)
+	addDeleteGroupSubCommand(parent, global, kafkaParams)
+	addDeleteLocalOffsetsSubCommand(parent, global)
 }

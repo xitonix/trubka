@@ -1,4 +1,4 @@
-package commands
+package consume
 
 import (
 	"bytes"
@@ -11,14 +11,15 @@ import (
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 	"github.com/xitonix/trubka/protobuf"
 )
 
 type consumeProto struct {
-	globalParams *GlobalParameters
-	kafkaParams  *KafkaParameters
+	globalParams *commands.GlobalParameters
+	kafkaParams  *commands.KafkaParameters
 
 	protoRoot               string
 	topic                   string
@@ -42,7 +43,7 @@ type consumeProto struct {
 	highlightStyle          string
 }
 
-func addConsumeProtoCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *KafkaParameters) {
+func addConsumeProtoCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	cmd := &consumeProto{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
@@ -131,7 +132,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	if interactive {
 		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, c.interactiveWithOffset, checkpoints)
 		if err != nil {
-			return FilterError(err)
+			return commands.FilterError(err)
 		}
 	} else {
 		tm[c.topic] = c.messageType

@@ -1,4 +1,4 @@
-package commands
+package consume
 
 import (
 	"bufio"
@@ -12,12 +12,11 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 
+	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 	"github.com/xitonix/trubka/protobuf"
 )
-
-var errExitInteractiveMode = errors.New("exit")
 
 func askUserForTopics(consumer *kafka.Consumer,
 	topicFilter *regexp.Regexp,
@@ -49,7 +48,7 @@ func askUserForTopics(consumer *kafka.Consumer,
 	}
 
 	if !confirmConsumerStart(result, nil) {
-		return nil, errExitInteractiveMode
+		return nil, commands.ErrExitInteractiveMode
 	}
 
 	return result, nil
@@ -99,7 +98,7 @@ func readUserData(consumer *kafka.Consumer,
 	}
 
 	if !confirmConsumerStart(topics, tm) {
-		return nil, nil, errExitInteractiveMode
+		return nil, nil, commands.ErrExitInteractiveMode
 	}
 
 	return topics, tm, nil
@@ -115,7 +114,7 @@ func pickAnIndex(msgSuffix, entryName string, input []string, multiSelect bool) 
 	defer func() {
 		if cancelled {
 			results = nil
-			err = errExitInteractiveMode
+			err = commands.ErrExitInteractiveMode
 		}
 	}()
 
@@ -145,7 +144,7 @@ func pickAnIndex(msgSuffix, entryName string, input []string, multiSelect bool) 
 		}
 
 		if askedToExit(trimmed) {
-			return nil, errExitInteractiveMode
+			return nil, commands.ErrExitInteractiveMode
 		}
 
 		results := make(map[int]interface{})
@@ -182,7 +181,7 @@ func pickAnIndex(msgSuffix, entryName string, input []string, multiSelect bool) 
 		return toIndices(results), nil
 	}
 
-	return nil, errExitInteractiveMode
+	return nil, commands.ErrExitInteractiveMode
 }
 
 func printError(err error) {
@@ -248,25 +247,6 @@ func parseIndex(input, entryName string, length int) (int, error) {
 	return i - 1, nil
 }
 
-// AskForConfirmation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"
-// and then press enter. It has fuzzy matching, so "y", "Y", "yes", "YES", and "Yes" all count as
-// confirmations. If the input is not recognized, it will ask again. The function does not return
-// until it gets a valid response from the user.
-func AskForConfirmation(s string) bool {
-	scanner := bufio.NewScanner(os.Stdin)
-	msg := fmt.Sprintf("%s [y/n]?: ", s)
-	for fmt.Print(msg); scanner.Scan(); fmt.Print(msg) {
-		r := strings.ToLower(strings.TrimSpace(scanner.Text()))
-		switch r {
-		case "y", "yes":
-			return true
-		case "n", "no", "q", "quit", "exit":
-			return false
-		}
-	}
-	return false
-}
-
 func askForStartingOffset(topic string, defaultCP *kafka.PartitionCheckpoints) (cp *kafka.PartitionCheckpoints, err error) {
 	var cancelled bool
 	go func() {
@@ -276,7 +256,7 @@ func askForStartingOffset(topic string, defaultCP *kafka.PartitionCheckpoints) (
 	defer func() {
 		if cancelled {
 			cp = nil
-			err = errExitInteractiveMode
+			err = commands.ErrExitInteractiveMode
 		}
 	}()
 	scanner := bufio.NewScanner(os.Stdin)
@@ -287,7 +267,7 @@ func askForStartingOffset(topic string, defaultCP *kafka.PartitionCheckpoints) (
 			return defaultCP, nil
 		}
 		if askedToExit(trimmed) {
-			return nil, errExitInteractiveMode
+			return nil, commands.ErrExitInteractiveMode
 		}
 		cp, err := kafka.NewPartitionCheckpoints(trimmed)
 		if err != nil {
@@ -296,7 +276,7 @@ func askForStartingOffset(topic string, defaultCP *kafka.PartitionCheckpoints) (
 		}
 		return cp, nil
 	}
-	return nil, errExitInteractiveMode
+	return nil, commands.ErrExitInteractiveMode
 }
 
 func confirmConsumerStart(topics map[string]*kafka.PartitionCheckpoints, contracts map[string]string) bool {
@@ -319,7 +299,7 @@ func confirmConsumerStart(topics map[string]*kafka.PartitionCheckpoints, contrac
 	}
 	fmt.Println()
 	table.Render()
-	return AskForConfirmation("Start consuming")
+	return commands.AskForConfirmation("Start consuming")
 }
 
 func askedToExit(input string) bool {
