@@ -23,6 +23,7 @@ type Manager struct {
 	localOffsets     *LocalOffsetManager
 	servers          []*sarama.Broker
 	serversByAddress map[string]*sarama.Broker
+	serversById      map[int32]*sarama.Broker
 	*internal.Logger
 }
 
@@ -50,14 +51,16 @@ func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...
 
 	servers := client.Brokers()
 	addresses := make([]string, len(servers))
-	sm := make(map[string]*sarama.Broker)
+	byAddress := make(map[string]*sarama.Broker)
+	byId := make(map[int32]*sarama.Broker)
 	for i, broker := range servers {
 		addr := broker.Addr()
+		byId[broker.ID()] = broker
 		addresses[i] = addr
-		sm[addr] = broker
+		byAddress[addr] = broker
 		index := strings.Index(addr, ":")
 		if index > 0 {
-			sm[addr[:index]] = broker
+			byAddress[addr[:index]] = broker
 		}
 	}
 
@@ -73,7 +76,8 @@ func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...
 		localOffsets:     NewLocalOffsetManager(verbosity),
 		admin:            admin,
 		servers:          servers,
-		serversByAddress: sm,
+		serversByAddress: byAddress,
+		serversById:      byId,
 	}, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
@@ -15,12 +16,13 @@ import (
 )
 
 type broker struct {
-	kafkaParams  *commands.KafkaParameters
-	globalParams *commands.GlobalParameters
-	topicsFilter *regexp.Regexp
-	address      string
-	includeLogs  bool
-	format       string
+	kafkaParams        *commands.KafkaParameters
+	globalParams       *commands.GlobalParameters
+	topicsFilter       *regexp.Regexp
+	identifier         string
+	includeLogs        bool
+	includeAPIVersions bool
+	format             string
 }
 
 func addBrokerSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -29,10 +31,13 @@ func addBrokerSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParam
 		globalParams: global,
 	}
 	c := parent.Command("broker", "Describes a Kafka broker.").Action(cmd.run)
-	c.Arg("address", "The broker address.").Required().StringVar(&cmd.address)
+	c.Arg("broker", "The broker address or Id.").Required().StringVar(&cmd.identifier)
 	c.Flag("include-logs", "Fetches information about the broker log files.").
 		Short('l').
 		BoolVar(&cmd.includeLogs)
+	c.Flag("include-api-versions", "Fetches the API versions supported by the broker.").
+		Short('a').
+		BoolVar(&cmd.includeAPIVersions)
 	c.Flag("topic-filter", "An optional regular expression to filter the aggregated topic logs by. Works with --include-logs only.").
 		Short('t').
 		RegexpVar(&cmd.topicsFilter)
@@ -51,7 +56,7 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 		cancel()
 	}()
 
-	meta, err := manager.DescribeBroker(ctx, b.address, b.includeLogs, b.topicsFilter)
+	meta, err := manager.DescribeBroker(ctx, b.identifier, b.includeLogs, b.includeAPIVersions, b.topicsFilter)
 	if err != nil {
 		return err
 	}
@@ -68,7 +73,7 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 }
 
 func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) {
-	fmt.Println(commands.Underline("Consumer Groups"))
+	fmt.Printf("\n%s\n", commands.UnderlineWithCount("Consumer Group", len(meta.ConsumerGroups)))
 	for _, group := range meta.ConsumerGroups {
 		fmt.Printf(" - %s\n", group)
 	}
@@ -77,19 +82,29 @@ func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) {
 	if b.includeLogs && len(meta.Logs) != 0 {
 		b.printLogsPlain(meta.Logs)
 	}
+
+	if b.includeAPIVersions && len(meta.APIs) != 0 {
+		sort.Sort(kafka.APIByCode(meta.APIs))
+		b.printAPIPlain(meta.APIs)
+	}
 }
 
 func (b *broker) printTableOutput(meta *kafka.BrokerMeta) {
-	table := commands.InitStaticTable(os.Stdout, map[string]int{
-		"Consumer Groups": tablewriter.ALIGN_LEFT,
-	})
+	table := commands.InitStaticTable(os.Stdout, commands.H("Consumer Groups", tablewriter.ALIGN_LEFT))
 	for _, group := range meta.ConsumerGroups {
 		table.Append([]string{commands.SpaceIfEmpty(group)})
 	}
+	table.SetFooter([]string{fmt.Sprintf("Total: %d", len(meta.ConsumerGroups))})
+	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
 	table.Render()
 
 	if b.includeLogs && len(meta.Logs) != 0 {
 		b.printLogsTable(meta.Logs)
+	}
+
+	if b.includeAPIVersions && len(meta.APIs) != 0 {
+		sort.Sort(kafka.APIByCode(meta.APIs))
+		b.printAPITable(meta.APIs)
 	}
 }
 
@@ -102,11 +117,11 @@ func (b *broker) printLogsTable(logs []*kafka.LogFile) {
 			fmt.Println(msg)
 			return
 		}
-		table := commands.InitStaticTable(os.Stdout, map[string]int{
-			"Topic":          tablewriter.ALIGN_LEFT,
-			"Permanent Logs": tablewriter.ALIGN_CENTER,
-			"Temporary Logs": tablewriter.ALIGN_CENTER,
-		})
+		table := commands.InitStaticTable(os.Stdout,
+			commands.H("Topic", tablewriter.ALIGN_LEFT),
+			commands.H("Permanent Logs", tablewriter.ALIGN_CENTER),
+			commands.H("Temporary Logs", tablewriter.ALIGN_CENTER),
+		)
 		rows := make([][]string, 0)
 
 		for _, tLogs := range sorted {
@@ -138,5 +153,35 @@ func (b *broker) printLogsPlain(logs []*kafka.LogFile) {
 				humanize.Bytes(tLogs.Permanent),
 				humanize.Bytes(tLogs.Temporary))
 		}
+	}
+}
+
+func (b *broker) printAPITable(apis []*kafka.API) {
+	fmt.Printf("\n%s\n", commands.Underline("Supported API Versions"))
+	table := commands.InitStaticTable(os.Stdout,
+		commands.H("API Key", tablewriter.ALIGN_CENTER),
+		commands.H("Name", tablewriter.ALIGN_LEFT),
+		commands.H("Min Version", tablewriter.ALIGN_CENTER),
+		commands.H("Max Version", tablewriter.ALIGN_CENTER),
+	)
+	for _, api := range apis {
+		table.Append([]string{
+			strconv.FormatInt(int64(api.Key), 10),
+			commands.SpaceIfEmpty(api.Name),
+			strconv.FormatInt(int64(api.MinVersion), 10),
+			strconv.FormatInt(int64(api.MaxVersion), 10),
+		})
+	}
+
+	table.SetFooter([]string{fmt.Sprintf("Total: %d", len(apis)), " ", " ", " "})
+	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
+
+	table.Render()
+}
+
+func (b *broker) printAPIPlain(apis []*kafka.API) {
+	fmt.Printf("\n%s\n", commands.UnderlineWithCount("Supported API Versions", len(apis)))
+	for _, api := range apis {
+		fmt.Printf(" %s\n", api)
 	}
 }

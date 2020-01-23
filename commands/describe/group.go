@@ -63,9 +63,7 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 func (c *group) printPlainTextOutput(details *kafka.ConsumerGroupDetails) {
 	fmt.Println(details.String())
 	if c.includeMembers {
-		fmt.Println()
-		fmt.Printf("\n%s\n\n", commands.Underline("Members"))
-
+		fmt.Printf("\n%s\n", commands.UnderlineWithCount("Members", len(details.Members)))
 		for member, md := range details.Members {
 			fmt.Println("  ID: " + member)
 			fmt.Printf("HOST: %s\n\n", md.ClientHost)
@@ -85,12 +83,12 @@ func (c *group) printPlainTextOutput(details *kafka.ConsumerGroupDetails) {
 }
 
 func (c *group) printTableOutput(details *kafka.ConsumerGroupDetails) {
-	table := commands.InitStaticTable(os.Stdout, map[string]int{
-		"Coordinator":   tablewriter.ALIGN_CENTER,
-		"State":         tablewriter.ALIGN_CENTER,
-		"Protocol":      tablewriter.ALIGN_CENTER,
-		"Protocol Type": tablewriter.ALIGN_CENTER,
-	})
+	table := commands.InitStaticTable(os.Stdout,
+		commands.H("Coordinator", tablewriter.ALIGN_CENTER),
+		commands.H("State", tablewriter.ALIGN_CENTER),
+		commands.H("Protocol", tablewriter.ALIGN_CENTER),
+		commands.H("Protocol Type", tablewriter.ALIGN_CENTER),
+	)
 	table.Append([]string{details.Coordinator.Address, details.State, details.Protocol, details.ProtocolType})
 	table.Render()
 
@@ -100,21 +98,21 @@ func (c *group) printTableOutput(details *kafka.ConsumerGroupDetails) {
 }
 
 func (c *group) printMemberDetailsTable(members map[string]*kafka.GroupMemberDetails) {
-	fmt.Println("\nMembers:")
+	fmt.Printf("\n%s\n", commands.UnderlineWithCount("Members", len(members)))
 	table := tablewriter.NewWriter(os.Stdout)
-	table = commands.InitStaticTable(os.Stdout, map[string]int{
-		"ID":          tablewriter.ALIGN_LEFT,
-		"Client Host": tablewriter.ALIGN_CENTER,
-		"Assignments": tablewriter.ALIGN_CENTER,
-	})
+	table = commands.InitStaticTable(os.Stdout,
+		commands.H("ID", tablewriter.ALIGN_LEFT),
+		commands.H("Client Host", tablewriter.ALIGN_CENTER),
+		commands.H("Assignments", tablewriter.ALIGN_CENTER),
+	)
 
 	rows := make([][]string, 0)
 	for name, desc := range members {
 		var buf bytes.Buffer
-		inner := commands.InitStaticTable(&buf, map[string]int{
-			"Topic":     tablewriter.ALIGN_LEFT,
-			"Partition": tablewriter.ALIGN_CENTER,
-		})
+		inner := commands.InitStaticTable(&buf,
+			commands.H("Topic", tablewriter.ALIGN_LEFT),
+			commands.H("Partition", tablewriter.ALIGN_CENTER),
+		)
 		sortedTopics := desc.TopicPartitions.SortedTopics()
 		for _, topic := range sortedTopics {
 			inner.Append([]string{
@@ -131,5 +129,7 @@ func (c *group) printMemberDetailsTable(members map[string]*kafka.GroupMemberDet
 		rows = append(rows, row)
 	}
 	table.AppendBulk(rows)
+	table.SetFooter([]string{fmt.Sprintf("Total: %d", len(members)), " ", " "})
+	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
 	table.Render()
 }

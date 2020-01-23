@@ -74,9 +74,7 @@ func (c *groups) printPlainTextOutput(groups []string) {
 }
 
 func (c *groups) printTableOutput(groups []string) {
-	table := commands.InitStaticTable(os.Stdout, map[string]int{
-		"Consumer Group": tablewriter.ALIGN_LEFT,
-	})
+	table := commands.InitStaticTable(os.Stdout, commands.H("Consumer Group", tablewriter.ALIGN_LEFT))
 	rows := make([][]string, 0)
 	for _, group := range groups {
 		rows = append(rows, []string{commands.SpaceIfEmpty(group)})

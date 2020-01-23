@@ -1,10 +1,53 @@
 package kafka
 
-import "sort"
+import (
+	"fmt"
+	"sort"
+
+	"github.com/xitonix/trubka/internal"
+)
+
+type API struct {
+	Name       string
+	Key        int16
+	MinVersion int16
+	MaxVersion int16
+}
+
+func newAPI(name string, key, minVer, maxVer int16) *API {
+	if internal.IsEmpty(name) {
+		name = "UNKNOWN"
+	}
+	return &API{
+		Name:       name,
+		Key:        key,
+		MinVersion: minVer,
+		MaxVersion: maxVer,
+	}
+}
+
+func (a *API) String() string {
+	return fmt.Sprintf("ver. %d ≤ %d%s ≤ ver. %d", a.MinVersion, a.Key, a.Name, a.MaxVersion)
+}
+
+type APIByCode []*API
+
+func (a APIByCode) Len() int {
+	return len(a)
+}
+
+func (a APIByCode) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+func (a APIByCode) Less(i, j int) bool {
+	return a[i].Key < a[j].Key
+}
 
 type BrokerMeta struct {
 	ConsumerGroups []string
 	Logs           []*LogFile
+	APIs           []*API
 }
 
 type aggregatedTopicSize map[string]*LogSize

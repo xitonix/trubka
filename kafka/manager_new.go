@@ -5,11 +5,63 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 
 	"github.com/Shopify/sarama"
 
 	"github.com/xitonix/trubka/internal"
 )
+
+var kafkaAPINames = map[int16]string{
+	0:  "Produce",
+	1:  "Fetch",
+	2:  "ListOffsets",
+	3:  "Metadata",
+	4:  "LeaderAndIsr",
+	5:  "StopReplica",
+	6:  "UpdateMetadata",
+	7:  "ControlledShutdown",
+	8:  "OffsetCommit",
+	9:  "OffsetFetch",
+	10: "FindCoordinator",
+	11: "JoinGroup",
+	12: "Heartbeat",
+	13: "LeaveGroup",
+	14: "SyncGroup",
+	15: "DescribeGroups",
+	16: "ListGroups",
+	17: "SaslHandshake",
+	18: "ApiVersions",
+	19: "CreateTopics",
+	20: "DeleteTopics",
+	21: "DeleteRecords",
+	22: "InitProducerId",
+	23: "OffsetForLeaderEpoch",
+	24: "AddPartitionsToTxn",
+	25: "AddOffsetsToTxn",
+	26: "EndTxn",
+	27: "WriteTxnMarkers",
+	28: "TxnOffsetCommit",
+	29: "DescribeAcls",
+	30: "CreateAcls",
+	31: "DeleteAcls",
+	32: "DescribeConfigs",
+	33: "AlterConfigs",
+	34: "AlterReplicaLogDirs",
+	35: "DescribeLogDirs",
+	36: "SaslAuthenticate",
+	37: "CreatePartitions",
+	38: "CreateDelegationToken",
+	39: "RenewDelegationToken",
+	40: "ExpireDelegationToken",
+	41: "DescribeDelegationToken",
+	42: "DeleteGroups",
+	43: "ElectLeaders",
+	44: "IncrementalAlterConfigs",
+	45: "AlterPartitionReassignments",
+	46: "ListPartitionReassignments",
+	47: "OffsetDelete",
+}
 
 func (m *Manager) GetBrokers(ctx context.Context) ([]Broker, error) {
 	m.Log(internal.Verbose, "Retrieving broker list from the server")
@@ -19,11 +71,7 @@ func (m *Manager) GetBrokers(ctx context.Context) ([]Broker, error) {
 		case <-ctx.Done():
 			return result, nil
 		default:
-			b := Broker{
-				ID:      broker.ID(),
-				Address: broker.Addr(),
-			}
-			result = append(result, b)
+			result = append(result, NewBroker(broker))
 		}
 	}
 	return result, nil
@@ -123,9 +171,10 @@ func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMember
 
 	return cgd, nil
 }
-func (m *Manager) DescribeTopic(ctx context.Context, topic string) (*TopicMetadata, error) {
+
+func (m *Manager) DescribeTopic(ctx context.Context, topic string) ([]*PartitionMeta, error) {
 	m.Logf(internal.Verbose, "Retrieving %s topic details from the server", topic)
-	result := &TopicMetadata{}
+	result := make([]*PartitionMeta, 0)
 	select {
 	case <-ctx.Done():
 		return result, nil
@@ -137,32 +186,62 @@ func (m *Manager) DescribeTopic(ctx context.Context, topic string) (*TopicMetada
 		if len(response) == 0 {
 			return nil, fmt.Errorf("%s topic metadata was not found on the server", topic)
 		}
-		fmt.Printf("%+v\n", response[0].Partitions[0])
+
+		meta := response[0]
+		for _, pm := range meta.Partitions {
+			pMeta := &PartitionMeta{
+				Id:              pm.ID,
+				ISRs:            m.toBrokers(pm.Isr),
+				Replicas:        m.toBrokers(pm.Replicas),
+				OfflineReplicas: m.toBrokers(pm.OfflineReplicas),
+				Leader:          m.getBrokerById(pm.Leader),
+			}
+			result = append(result, pMeta)
+		}
 	}
 
 	return result, nil
 }
-func (m *Manager) DescribeBroker(ctx context.Context, address string, includeLogs bool, topicFilter *regexp.Regexp) (*BrokerMeta, error) {
+
+func (m *Manager) toBrokers(ids []int32) []Broker {
+	result := make([]Broker, len(ids))
+	for i := 0; i < len(ids); i++ {
+		result[i] = m.getBrokerById(ids[i])
+	}
+	return result
+}
+
+func (m *Manager) getBrokerById(id int32) Broker {
+	if b, ok := m.serversById[id]; ok {
+		return NewBroker(b)
+	}
+	return Broker{
+		ID: id,
+	}
+}
+
+func (m *Manager) DescribeBroker(ctx context.Context, addressOrId string, includeLogs bool, includeAPIVersions bool, topicFilter *regexp.Regexp) (*BrokerMeta, error) {
 	meta := &BrokerMeta{
 		Logs: make([]*LogFile, 0),
+		APIs: make([]*API, 0),
 	}
 	select {
 	case <-ctx.Done():
 		return meta, nil
 	default:
-		broker, ok := m.serversByAddress[address]
-		if !ok {
-			return nil, fmt.Errorf("broker %s not found", address)
-		}
-		m.Logf(internal.Verbose, "Connecting to %s", address)
-		err := broker.Open(m.client.Config())
+		broker, err := m.findBroker(addressOrId)
 		if err != nil {
-			return nil, fmt.Errorf("failed to connect to %s: %w", address, err)
+			return nil, err
+		}
+		m.Logf(internal.Verbose, "Connecting to %s", addressOrId)
+		err = broker.Open(m.client.Config())
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to %s: %w", addressOrId, err)
 		}
 		defer func() {
 			_ = broker.Close()
 		}()
-		m.Logf(internal.Verbose, "Fetching consumer groups from %s", address)
+		m.Logf(internal.Verbose, "Fetching consumer groups from broker %s", addressOrId)
 		response, err := broker.ListGroups(&sarama.ListGroupsRequest{})
 		if err != nil {
 			return nil, err
@@ -170,12 +249,26 @@ func (m *Manager) DescribeBroker(ctx context.Context, address string, includeLog
 		meta.ConsumerGroups = make([]string, len(response.Groups))
 		var i int
 		for group := range response.Groups {
-			m.Logf(internal.VeryVerbose, "Consumer group %s has been retrieved from %s", group, address)
+			m.Logf(internal.VeryVerbose, "Consumer group %s has been retrieved from broker %s", group, addressOrId)
 			meta.ConsumerGroups[i] = group
 			i++
 		}
+
+		if includeAPIVersions {
+			m.Logf(internal.VeryVerbose, "Fetching the API versions from broker %s", addressOrId)
+			apiResponse, err := broker.ApiVersions(&sarama.ApiVersionsRequest{})
+			if err != nil {
+				return nil, fmt.Errorf("failed to retrieve the API versions from %s: %w", addressOrId, err)
+			}
+			for _, api := range apiResponse.ApiVersions {
+				m.Logf(internal.Chatty, "API key %d retrieved from broker %s", api.ApiKey, addressOrId)
+				name := kafkaAPINames[api.ApiKey]
+				meta.APIs = append(meta.APIs, newAPI(name, api.ApiKey, api.MinVersion, api.MaxVersion))
+			}
+		}
+
 		if includeLogs {
-			m.Logf(internal.VeryVerbose, "Retrieving broker log details from %s", address)
+			m.Logf(internal.VeryVerbose, "Retrieving broker log details from broker %s", addressOrId)
 			logs, err := broker.DescribeLogDirs(&sarama.DescribeLogDirsRequest{})
 			if err != nil {
 				return nil, err
@@ -302,4 +395,20 @@ func (m *Manager) GetTopicOffsets(ctx context.Context, topic string, currentPart
 		}
 	}
 	return result, nil
+}
+
+func (m *Manager) findBroker(idOrAddress string) (*sarama.Broker, error) {
+	if b, ok := m.serversByAddress[idOrAddress]; ok {
+		return b, nil
+	}
+
+	id, err := strconv.ParseInt(idOrAddress, 10, 32)
+	if err != nil {
+		return nil, errors.New("invalid broker Id. The broker Id must be an integer")
+	}
+	if b, ok := m.serversById[int32(id)]; ok {
+		return b, nil
+	}
+
+	return nil, fmt.Errorf("broker %v not found", idOrAddress)
 }

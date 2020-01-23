@@ -1,19 +1,24 @@
 package describe
 
 import (
-	"regexp"
+	"bytes"
+	"fmt"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
 
+	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/kafka"
 )
 
 type topic struct {
 	kafkaParams  *commands.KafkaParameters
 	globalParams *commands.GlobalParameters
-	topicsFilter *regexp.Regexp
 	topic        string
-	includeLogs  bool
 	format       string
 }
 
@@ -24,12 +29,6 @@ func addTopicSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	}
 	c := parent.Command("topic", "Describes a Kafka topic.").Action(cmd.run)
 	c.Arg("topic", "The topic to describe.").Required().StringVar(&cmd.topic)
-	c.Flag("include-logs", "Fetches information about the topic log files.").
-		Short('l').
-		BoolVar(&cmd.includeLogs)
-	c.Flag("topic-filter", "An optional regular expression to filter the aggregated topic logs by. Works with --include-logs only.").
-		Short('t').
-		RegexpVar(&cmd.topicsFilter)
 	commands.AddFormatFlag(c, &cmd.format)
 }
 
@@ -50,89 +49,70 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	_ = meta
+	sort.Sort(kafka.PartitionMetaById(meta))
 
-	//sort.Strings(meta.ConsumerGroups)
-	//
-	//switch t.format {
-	//case commands.PlainTextFormat:
-	//	t.printPlainTextOutput(meta)
-	//case commands.TableFormat:
-	//	t.printTableOutput(meta)
-	//}
+	switch t.format {
+	case commands.PlainTextFormat:
+		t.printPlainTextOutput(meta)
+	case commands.TableFormat:
+		t.printTableOutput(meta)
+	}
 	return nil
 }
 
-//func (b *topic) printPlainTextOutput(meta *kafka.BrokerMeta) {
-//	fmt.Println(commands.Underline("Consumer Groups"))
-//	for _, group := range meta.ConsumerGroups {
-//		fmt.Printf(" - %s\n", group)
-//	}
-//	fmt.Println()
-//
-//	if b.includeLogs && len(meta.Logs) != 0 {
-//		b.printLogsPlain(meta.Logs)
-//	}
-//}
-//
-//func (b *topic) printTableOutput(meta *kafka.BrokerMeta) {
-//	table := commands.InitStaticTable(os.Stdout, map[string]int{
-//		"Consumer Groups": tablewriter.ALIGN_LEFT,
-//	})
-//	for _, group := range meta.ConsumerGroups {
-//		table.Append([]string{commands.SpaceIfEmpty(group)})
-//	}
-//	table.Render()
-//
-//	if b.includeLogs && len(meta.Logs) != 0 {
-//		b.printLogsTable(meta.Logs)
-//	}
-//}
-//
-//func (b *topic) printLogsTable(logs []*kafka.LogFile) {
-//	for _, logFile := range logs {
-//		fmt.Printf("\nLog File Path: %s\n", logFile.Path)
-//		sorted := logFile.SortByPermanentSize()
-//		if len(sorted) == 0 {
-//			msg := commands.GetNotFoundMessage("topic log", "topic", b.topicsFilter)
-//			fmt.Println(msg)
-//			return
-//		}
-//		table := commands.InitStaticTable(os.Stdout, map[string]int{
-//			"Topic":          tablewriter.ALIGN_LEFT,
-//			"Permanent Logs": tablewriter.ALIGN_CENTER,
-//			"Temporary Logs": tablewriter.ALIGN_CENTER,
-//		})
-//		rows := make([][]string, 0)
-//
-//		for _, tLogs := range sorted {
-//			row := []string{
-//				commands.SpaceIfEmpty(tLogs.Topic),
-//				commands.SpaceIfEmpty(humanize.Bytes(tLogs.Permanent)),
-//				commands.SpaceIfEmpty(humanize.Bytes(tLogs.Temporary)),
-//			}
-//			rows = append(rows, row)
-//		}
-//		table.AppendBulk(rows)
-//		table.Render()
-//	}
-//}
-//
-//func (b *topic) printLogsPlain(logs []*kafka.LogFile) {
-//	for _, logFile := range logs {
-//		title := fmt.Sprintf("\nPath: %s", logFile.Path)
-//		fmt.Printf("%s\n", commands.Underline(title))
-//		sorted := logFile.SortByPermanentSize()
-//		if len(sorted) == 0 {
-//			msg := commands.GetNotFoundMessage("topic log", "topic", b.topicsFilter)
-//			fmt.Println(msg)
-//			return
-//		}
-//		for _, tLogs := range sorted {
-//			fmt.Printf(" - %s: PERM %s, TEMP %s\n",
-//				tLogs.Topic,
-//				humanize.Bytes(tLogs.Permanent),
-//				humanize.Bytes(tLogs.Temporary))
-//		}
-//	}
-//}
+func (t *topic) printPlainTextOutput(meta []*kafka.PartitionMeta) {
+	for _, pm := range meta {
+		fmt.Printf("P%d: Leader: %s\n - ISRs: %s\n - Replicas: %s\n - Offline Replicas: %s\n\n",
+			pm.Id,
+			pm.Leader.Host,
+			t.brokersToLine(pm.ISRs...),
+			t.brokersToLine(pm.Replicas...),
+			t.brokersToLine(pm.OfflineReplicas...))
+	}
+}
+
+func (t *topic) printTableOutput(meta []*kafka.PartitionMeta) {
+	table := commands.InitStaticTable(os.Stdout,
+		commands.H("Partition", tablewriter.ALIGN_CENTER),
+		commands.H("Leader", tablewriter.ALIGN_LEFT),
+		commands.H("Replicas", tablewriter.ALIGN_LEFT),
+		commands.H("Offline Replicas", tablewriter.ALIGN_LEFT),
+		commands.H("ISRs", tablewriter.ALIGN_LEFT),
+	)
+
+	for _, pm := range meta {
+		partition := strconv.FormatInt(int64(pm.Id), 10)
+		table.Append([]string{
+			partition,
+			commands.SpaceIfEmpty(t.brokersToList(pm.Leader)),
+			commands.SpaceIfEmpty(t.brokersToList(pm.Replicas...)),
+			commands.SpaceIfEmpty(t.brokersToList(pm.OfflineReplicas...)),
+			commands.SpaceIfEmpty(t.brokersToList(pm.ISRs...)),
+		})
+	}
+	table.SetFooter([]string{fmt.Sprintf("Total: %d", len(meta)), " ", " ", " ", " "})
+	table.SetAlignment(tablewriter.ALIGN_RIGHT)
+	table.Render()
+}
+
+func (*topic) brokersToList(brokers ...kafka.Broker) string {
+	if len(brokers) == 1 {
+		return brokers[0].Host
+	}
+	var buf bytes.Buffer
+	for i, b := range brokers {
+		buf.WriteString(fmt.Sprintf("%s", b.Host))
+		if i < len(brokers)-1 {
+			buf.WriteString("\n")
+		}
+	}
+	return buf.String()
+}
+
+func (*topic) brokersToLine(brokers ...kafka.Broker) string {
+	result := make([]string, len(brokers))
+	for i, b := range brokers {
+		result[i] = b.Host
+	}
+	return strings.Join(result, ", ")
+}

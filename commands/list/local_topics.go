@@ -59,9 +59,7 @@ func (l *listLocalTopics) run(_ *kingpin.ParseContext) error {
 
 func (l *listLocalTopics) printTableOutput(store map[string][]string) {
 	for env, topics := range store {
-		table := commands.InitStaticTable(os.Stdout, map[string]int{
-			env: tablewriter.ALIGN_LEFT,
-		})
+		table := commands.InitStaticTable(os.Stdout, commands.H(env, tablewriter.ALIGN_LEFT))
 		table.SetColMinWidth(0, 50)
 		sort.Strings(topics)
 		for _, topic := range topics {

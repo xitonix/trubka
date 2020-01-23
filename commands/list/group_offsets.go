@@ -74,12 +74,12 @@ func (g *groupOffset) printTableOutput(topics kafka.TopicPartitionOffset) {
 			internal.Bold(topic, g.globalParams.EnableColor))
 
 		if len(partitionOffsets) > 0 {
-			table := commands.InitStaticTable(os.Stdout, map[string]int{
-				"Partition": tablewriter.ALIGN_CENTER,
-				"Latest":    tablewriter.ALIGN_CENTER,
-				"Current":   tablewriter.ALIGN_CENTER,
-				"Lag":       tablewriter.ALIGN_CENTER,
-			})
+			table := commands.InitStaticTable(os.Stdout,
+				commands.H("Partition", tablewriter.ALIGN_CENTER),
+				commands.H("Latest", tablewriter.ALIGN_CENTER),
+				commands.H("Current", tablewriter.ALIGN_CENTER),
+				commands.H("Lag", tablewriter.ALIGN_CENTER),
+			)
 			table.SetColMinWidth(1, 10)
 			table.SetColMinWidth(2, 10)
 			table.SetColMinWidth(3, 10)

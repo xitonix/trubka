@@ -80,6 +80,11 @@ func Underline(in string) string {
 	return in + "\n" + strings.Repeat("-", len(in))
 }
 
+func UnderlineWithCount(title string, count int) string {
+	title = fmt.Sprintf("%s (%d)", title, count)
+	return Underline(title)
+}
+
 func AddFormatFlag(c *kingpin.CmdClause, format *string) {
 	c.Flag("format", "Sets the output format.").
 		Default(TableFormat).
@@ -130,14 +135,14 @@ func closeFile(file *os.File, highlight bool) {
 	}
 }
 
-func InitStaticTable(writer io.Writer, headers map[string]int) *tablewriter.Table {
+func InitStaticTable(writer io.Writer, headers ...TableHeader) *tablewriter.Table {
 	table := tablewriter.NewWriter(writer)
 	headerTitles := make([]string, len(headers))
 	alignments := make([]int, len(headers))
 	var i int
-	for h, a := range headers {
-		headerTitles[i] = h
-		alignments[i] = a
+	for _, header := range headers {
+		headerTitles[i] = header.Key
+		alignments[i] = header.Alignment
 		i++
 	}
 	table.SetHeader(headerTitles)
