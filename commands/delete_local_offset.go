@@ -53,7 +53,7 @@ func (c *deleteLocalOffsets) run(_ *kingpin.ParseContext) error {
 
 	indices, err := pickAnIndex("to delete the offsets", "topic", topics, false)
 	if err != nil {
-		return filterError(err)
+		return FilterError(err)
 	}
 
 	index := indices[0]
@@ -71,7 +71,7 @@ func (c *deleteLocalOffsets) run(_ *kingpin.ParseContext) error {
 }
 
 func confirmAndDelete(message, path string, all bool) error {
-	if askForConfirmation(message) {
+	if AskForConfirmation(message) {
 		var err error
 		if all {
 			err = os.RemoveAll(path)

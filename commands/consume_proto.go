@@ -131,7 +131,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	if interactive {
 		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, c.interactiveWithOffset, checkpoints)
 		if err != nil {
-			return filterError(err)
+			return FilterError(err)
 		}
 	} else {
 		tm[c.topic] = c.messageType

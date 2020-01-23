@@ -101,7 +101,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	if interactive {
 		topics, err = askUserForTopics(consumer, c.topicFilter, c.interactiveWithOffset, defaultCheckpoint)
 		if err != nil {
-			return filterError(err)
+			return FilterError(err)
 		}
 	} else {
 		topics[c.topic] = defaultCheckpoint

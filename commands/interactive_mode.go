@@ -248,11 +248,11 @@ func parseIndex(input, entryName string, length int) (int, error) {
 	return i - 1, nil
 }
 
-// askForConfirmation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"
+// AskForConfirmation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"
 // and then press enter. It has fuzzy matching, so "y", "Y", "yes", "YES", and "Yes" all count as
 // confirmations. If the input is not recognized, it will ask again. The function does not return
 // until it gets a valid response from the user.
-func askForConfirmation(s string) bool {
+func AskForConfirmation(s string) bool {
 	scanner := bufio.NewScanner(os.Stdin)
 	msg := fmt.Sprintf("%s [y/n]?: ", s)
 	for fmt.Print(msg); scanner.Scan(); fmt.Print(msg) {
@@ -319,7 +319,7 @@ func confirmConsumerStart(topics map[string]*kafka.PartitionCheckpoints, contrac
 	}
 	fmt.Println()
 	table.Render()
-	return askForConfirmation("Start consuming")
+	return AskForConfirmation("Start consuming")
 }
 
 func askedToExit(input string) bool {

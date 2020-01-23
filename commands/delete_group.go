@@ -70,7 +70,7 @@ func (c *deleteGroup) run(_ *kingpin.ParseContext) error {
 	sort.Strings(names)
 	indices, err := pickAnIndex("to delete", "consumer group", names, false)
 	if err != nil {
-		return filterError(err)
+		return FilterError(err)
 	}
 	toRemove := names[indices[0]]
 	return c.delete(manager, toRemove)
@@ -80,7 +80,7 @@ func (c *deleteGroup) delete(manager *kafka.Manager, group string) error {
 	if internal.IsEmpty(group) {
 		return errors.New("consumer group cannot be empty")
 	}
-	if c.silent || askForConfirmation(fmt.Sprintf("Are you sure you want to delete %s", group)) {
+	if c.silent || AskForConfirmation(fmt.Sprintf("Are you sure you want to delete %s", group)) {
 		err := manager.DeleteConsumerGroup(group)
 		if err != nil {
 			return err

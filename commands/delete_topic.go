@@ -72,7 +72,7 @@ func (c *deleteTopic) run(_ *kingpin.ParseContext) error {
 
 	indices, err := pickAnIndex("to delete", "topic", names, false)
 	if err != nil {
-		return filterError(err)
+		return FilterError(err)
 	}
 	toRemove := names[indices[0]]
 	return c.delete(manager, toRemove)
@@ -82,7 +82,7 @@ func (c *deleteTopic) delete(manager *kafka.Manager, topic string) error {
 	if internal.IsEmpty(topic) {
 		return errors.New("topic cannot be empty")
 	}
-	if c.silent || askForConfirmation(fmt.Sprintf("Are you sure you want to delete %s", topic)) {
+	if c.silent || AskForConfirmation(fmt.Sprintf("Are you sure you want to delete %s", topic)) {
 		err := manager.DeleteTopic(topic)
 		if err != nil {
 			return err
