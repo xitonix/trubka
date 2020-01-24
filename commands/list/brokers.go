@@ -12,6 +12,8 @@ import (
 	"github.com/olekukonko/tablewriter"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -62,27 +64,35 @@ func (c *brokers) run(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *brokers) printTableOutput(brokers []kafka.Broker) {
-	table := commands.InitStaticTable(os.Stdout,
-		commands.H("ID", tablewriter.ALIGN_LEFT),
-		commands.H("Address", tablewriter.ALIGN_LEFT),
+func (c *brokers) printTableOutput(brokers []*kafka.Broker) {
+	table := output.InitStaticTable(os.Stdout,
+		output.H("ID", tablewriter.ALIGN_LEFT),
+		output.H("Address", tablewriter.ALIGN_LEFT),
 	)
 	for _, broker := range brokers {
 		id := strconv.FormatInt(int64(broker.ID), 10)
-		row := []string{
-			commands.SpaceIfEmpty(id),
-			commands.SpaceIfEmpty(broker.Host),
+		host := broker.Host
+		if broker.IsController {
+			host += fmt.Sprintf(" [%s]", internal.Bold("C", c.globalParams.EnableColor))
 		}
+		row := []string{id, host}
 		table.Append(row)
 	}
 	table.SetFooter([]string{" ", fmt.Sprintf("Total: %d", len(brokers))})
 	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
 	table.Render()
+	c.printLegend()
 }
 
-func (c *brokers) printPlainTextOutput(brokers []kafka.Broker) {
-	fmt.Printf("\n%s\n", commands.UnderlineWithCount("Brokers", len(brokers)))
+func (c *brokers) printPlainTextOutput(brokers []*kafka.Broker) {
+	fmt.Printf("\n%s\n", output.UnderlineWithCount("Brokers", len(brokers)))
 	for _, broker := range brokers {
 		fmt.Printf("%s\n", broker.String())
 	}
+	c.printLegend()
+
+}
+
+func (*brokers) printLegend() {
+	fmt.Println("[C]: Controller Node")
 }

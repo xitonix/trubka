@@ -10,6 +10,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -71,11 +72,11 @@ func (l *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 func (l *listLocalOffsets) printTableOutput(offsets kafka.PartitionOffset) {
 	sortedPartitions := offsets.SortPartitions()
 
-	table := commands.InitStaticTable(os.Stdout,
-		commands.H("Partition", tablewriter.ALIGN_CENTER),
-		commands.H("Latest", tablewriter.ALIGN_CENTER),
-		commands.H("Current", tablewriter.ALIGN_CENTER),
-		commands.H("Lag", tablewriter.ALIGN_CENTER),
+	table := output.InitStaticTable(os.Stdout,
+		output.H("Partition", tablewriter.ALIGN_CENTER),
+		output.H("Latest", tablewriter.ALIGN_CENTER),
+		output.H("Current", tablewriter.ALIGN_CENTER),
+		output.H("Lag", tablewriter.ALIGN_CENTER),
 	)
 	table.SetColMinWidth(1, 10)
 	table.SetColMinWidth(2, 10)
@@ -85,7 +86,7 @@ func (l *listLocalOffsets) printTableOutput(offsets kafka.PartitionOffset) {
 		latest := humanize.Comma(offsets.Latest)
 		current := humanize.Comma(offsets.Current)
 		part := strconv.FormatInt(int64(partition), 10)
-		table.Append([]string{part, latest, current, fmt.Sprint(commands.HighlightLag(offsets.Lag(), l.globalParams.EnableColor))})
+		table.Append([]string{part, latest, current, fmt.Sprint(highlightLag(offsets.Lag(), l.globalParams.EnableColor))})
 	}
 	table.Render()
 }
@@ -95,6 +96,6 @@ func (l *listLocalOffsets) printPlainTextOutput(offsets kafka.PartitionOffset) {
 	for _, partition := range partitions {
 		offsets := offsets[int32(partition)]
 		fmt.Printf("   Partition %2d: %d out of %d (Lag: %s) \n", partition, offsets.Current, offsets.Latest,
-			commands.HighlightLag(offsets.Lag(), l.globalParams.EnableColor))
+			highlightLag(offsets.Lag(), l.globalParams.EnableColor))
 	}
 }

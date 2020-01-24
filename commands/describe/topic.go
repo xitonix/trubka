@@ -12,6 +12,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -72,22 +73,22 @@ func (t *topic) printPlainTextOutput(meta []*kafka.PartitionMeta) {
 }
 
 func (t *topic) printTableOutput(meta []*kafka.PartitionMeta) {
-	table := commands.InitStaticTable(os.Stdout,
-		commands.H("Partition", tablewriter.ALIGN_CENTER),
-		commands.H("Leader", tablewriter.ALIGN_LEFT),
-		commands.H("Replicas", tablewriter.ALIGN_LEFT),
-		commands.H("Offline Replicas", tablewriter.ALIGN_LEFT),
-		commands.H("ISRs", tablewriter.ALIGN_LEFT),
+	table := output.InitStaticTable(os.Stdout,
+		output.H("Partition", tablewriter.ALIGN_CENTER),
+		output.H("Leader", tablewriter.ALIGN_LEFT),
+		output.H("Replicas", tablewriter.ALIGN_LEFT),
+		output.H("Offline Replicas", tablewriter.ALIGN_LEFT),
+		output.H("ISRs", tablewriter.ALIGN_LEFT),
 	)
 
 	for _, pm := range meta {
 		partition := strconv.FormatInt(int64(pm.Id), 10)
 		table.Append([]string{
 			partition,
-			commands.SpaceIfEmpty(t.brokersToList(pm.Leader)),
-			commands.SpaceIfEmpty(t.brokersToList(pm.Replicas...)),
-			commands.SpaceIfEmpty(t.brokersToList(pm.OfflineReplicas...)),
-			commands.SpaceIfEmpty(t.brokersToList(pm.ISRs...)),
+			output.SpaceIfEmpty(t.brokersToList(pm.Leader)),
+			output.SpaceIfEmpty(t.brokersToList(pm.Replicas...)),
+			output.SpaceIfEmpty(t.brokersToList(pm.OfflineReplicas...)),
+			output.SpaceIfEmpty(t.brokersToList(pm.ISRs...)),
 		})
 	}
 	table.SetFooter([]string{fmt.Sprintf("Total: %d", len(meta)), " ", " ", " ", " "})
@@ -95,7 +96,7 @@ func (t *topic) printTableOutput(meta []*kafka.PartitionMeta) {
 	table.Render()
 }
 
-func (*topic) brokersToList(brokers ...kafka.Broker) string {
+func (*topic) brokersToList(brokers ...*kafka.Broker) string {
 	if len(brokers) == 1 {
 		return brokers[0].Host
 	}
@@ -109,7 +110,7 @@ func (*topic) brokersToList(brokers ...kafka.Broker) string {
 	return buf.String()
 }
 
-func (*topic) brokersToLine(brokers ...kafka.Broker) string {
+func (*topic) brokersToLine(brokers ...*kafka.Broker) string {
 	result := make([]string, len(brokers))
 	for i, b := range brokers {
 		result[i] = b.Host

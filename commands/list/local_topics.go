@@ -11,6 +11,7 @@ import (
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -59,11 +60,11 @@ func (l *listLocalTopics) run(_ *kingpin.ParseContext) error {
 
 func (l *listLocalTopics) printTableOutput(store map[string][]string) {
 	for env, topics := range store {
-		table := commands.InitStaticTable(os.Stdout, commands.H(env, tablewriter.ALIGN_LEFT))
+		table := output.InitStaticTable(os.Stdout, output.H(env, tablewriter.ALIGN_LEFT))
 		table.SetColMinWidth(0, 50)
 		sort.Strings(topics)
 		for _, topic := range topics {
-			table.Append([]string{commands.SpaceIfEmpty(topic)})
+			table.Append([]string{output.SpaceIfEmpty(topic)})
 		}
 		table.Render()
 		fmt.Println()

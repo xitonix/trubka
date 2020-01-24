@@ -9,25 +9,34 @@ import (
 )
 
 type Broker struct {
-	Address string
-	ID      int32
-	Host    string
+	Address      string
+	ID           int32
+	Host         string
+	IsController bool
+	*sarama.Broker
 }
 
-func NewBroker(broker *sarama.Broker) Broker {
+func NewBroker(broker *sarama.Broker, controllerId int32) *Broker {
 	address := broker.Addr()
-	return Broker{
-		Address: address,
-		Host:    internal.RemovePort(address),
-		ID:      broker.ID(),
+	id := broker.ID()
+	return &Broker{
+		Address:      address,
+		Host:         internal.RemovePort(address),
+		ID:           id,
+		IsController: controllerId == id,
+		Broker:       broker,
 	}
 }
 
-func (b Broker) String() string {
-	return fmt.Sprintf("%d: %s", b.ID, b.Host)
+func (b *Broker) String() string {
+	var controller string
+	if b.IsController {
+		controller = " [C]"
+	}
+	return fmt.Sprintf("%d: %s%s", b.ID, b.Host, controller)
 }
 
-type BrokersById []Broker
+type BrokersById []*Broker
 
 func (b BrokersById) Len() int {
 	return len(b)

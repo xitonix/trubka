@@ -11,6 +11,8 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output"
 )
 
 type groups struct {
@@ -51,7 +53,7 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 	}
 
 	if len(groups) == 0 {
-		fmt.Println(commands.GetNotFoundMessage("consumer group", "group", c.groupFilter))
+		fmt.Println(internal.GetNotFoundMessage("consumer group", "group", c.groupFilter))
 		return nil
 	}
 
@@ -74,10 +76,10 @@ func (c *groups) printPlainTextOutput(groups []string) {
 }
 
 func (c *groups) printTableOutput(groups []string) {
-	table := commands.InitStaticTable(os.Stdout, commands.H("Consumer Group", tablewriter.ALIGN_LEFT))
+	table := output.InitStaticTable(os.Stdout, output.H("Consumer Group", tablewriter.ALIGN_LEFT))
 	rows := make([][]string, 0)
 	for _, group := range groups {
-		rows = append(rows, []string{commands.SpaceIfEmpty(group)})
+		rows = append(rows, []string{output.SpaceIfEmpty(group)})
 	}
 	table.AppendBulk(rows)
 	table.SetFooter([]string{fmt.Sprintf("Total: %s", humanize.Comma(int64(len(groups))))})

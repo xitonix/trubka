@@ -2,6 +2,7 @@ package consume
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -189,6 +190,13 @@ func getTopics(topicMap map[string]string, checkpoints *kafka.PartitionCheckpoin
 		topics[topic] = checkpoints
 	}
 	return topics
+}
+
+func filterError(err error) error {
+	if errors.Is(err, errExitInteractiveMode) {
+		return nil
+	}
+	return err
 }
 
 func closeFile(file *os.File, highlight bool) {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -54,7 +55,7 @@ func (g *groupOffset) run(_ *kingpin.ParseContext) error {
 	}
 
 	if len(topics) == 0 {
-		fmt.Println(commands.GetNotFoundMessage("topic", "topic", g.topicFilter))
+		fmt.Println(internal.GetNotFoundMessage("topic", "topic", g.topicFilter))
 		return nil
 	}
 
@@ -74,11 +75,11 @@ func (g *groupOffset) printTableOutput(topics kafka.TopicPartitionOffset) {
 			internal.Bold(topic, g.globalParams.EnableColor))
 
 		if len(partitionOffsets) > 0 {
-			table := commands.InitStaticTable(os.Stdout,
-				commands.H("Partition", tablewriter.ALIGN_CENTER),
-				commands.H("Latest", tablewriter.ALIGN_CENTER),
-				commands.H("Current", tablewriter.ALIGN_CENTER),
-				commands.H("Lag", tablewriter.ALIGN_CENTER),
+			table := output.InitStaticTable(os.Stdout,
+				output.H("Partition", tablewriter.ALIGN_CENTER),
+				output.H("Latest", tablewriter.ALIGN_CENTER),
+				output.H("Current", tablewriter.ALIGN_CENTER),
+				output.H("Lag", tablewriter.ALIGN_CENTER),
 			)
 			table.SetColMinWidth(1, 10)
 			table.SetColMinWidth(2, 10)
@@ -90,7 +91,7 @@ func (g *groupOffset) printTableOutput(topics kafka.TopicPartitionOffset) {
 				latest := humanize.Comma(offsets.Latest)
 				current := humanize.Comma(offsets.Current)
 				part := strconv.FormatInt(int64(partition), 10)
-				table.Append([]string{part, latest, current, fmt.Sprint(commands.HighlightLag(offsets.Lag(), g.globalParams.EnableColor))})
+				table.Append([]string{part, latest, current, fmt.Sprint(highlightLag(offsets.Lag(), g.globalParams.EnableColor))})
 			}
 			table.Render()
 		}
@@ -106,7 +107,7 @@ func (g *groupOffset) printPlainTextOutput(topics kafka.TopicPartitionOffset) {
 			for _, partition := range partitions {
 				offsets := partitionOffsets[int32(partition)]
 				fmt.Printf("   Partition %2d: %d out of %d (Lag: %s) \n", partition, offsets.Current, offsets.Latest,
-					commands.HighlightLag(offsets.Lag(), g.globalParams.EnableColor))
+					highlightLag(offsets.Lag(), g.globalParams.EnableColor))
 			}
 			fmt.Println()
 		}

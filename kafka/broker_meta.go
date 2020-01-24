@@ -45,6 +45,7 @@ func (a APIByCode) Less(i, j int) bool {
 }
 
 type BrokerMeta struct {
+	IsController   bool
 	ConsumerGroups []string
 	Logs           []*LogFile
 	APIs           []*API

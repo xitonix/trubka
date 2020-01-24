@@ -21,6 +21,14 @@ func FormatTime(t time.Time) string {
 	return t.Format("02-01-2006T15:04:05.999999999")
 }
 
+func GetNotFoundMessage(entity, filterName string, ex *regexp.Regexp) string {
+	msg := fmt.Sprintf("No %s has been found.", entity)
+	if ex != nil {
+		msg += fmt.Sprintf(" You might need to tweak the %s filter (%s).", filterName, ex.String())
+	}
+	return msg
+}
+
 func FormatTimeUTC(t time.Time) string {
 	return FormatTime(t) + " UTC"
 }
@@ -59,6 +67,13 @@ func IgnoreRegexCase(r *regexp.Regexp) (*regexp.Regexp, error) {
 		return nil, err
 	}
 	return ex, nil
+}
+
+func BoolToString(b bool) string {
+	if b {
+		return "YES"
+	}
+	return "NO"
 }
 
 func Title(err error) string {

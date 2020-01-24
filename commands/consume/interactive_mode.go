@@ -18,6 +18,8 @@ import (
 	"github.com/xitonix/trubka/protobuf"
 )
 
+var errExitInteractiveMode = errors.New("exit")
+
 func askUserForTopics(consumer *kafka.Consumer,
 	topicFilter *regexp.Regexp,
 	offsetInteractiveMode bool,
@@ -48,7 +50,7 @@ func askUserForTopics(consumer *kafka.Consumer,
 	}
 
 	if !confirmConsumerStart(result, nil) {
-		return nil, commands.ErrExitInteractiveMode
+		return nil, errExitInteractiveMode
 	}
 
 	return result, nil
@@ -98,7 +100,7 @@ func readUserData(consumer *kafka.Consumer,
 	}
 
 	if !confirmConsumerStart(topics, tm) {
-		return nil, nil, commands.ErrExitInteractiveMode
+		return nil, nil, errExitInteractiveMode
 	}
 
 	return topics, tm, nil
@@ -114,7 +116,7 @@ func pickAnIndex(msgSuffix, entryName string, input []string, multiSelect bool) 
 	defer func() {
 		if cancelled {
 			results = nil
-			err = commands.ErrExitInteractiveMode
+			err = errExitInteractiveMode
 		}
 	}()
 
@@ -144,7 +146,7 @@ func pickAnIndex(msgSuffix, entryName string, input []string, multiSelect bool) 
 		}
 
 		if askedToExit(trimmed) {
-			return nil, commands.ErrExitInteractiveMode
+			return nil, errExitInteractiveMode
 		}
 
 		results := make(map[int]interface{})
@@ -181,7 +183,7 @@ func pickAnIndex(msgSuffix, entryName string, input []string, multiSelect bool) 
 		return toIndices(results), nil
 	}
 
-	return nil, commands.ErrExitInteractiveMode
+	return nil, errExitInteractiveMode
 }
 
 func printError(err error) {
@@ -256,7 +258,7 @@ func askForStartingOffset(topic string, defaultCP *kafka.PartitionCheckpoints) (
 	defer func() {
 		if cancelled {
 			cp = nil
-			err = commands.ErrExitInteractiveMode
+			err = errExitInteractiveMode
 		}
 	}()
 	scanner := bufio.NewScanner(os.Stdin)
@@ -267,7 +269,7 @@ func askForStartingOffset(topic string, defaultCP *kafka.PartitionCheckpoints) (
 			return defaultCP, nil
 		}
 		if askedToExit(trimmed) {
-			return nil, commands.ErrExitInteractiveMode
+			return nil, errExitInteractiveMode
 		}
 		cp, err := kafka.NewPartitionCheckpoints(trimmed)
 		if err != nil {
@@ -276,7 +278,7 @@ func askForStartingOffset(topic string, defaultCP *kafka.PartitionCheckpoints) (
 		}
 		return cp, nil
 	}
-	return nil, commands.ErrExitInteractiveMode
+	return nil, errExitInteractiveMode
 }
 
 func confirmConsumerStart(topics map[string]*kafka.PartitionCheckpoints, contracts map[string]string) bool {

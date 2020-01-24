@@ -1,4 +1,4 @@
-package commands
+package output
 
 type TableHeader struct {
 	Key       string

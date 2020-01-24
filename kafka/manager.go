@@ -73,9 +73,8 @@ type Manager struct {
 	client           sarama.Client
 	admin            sarama.ClusterAdmin
 	localOffsets     *LocalOffsetManager
-	servers          []*sarama.Broker
-	serversByAddress map[string]*sarama.Broker
-	serversById      map[int32]*sarama.Broker
+	serversByAddress map[string]*Broker
+	serversById      map[int32]*Broker
 	*internal.Logger
 }
 
@@ -101,15 +100,23 @@ func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...
 		return nil, err
 	}
 
+	controller, err := client.Controller()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = controller.Close()
+	}()
 	servers := client.Brokers()
 	addresses := make([]string, len(servers))
-	byAddress := make(map[string]*sarama.Broker)
-	byId := make(map[int32]*sarama.Broker)
+	byAddress := make(map[string]*Broker)
+	byId := make(map[int32]*Broker)
 	for i, broker := range servers {
+		b := NewBroker(broker, controller.ID())
 		addr := broker.Addr()
-		byId[broker.ID()] = broker
 		addresses[i] = addr
-		byAddress[internal.RemovePort(addr)] = broker
+		byId[broker.ID()] = b
+		byAddress[internal.RemovePort(addr)] = b
 	}
 
 	admin, err := sarama.NewClusterAdmin(addresses, client.Config())
@@ -123,7 +130,6 @@ func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...
 		Logger:           internal.NewLogger(verbosity),
 		localOffsets:     NewLocalOffsetManager(verbosity),
 		admin:            admin,
-		servers:          servers,
 		serversByAddress: byAddress,
 		serversById:      byId,
 	}, nil
@@ -158,31 +164,20 @@ func (m *Manager) CreateTopic(topic string, partitions int32, replicationFactor 
 	}, validateOnly)
 }
 
-// Close closes the underlying Kafka connection.
-func (m *Manager) Close() {
-	m.Logf(internal.Verbose, "Closing kafka manager.")
-	err := m.admin.Close()
-	if err != nil {
-		m.Logf(internal.Forced, "Failed to close the cluster admin: %s", err)
-	}
-
-	err = m.client.Close()
-	if err != nil {
-		m.Logf(internal.Forced, "Failed to close Kafka client: %s", err)
-		return
-	}
-	m.Logf(internal.Verbose, "Kafka manager has been closed successfully.")
+func (m *Manager) CreatePartitions(topic string, partitions int32) error {
+	m.Logf(internal.Verbose, "Readjusting the partitions for %s topic. NP %d", topic, partitions)
+	return m.admin.CreatePartitions(topic, partitions, nil, false)
 }
 
-func (m *Manager) GetBrokers(ctx context.Context) ([]Broker, error) {
+func (m *Manager) GetBrokers(ctx context.Context) ([]*Broker, error) {
 	m.Log(internal.Verbose, "Retrieving broker list from the server")
-	result := make([]Broker, 0)
-	for _, broker := range m.servers {
+	result := make([]*Broker, 0)
+	for _, broker := range m.serversByAddress {
 		select {
 		case <-ctx.Done():
 			return result, nil
 		default:
-			result = append(result, NewBroker(broker))
+			result = append(result, broker)
 		}
 	}
 	return result, nil
@@ -327,6 +322,7 @@ func (m *Manager) DescribeBroker(ctx context.Context, addressOrId string, includ
 		if err != nil {
 			return nil, err
 		}
+		meta.IsController = broker.IsController
 		m.Logf(internal.Verbose, "Connecting to %s", addressOrId)
 		err = broker.Open(m.client.Config())
 		if err != nil {
@@ -491,24 +487,40 @@ func (m *Manager) GetTopicOffsets(ctx context.Context, topic string, currentPart
 	return result, nil
 }
 
-func (m *Manager) toBrokers(ids []int32) []Broker {
-	result := make([]Broker, len(ids))
+// Close closes the underlying Kafka connection.
+func (m *Manager) Close() {
+	m.Logf(internal.Verbose, "Closing kafka manager.")
+	err := m.admin.Close()
+	if err != nil {
+		m.Logf(internal.Forced, "Failed to close the cluster admin: %s", err)
+	}
+
+	err = m.client.Close()
+	if err != nil {
+		m.Logf(internal.Forced, "Failed to close Kafka client: %s", err)
+		return
+	}
+	m.Logf(internal.Verbose, "Kafka manager has been closed successfully.")
+}
+
+func (m *Manager) toBrokers(ids []int32) []*Broker {
+	result := make([]*Broker, len(ids))
 	for i := 0; i < len(ids); i++ {
 		result[i] = m.getBrokerById(ids[i])
 	}
 	return result
 }
 
-func (m *Manager) getBrokerById(id int32) Broker {
+func (m *Manager) getBrokerById(id int32) *Broker {
 	if b, ok := m.serversById[id]; ok {
-		return NewBroker(b)
+		return b
 	}
-	return Broker{
+	return &Broker{
 		ID: id,
 	}
 }
 
-func (m *Manager) findBroker(idOrAddress string) (*sarama.Broker, error) {
+func (m *Manager) findBroker(idOrAddress string) (*Broker, error) {
 	if b, ok := m.serversByAddress[idOrAddress]; ok {
 		return b, nil
 	}

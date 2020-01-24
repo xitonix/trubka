@@ -3,20 +3,14 @@ package commands
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
-	"regexp"
 	"strings"
 	"syscall"
 
-	"github.com/dustin/go-humanize"
-	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -24,8 +18,6 @@ const (
 	PlainTextFormat = "plain"
 	TableFormat     = "table"
 )
-
-var ErrExitInteractiveMode = errors.New("exit")
 
 func InitKafkaManager(globalParams *GlobalParameters, kafkaParams *KafkaParameters) (*kafka.Manager, context.Context, context.CancelFunc, error) {
 	brokers := GetBrokers(kafkaParams.Brokers)
@@ -54,45 +46,6 @@ func InitKafkaManager(globalParams *GlobalParameters, kafkaParams *KafkaParamete
 	return manager, ctx, cancel, nil
 }
 
-func HighlightLag(input int64, colorEnabled bool) interface{} {
-	humanised := humanize.Comma(input)
-	if !colorEnabled {
-		return humanised
-	}
-	if input > 0 {
-		return internal.Yellow(humanised, true)
-	}
-	return internal.Green(humanised, true)
-}
-
-func GetNotFoundMessage(entity, filterName string, ex *regexp.Regexp) string {
-	msg := fmt.Sprintf("No %s has been found.", entity)
-	if ex != nil {
-		msg += fmt.Sprintf(" You might need to tweak the %s filter (%s).", filterName, ex.String())
-	}
-	return msg
-}
-
-func Underline(in string) string {
-	in = strings.TrimSpace(in)
-	if len(in) == 0 {
-		return ""
-	}
-	return in + "\n" + strings.Repeat("-", len(in))
-}
-
-func UnderlineWithCount(title string, count int) string {
-	title = fmt.Sprintf("%s (%d)", title, count)
-	return Underline(title)
-}
-
-func AddFormatFlag(c *kingpin.CmdClause, format *string) {
-	c.Flag("format", "Sets the output format.").
-		Default(TableFormat).
-		Short('f').
-		EnumVar(format, PlainTextFormat, TableFormat)
-}
-
 func GetBrokers(commaSeparated string) []string {
 	brokers := strings.Split(commaSeparated, ",")
 	for i := 0; i < len(brokers); i++ {
@@ -101,35 +54,11 @@ func GetBrokers(commaSeparated string) []string {
 	return brokers
 }
 
-func InitStaticTable(writer io.Writer, headers ...TableHeader) *tablewriter.Table {
-	table := tablewriter.NewWriter(writer)
-	headerTitles := make([]string, len(headers))
-	alignments := make([]int, len(headers))
-	var i int
-	for _, header := range headers {
-		headerTitles[i] = header.Key
-		alignments[i] = header.Alignment
-		i++
-	}
-	table.SetHeader(headerTitles)
-	table.SetColumnAlignment(alignments)
-	table.SetAutoWrapText(false)
-	table.SetRowLine(true)
-	return table
-}
-
-func SpaceIfEmpty(in string) string {
-	if len(in) > 0 {
-		return in
-	}
-	return " "
-}
-
-func FilterError(err error) error {
-	if errors.Is(err, ErrExitInteractiveMode) {
-		return nil
-	}
-	return err
+func AddFormatFlag(c *kingpin.CmdClause, format *string) {
+	c.Flag("format", "Sets the output format.").
+		Default(TableFormat).
+		Short('f').
+		EnumVar(format, PlainTextFormat, TableFormat)
 }
 
 // AskForConfirmation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"

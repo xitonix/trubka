@@ -12,6 +12,8 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -52,7 +54,7 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 	}
 
 	if len(topics) == 0 {
-		fmt.Println(commands.GetNotFoundMessage("topic", "topic", c.topicFilter))
+		fmt.Println(internal.GetNotFoundMessage("topic", "topic", c.topicFilter))
 		return nil
 	}
 
@@ -79,10 +81,10 @@ func (c *topics) printPlainTextOutput(topics []kafka.Topic) {
 }
 
 func (c *topics) printTableOutput(topics []kafka.Topic) {
-	table := commands.InitStaticTable(os.Stdout,
-		commands.H("Topic", tablewriter.ALIGN_LEFT),
-		commands.H("Number of Partitions", tablewriter.ALIGN_CENTER),
-		commands.H("Replication Factor", tablewriter.ALIGN_CENTER),
+	table := output.InitStaticTable(os.Stdout,
+		output.H("Topic", tablewriter.ALIGN_LEFT),
+		output.H("Number of Partitions", tablewriter.ALIGN_CENTER),
+		output.H("Replication Factor", tablewriter.ALIGN_CENTER),
 	)
 
 	rows := make([][]string, 0)
@@ -92,9 +94,9 @@ func (c *topics) printTableOutput(topics []kafka.Topic) {
 		rf := strconv.FormatInt(int64(topic.ReplicationFactor), 10)
 		totalPartitions += int64(topic.NumberOfPartitions)
 		rows = append(rows, []string{
-			commands.SpaceIfEmpty(topic.Name),
-			commands.SpaceIfEmpty(np),
-			commands.SpaceIfEmpty(rf),
+			output.SpaceIfEmpty(topic.Name),
+			output.SpaceIfEmpty(np),
+			output.SpaceIfEmpty(rf),
 		})
 	}
 	table.AppendBulk(rows)

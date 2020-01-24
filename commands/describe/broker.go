@@ -12,6 +12,8 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -72,8 +74,14 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 	return nil
 }
 
+func (b *broker) printHeader(isController bool) {
+	c := internal.BoolToString(isController)
+	fmt.Printf("Controller Node: %s\n",
+		internal.Bold(c, isController && b.globalParams.EnableColor))
+}
 func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) {
-	fmt.Printf("\n%s\n", commands.UnderlineWithCount("Consumer Group", len(meta.ConsumerGroups)))
+	b.printHeader(meta.IsController)
+	fmt.Printf("\n%s\n", output.UnderlineWithCount("Consumer Group", len(meta.ConsumerGroups)))
 	for _, group := range meta.ConsumerGroups {
 		fmt.Printf(" - %s\n", group)
 	}
@@ -90,9 +98,10 @@ func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) {
 }
 
 func (b *broker) printTableOutput(meta *kafka.BrokerMeta) {
-	table := commands.InitStaticTable(os.Stdout, commands.H("Consumer Groups", tablewriter.ALIGN_LEFT))
+	b.printHeader(meta.IsController)
+	table := output.InitStaticTable(os.Stdout, output.H("Consumer Groups", tablewriter.ALIGN_LEFT))
 	for _, group := range meta.ConsumerGroups {
-		table.Append([]string{commands.SpaceIfEmpty(group)})
+		table.Append([]string{output.SpaceIfEmpty(group)})
 	}
 	table.SetFooter([]string{fmt.Sprintf("Total: %d", len(meta.ConsumerGroups))})
 	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
@@ -113,22 +122,22 @@ func (b *broker) printLogsTable(logs []*kafka.LogFile) {
 		fmt.Printf("\nLog File Path: %s\n", logFile.Path)
 		sorted := logFile.SortByPermanentSize()
 		if len(sorted) == 0 {
-			msg := commands.GetNotFoundMessage("topic log", "topic", b.topicsFilter)
+			msg := internal.GetNotFoundMessage("topic log", "topic", b.topicsFilter)
 			fmt.Println(msg)
 			return
 		}
-		table := commands.InitStaticTable(os.Stdout,
-			commands.H("Topic", tablewriter.ALIGN_LEFT),
-			commands.H("Permanent Logs", tablewriter.ALIGN_CENTER),
-			commands.H("Temporary Logs", tablewriter.ALIGN_CENTER),
+		table := output.InitStaticTable(os.Stdout,
+			output.H("Topic", tablewriter.ALIGN_LEFT),
+			output.H("Permanent Logs", tablewriter.ALIGN_CENTER),
+			output.H("Temporary Logs", tablewriter.ALIGN_CENTER),
 		)
 		rows := make([][]string, 0)
 
 		for _, tLogs := range sorted {
 			row := []string{
-				commands.SpaceIfEmpty(tLogs.Topic),
-				commands.SpaceIfEmpty(humanize.Bytes(tLogs.Permanent)),
-				commands.SpaceIfEmpty(humanize.Bytes(tLogs.Temporary)),
+				output.SpaceIfEmpty(tLogs.Topic),
+				output.SpaceIfEmpty(humanize.Bytes(tLogs.Permanent)),
+				output.SpaceIfEmpty(humanize.Bytes(tLogs.Temporary)),
 			}
 			rows = append(rows, row)
 		}
@@ -140,10 +149,10 @@ func (b *broker) printLogsTable(logs []*kafka.LogFile) {
 func (b *broker) printLogsPlain(logs []*kafka.LogFile) {
 	for _, logFile := range logs {
 		title := fmt.Sprintf("\nPath: %s", logFile.Path)
-		fmt.Printf("%s\n", commands.Underline(title))
+		fmt.Printf("%s\n", output.Underline(title))
 		sorted := logFile.SortByPermanentSize()
 		if len(sorted) == 0 {
-			msg := commands.GetNotFoundMessage("topic log", "topic", b.topicsFilter)
+			msg := internal.GetNotFoundMessage("topic log", "topic", b.topicsFilter)
 			fmt.Println(msg)
 			return
 		}
@@ -157,17 +166,17 @@ func (b *broker) printLogsPlain(logs []*kafka.LogFile) {
 }
 
 func (b *broker) printAPITable(apis []*kafka.API) {
-	fmt.Printf("\n%s\n", commands.Underline("Supported API Versions"))
-	table := commands.InitStaticTable(os.Stdout,
-		commands.H("API Key", tablewriter.ALIGN_CENTER),
-		commands.H("Name", tablewriter.ALIGN_LEFT),
-		commands.H("Min Version", tablewriter.ALIGN_CENTER),
-		commands.H("Max Version", tablewriter.ALIGN_CENTER),
+	fmt.Printf("\n%s\n", output.Underline("Supported API Versions"))
+	table := output.InitStaticTable(os.Stdout,
+		output.H("API Key", tablewriter.ALIGN_CENTER),
+		output.H("Name", tablewriter.ALIGN_LEFT),
+		output.H("Min Version", tablewriter.ALIGN_CENTER),
+		output.H("Max Version", tablewriter.ALIGN_CENTER),
 	)
 	for _, api := range apis {
 		table.Append([]string{
 			strconv.FormatInt(int64(api.Key), 10),
-			commands.SpaceIfEmpty(api.Name),
+			output.SpaceIfEmpty(api.Name),
 			strconv.FormatInt(int64(api.MinVersion), 10),
 			strconv.FormatInt(int64(api.MaxVersion), 10),
 		})
@@ -180,7 +189,7 @@ func (b *broker) printAPITable(apis []*kafka.API) {
 }
 
 func (b *broker) printAPIPlain(apis []*kafka.API) {
-	fmt.Printf("\n%s\n", commands.UnderlineWithCount("Supported API Versions", len(apis)))
+	fmt.Printf("\n%s\n", output.UnderlineWithCount("Supported API Versions", len(apis)))
 	for _, api := range apis {
 		fmt.Printf(" %s\n", api)
 	}

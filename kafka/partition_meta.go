@@ -2,10 +2,10 @@ package kafka
 
 type PartitionMeta struct {
 	Id              int32
-	ISRs            []Broker
-	Replicas        []Broker
-	OfflineReplicas []Broker
-	Leader          Broker
+	ISRs            []*Broker
+	Replicas        []*Broker
+	OfflineReplicas []*Broker
+	Leader          *Broker
 }
 
 type PartitionMetaById []*PartitionMeta
