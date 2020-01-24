@@ -2,9 +2,10 @@ package kafka
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/Shopify/sarama"
+
+	"github.com/xitonix/trubka/internal"
 )
 
 type Broker struct {
@@ -15,15 +16,11 @@ type Broker struct {
 
 func NewBroker(broker *sarama.Broker) Broker {
 	address := broker.Addr()
-	b := Broker{
+	return Broker{
 		Address: address,
-		Host:    address,
+		Host:    internal.RemovePort(address),
 		ID:      broker.ID(),
 	}
-	if i := strings.Index(b.Address, ":"); i > 0 {
-		b.Host = b.Address[:i]
-	}
-	return b
 }
 
 func (b Broker) String() string {

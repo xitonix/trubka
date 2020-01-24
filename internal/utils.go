@@ -43,6 +43,13 @@ func WaitForCancellationSignal() {
 	<-signals
 }
 
+func RemovePort(address string) string {
+	if i := strings.Index(address, ":"); i > 0 {
+		return address[:i]
+	}
+	return address
+}
+
 func IgnoreRegexCase(r *regexp.Regexp) (*regexp.Regexp, error) {
 	if r == nil {
 		return r, nil
