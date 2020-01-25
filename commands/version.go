@@ -7,7 +7,6 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
-//TODO: Make the version command a flag
 type version struct {
 	version    string
 	commit     string
