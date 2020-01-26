@@ -66,7 +66,6 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *commands.GlobalPa
 }
 
 func (c *consumePlain) run(_ *kingpin.ParseContext) error {
-
 	interactive := c.interactive || c.interactiveWithOffset
 	if !interactive && internal.IsEmpty(c.topic) {
 		return errors.New("which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i)")

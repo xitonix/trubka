@@ -69,7 +69,6 @@ var kafkaAPINames = map[int16]string{
 
 // Manager a type to query Kafka metadata.
 type Manager struct {
-	config           *Options
 	client           sarama.Client
 	admin            sarama.ClusterAdmin
 	localOffsets     *LocalOffsetManager
@@ -80,13 +79,6 @@ type Manager struct {
 
 // NewManager creates a new instance of Kafka manager
 func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...Option) (*Manager, error) {
-	if len(brokers) == 0 {
-		return nil, errors.New("the brokers list cannot be empty")
-	}
-	ops := NewOptions()
-	for _, option := range options {
-		option(ops)
-	}
 
 	logWriter := ioutil.Discard
 	if verbosity >= internal.Chatty {
@@ -95,7 +87,7 @@ func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...
 
 	sarama.Logger = log.New(logWriter, "", log.LstdFlags)
 
-	client, err := initClient(brokers, ops)
+	client, err := initClient(brokers, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +117,6 @@ func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...
 	}
 
 	return &Manager{
-		config:           ops,
 		client:           client,
 		Logger:           internal.NewLogger(verbosity),
 		localOffsets:     NewLocalOffsetManager(verbosity),

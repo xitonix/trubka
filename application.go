@@ -17,6 +17,7 @@ import (
 	"github.com/xitonix/trubka/commands/deletion"
 	"github.com/xitonix/trubka/commands/describe"
 	"github.com/xitonix/trubka/commands/list"
+	"github.com/xitonix/trubka/commands/publish"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 )
@@ -32,6 +33,7 @@ func newApplication() error {
 	deletion.AddCommands(app, global, kafkaParams)
 	consume.AddCommands(app, global, kafkaParams)
 	create.AddCommands(app, global, kafkaParams)
+	publish.AddCommands(app, global, kafkaParams)
 	_, err := app.Parse(os.Args[1:])
 	return err
 }
