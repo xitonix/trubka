@@ -14,6 +14,7 @@ import (
 func AddCommands(app *kingpin.Application, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	parent := app.Command("publish", "A command to publish messages to kafka")
 	addPlainSubCommand(parent, global, kafkaParams)
+	addProtoSubCommand(parent, global, kafkaParams)
 }
 
 func initialiseProducer(kafkaParams *commands.KafkaParameters, verbosity internal.VerbosityLevel) (*kafka.Producer, error) {
