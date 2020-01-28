@@ -9,8 +9,10 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -59,6 +61,30 @@ func AddFormatFlag(c *kingpin.CmdClause, format *string) {
 		Default(TableFormat).
 		Short('f').
 		EnumVar(format, PlainTextFormat, TableFormat)
+}
+
+func PrintConfigTable(entries []*kafka.ConfigEntry) {
+	fmt.Printf("\n%s\n", output.UnderlineWithCount("Configurations", len(entries)))
+	table := output.InitStaticTable(os.Stdout,
+		output.H("Name", tablewriter.ALIGN_LEFT),
+		output.H("Value", tablewriter.ALIGN_LEFT),
+	)
+	for _, config := range entries {
+		table.Append([]string{
+			config.Name,
+			config.Value,
+		})
+	}
+	table.SetFooter([]string{" ", fmt.Sprintf("Total: %d", len(entries))})
+	table.SetAlignment(tablewriter.ALIGN_RIGHT)
+	table.Render()
+}
+
+func PrintConfigPlain(entries []*kafka.ConfigEntry) {
+	fmt.Printf("\n%s\n", output.UnderlineWithCount("Configurations", len(entries)))
+	for _, config := range entries {
+		fmt.Printf(" - %s: %s\n", config.Name, config.Value)
+	}
 }
 
 // AskForConfirmation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"

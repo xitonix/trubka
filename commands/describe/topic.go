@@ -20,6 +20,7 @@ type topic struct {
 	kafkaParams  *commands.KafkaParameters
 	globalParams *commands.GlobalParameters
 	topic        string
+	loadConfigs  bool
 	format       string
 }
 
@@ -30,6 +31,8 @@ func addTopicSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	}
 	c := parent.Command("topic", "Describes a Kafka topic.").Action(cmd.run)
 	c.Arg("topic", "The topic to describe.").Required().StringVar(&cmd.topic)
+	c.Flag("load-config", "Loads the topic's configurations from the server.").
+		Short('C').BoolVar(&cmd.loadConfigs)
 	commands.AddFormatFlag(c, &cmd.format)
 }
 
@@ -45,12 +48,15 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 		cancel()
 	}()
 
-	meta, err := manager.DescribeTopic(ctx, t.topic)
+	meta, err := manager.DescribeTopic(ctx, t.topic, t.loadConfigs)
 	if err != nil {
 		return err
 	}
 
-	sort.Sort(kafka.PartitionMetaById(meta))
+	sort.Sort(kafka.PartitionMetaById(meta.Partitions))
+	if t.loadConfigs {
+		sort.Sort(kafka.ConfigEntriesByName(meta.ConfigEntries))
+	}
 
 	switch t.format {
 	case commands.PlainTextFormat:
@@ -61,8 +67,8 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (t *topic) printPlainTextOutput(meta []*kafka.PartitionMeta) {
-	for _, pm := range meta {
+func (t *topic) printPlainTextOutput(meta *kafka.TopicMetadata) {
+	for _, pm := range meta.Partitions {
 		fmt.Printf("P%d: Leader: %s\n - ISRs: %s\n - Replicas: %s\n - Offline Replicas: %s\n\n",
 			pm.Id,
 			pm.Leader.Host,
@@ -70,9 +76,13 @@ func (t *topic) printPlainTextOutput(meta []*kafka.PartitionMeta) {
 			t.brokersToLine(pm.Replicas...),
 			t.brokersToLine(pm.OfflineReplicas...))
 	}
+
+	if t.loadConfigs {
+		commands.PrintConfigPlain(meta.ConfigEntries)
+	}
 }
 
-func (t *topic) printTableOutput(meta []*kafka.PartitionMeta) {
+func (t *topic) printTableOutput(meta *kafka.TopicMetadata) {
 	table := output.InitStaticTable(os.Stdout,
 		output.H("Partition", tablewriter.ALIGN_CENTER),
 		output.H("Leader", tablewriter.ALIGN_LEFT),
@@ -81,7 +91,7 @@ func (t *topic) printTableOutput(meta []*kafka.PartitionMeta) {
 		output.H("ISRs", tablewriter.ALIGN_LEFT),
 	)
 
-	for _, pm := range meta {
+	for _, pm := range meta.Partitions {
 		partition := strconv.FormatInt(int64(pm.Id), 10)
 		table.Append([]string{
 			partition,
@@ -91,9 +101,13 @@ func (t *topic) printTableOutput(meta []*kafka.PartitionMeta) {
 			output.SpaceIfEmpty(t.brokersToList(pm.ISRs...)),
 		})
 	}
-	table.SetFooter([]string{fmt.Sprintf("Total: %d", len(meta)), " ", " ", " ", " "})
+	table.SetFooter([]string{fmt.Sprintf("Total: %d", len(meta.Partitions)), " ", " ", " ", " "})
 	table.SetAlignment(tablewriter.ALIGN_RIGHT)
 	table.Render()
+
+	if t.loadConfigs {
+		commands.PrintConfigTable(meta.ConfigEntries)
+	}
 }
 
 func (*topic) brokersToList(brokers ...*kafka.Broker) string {

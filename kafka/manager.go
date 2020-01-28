@@ -269,9 +269,12 @@ func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMember
 	return cgd, nil
 }
 
-func (m *Manager) DescribeTopic(ctx context.Context, topic string) ([]*PartitionMeta, error) {
+func (m *Manager) DescribeTopic(ctx context.Context, topic string, includeConfig bool) (*TopicMetadata, error) {
 	m.Logf(internal.Verbose, "Retrieving %s topic details from the server", topic)
-	result := make([]*PartitionMeta, 0)
+	result := &TopicMetadata{
+		Partitions:    make([]*PartitionMeta, 0),
+		ConfigEntries: make([]*ConfigEntry, 0),
+	}
 	select {
 	case <-ctx.Done():
 		return result, nil
@@ -293,7 +296,27 @@ func (m *Manager) DescribeTopic(ctx context.Context, topic string) ([]*Partition
 				OfflineReplicas: m.toBrokers(pm.OfflineReplicas),
 				Leader:          m.getBrokerById(pm.Leader),
 			}
-			result = append(result, pMeta)
+			result.Partitions = append(result.Partitions, pMeta)
+		}
+
+		if includeConfig {
+			m.Logf(internal.Verbose, "Retrieving %s topic configurations from the server", topic)
+			entries, err := m.admin.DescribeConfig(sarama.ConfigResource{
+				Type:        sarama.TopicResource,
+				Name:        topic,
+				ConfigNames: nil,
+			})
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch the topic configurations: %w", err)
+			}
+
+			for _, entry := range entries {
+				result.ConfigEntries = append(result.ConfigEntries, &ConfigEntry{
+					Name:  entry.Name,
+					Value: entry.Value,
+				})
+			}
 		}
 	}
 
@@ -322,6 +345,7 @@ func (m *Manager) DescribeBroker(ctx context.Context, addressOrId string, includ
 		defer func() {
 			_ = broker.Close()
 		}()
+
 		m.Logf(internal.Verbose, "Fetching consumer groups from broker %s", addressOrId)
 		response, err := broker.ListGroups(&sarama.ListGroupsRequest{})
 		if err != nil {
