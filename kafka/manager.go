@@ -160,15 +160,26 @@ func (m *Manager) CreatePartitions(topic string, partitions int32) error {
 	return m.admin.CreatePartitions(topic, partitions, nil, false)
 }
 
-func (m *Manager) GetBrokers(ctx context.Context) ([]*Broker, error) {
+func (m *Manager) DescribeCluster(ctx context.Context, includeConfig bool) (*ClusterMetadata, error) {
 	m.Log(internal.Verbose, "Retrieving broker list from the server")
-	result := make([]*Broker, 0)
+	result := &ClusterMetadata{
+		ConfigEntries: make([]*ConfigEntry, 0),
+		Brokers:       make([]*Broker, 0),
+	}
 	for _, broker := range m.serversByAddress {
 		select {
 		case <-ctx.Done():
 			return result, nil
 		default:
-			result = append(result, broker)
+			result.Brokers = append(result.Brokers, broker)
+			if includeConfig && broker.IsController {
+				m.Logf(internal.Verbose, "Retrieving the cluster configuration from %s", broker.Host)
+				config, err := m.loadConfig(sarama.ClusterResource, strconv.FormatInt(int64(broker.ID), 10))
+				if err != nil {
+					return nil, fmt.Errorf("failed to fetch the cluster configurations: %w", err)
+				}
+				result.ConfigEntries = config
+			}
 		}
 	}
 	return result, nil
@@ -301,29 +312,18 @@ func (m *Manager) DescribeTopic(ctx context.Context, topic string, includeConfig
 
 		if includeConfig {
 			m.Logf(internal.Verbose, "Retrieving %s topic configurations from the server", topic)
-			entries, err := m.admin.DescribeConfig(sarama.ConfigResource{
-				Type:        sarama.TopicResource,
-				Name:        topic,
-				ConfigNames: nil,
-			})
-
+			config, err := m.loadConfig(sarama.TopicResource, topic)
 			if err != nil {
 				return nil, fmt.Errorf("failed to fetch the topic configurations: %w", err)
 			}
-
-			for _, entry := range entries {
-				result.ConfigEntries = append(result.ConfigEntries, &ConfigEntry{
-					Name:  entry.Name,
-					Value: entry.Value,
-				})
-			}
+			result.ConfigEntries = config
 		}
 	}
 
 	return result, nil
 }
 
-func (m *Manager) DescribeBroker(ctx context.Context, addressOrId string, includeLogs bool, includeAPIVersions bool, topicFilter *regexp.Regexp) (*BrokerMeta, error) {
+func (m *Manager) DescribeBroker(ctx context.Context, addressOrId string, includeLogs, includeAPIVersions bool, topicFilter *regexp.Regexp) (*BrokerMeta, error) {
 	meta := &BrokerMeta{
 		Logs: make([]*LogFile, 0),
 		APIs: make([]*API, 0),
@@ -549,4 +549,28 @@ func (m *Manager) findBroker(idOrAddress string) (*Broker, error) {
 	}
 
 	return nil, fmt.Errorf("broker %v not found", idOrAddress)
+}
+
+func (m *Manager) loadConfig(resourceType sarama.ConfigResourceType, resourceName string) ([]*ConfigEntry, error) {
+	entries, err := m.admin.DescribeConfig(sarama.ConfigResource{
+		Type:        resourceType,
+		Name:        resourceName,
+		ConfigNames: nil,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*ConfigEntry, 0)
+	for _, entry := range entries {
+		if internal.IsEmpty(entry.Value) {
+			continue
+		}
+		result = append(result, &ConfigEntry{
+			Name:  entry.Name,
+			Value: entry.Value,
+		})
+	}
+	return result, nil
 }

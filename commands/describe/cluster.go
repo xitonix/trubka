@@ -1,7 +1,6 @@
-package list
+package describe
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -17,22 +16,25 @@ import (
 	"github.com/xitonix/trubka/kafka"
 )
 
-type brokers struct {
+type cluster struct {
 	globalParams *commands.GlobalParameters
 	kafkaParams  *commands.KafkaParameters
 	format       string
+	loadConfigs  bool
 }
 
-func addBrokersSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
-	cmd := &brokers{
+func addClusterSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
+	cmd := &cluster{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
 	}
-	c := parent.Command("brokers", "Lists the brokers in the Kafka cluster.").Action(cmd.run)
+	c := parent.Command("cluster", "Describes the Kafka cluster.").Action(cmd.run)
+	c.Flag("load-config", "Loads the cluster's configurations from the server.").
+		Short('C').BoolVar(&cmd.loadConfigs)
 	commands.AddFormatFlag(c, &cmd.format)
 }
 
-func (c *brokers) run(_ *kingpin.ParseContext) error {
+func (c *cluster) run(_ *kingpin.ParseContext) error {
 	manager, ctx, cancel, err := commands.InitKafkaManager(c.globalParams, c.kafkaParams)
 
 	if err != nil {
@@ -44,32 +46,29 @@ func (c *brokers) run(_ *kingpin.ParseContext) error {
 		cancel()
 	}()
 
-	brokers, err := manager.GetBrokers(ctx)
+	meta, err := manager.DescribeCluster(ctx, c.loadConfigs)
 	if err != nil {
 		return fmt.Errorf("failed to list the brokers: %w", err)
 	}
 
-	if len(brokers) == 0 {
-		return errors.New("no broker found")
-	}
-
-	sort.Sort(kafka.BrokersById(brokers))
+	sort.Sort(kafka.BrokersById(meta.Brokers))
+	sort.Sort(kafka.ConfigEntriesByName(meta.ConfigEntries))
 
 	switch c.format {
 	case commands.PlainTextFormat:
-		c.printPlainTextOutput(brokers)
+		c.printPlainTextOutput(meta)
 	case commands.TableFormat:
-		c.printTableOutput(brokers)
+		c.printTableOutput(meta)
 	}
 	return nil
 }
 
-func (c *brokers) printTableOutput(brokers []*kafka.Broker) {
+func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
 	table := output.InitStaticTable(os.Stdout,
 		output.H("ID", tablewriter.ALIGN_LEFT),
 		output.H("Address", tablewriter.ALIGN_LEFT),
 	)
-	for _, broker := range brokers {
+	for _, broker := range meta.Brokers {
 		id := strconv.FormatInt(int64(broker.ID), 10)
 		host := broker.Host
 		if broker.IsController {
@@ -78,21 +77,28 @@ func (c *brokers) printTableOutput(brokers []*kafka.Broker) {
 		row := []string{id, host}
 		table.Append(row)
 	}
-	table.SetFooter([]string{" ", fmt.Sprintf("Total: %d", len(brokers))})
+	table.SetFooter([]string{" ", fmt.Sprintf("Total: %d", len(meta.Brokers))})
 	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
 	table.Render()
 	c.printLegend()
+
+	if len(meta.ConfigEntries) > 0 {
+		commands.PrintConfigTable(meta.ConfigEntries)
+	}
 }
 
-func (c *brokers) printPlainTextOutput(brokers []*kafka.Broker) {
-	fmt.Printf("\n%s\n", output.UnderlineWithCount("Brokers", len(brokers)))
-	for _, broker := range brokers {
+func (c *cluster) printPlainTextOutput(meta *kafka.ClusterMetadata) {
+	fmt.Printf("\n%s\n", output.UnderlineWithCount("Brokers", len(meta.Brokers)))
+	for _, broker := range meta.Brokers {
 		fmt.Printf("%s\n", broker.String())
 	}
 	c.printLegend()
 
+	if len(meta.ConfigEntries) > 0 {
+		commands.PrintConfigPlain(meta.ConfigEntries)
+	}
 }
 
-func (*brokers) printLegend() {
+func (*cluster) printLegend() {
 	fmt.Println("[C]: Controller Node")
 }

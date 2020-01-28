@@ -76,7 +76,7 @@ func PrintConfigTable(entries []*kafka.ConfigEntry) {
 		})
 	}
 	table.SetFooter([]string{" ", fmt.Sprintf("Total: %d", len(entries))})
-	table.SetAlignment(tablewriter.ALIGN_RIGHT)
+	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
 	table.Render()
 }
 

@@ -102,7 +102,7 @@ func (t *topic) printTableOutput(meta *kafka.TopicMetadata) {
 		})
 	}
 	table.SetFooter([]string{fmt.Sprintf("Total: %d", len(meta.Partitions)), " ", " ", " ", " "})
-	table.SetAlignment(tablewriter.ALIGN_RIGHT)
+	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
 	table.Render()
 
 	if t.loadConfigs {
