@@ -174,7 +174,7 @@ func (m *Manager) DescribeCluster(ctx context.Context, includeConfig bool) (*Clu
 			result.Brokers = append(result.Brokers, broker)
 			if includeConfig && broker.IsController {
 				m.Logf(internal.Verbose, "Retrieving the cluster configuration from %s", broker.Host)
-				config, err := m.loadConfig(sarama.ClusterResource, strconv.FormatInt(int64(broker.ID), 10))
+				config, err := m.loadConfig(sarama.BrokerResource, strconv.FormatInt(int64(broker.ID), 10))
 				if err != nil {
 					return nil, fmt.Errorf("failed to fetch the cluster configurations: %w", err)
 				}
@@ -243,25 +243,25 @@ func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMember
 		return nil, err
 	}
 
-	cgd := &ConsumerGroupDetails{
+	result := &ConsumerGroupDetails{
 		Members: make(GroupMembers),
 	}
 	select {
 	case <-ctx.Done():
-		return cgd, nil
+		return result, nil
 	default:
 		if len(details) == 0 {
 			return nil, fmt.Errorf("failed to retrieve the consumer group details of %s", group)
 		}
 		d := details[0]
-		cgd.State = d.State
-		cgd.Protocol = d.Protocol
-		cgd.ProtocolType = d.ProtocolType
+		result.State = d.State
+		result.Protocol = d.Protocol
+		result.ProtocolType = d.ProtocolType
 		coordinator, err := m.client.Coordinator(group)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch the group coordinator details: %w", err)
 		}
-		cgd.Coordinator = Broker{
+		result.Coordinator = Broker{
 			Address: coordinator.Addr(),
 			ID:      coordinator.ID(),
 		}
@@ -271,13 +271,12 @@ func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMember
 				if err != nil {
 					return nil, err
 				}
-				cgd.Members[name] = md
+				result.Members[name] = md
 			}
 		}
-
 	}
 
-	return cgd, nil
+	return result, nil
 }
 
 func (m *Manager) DescribeTopic(ctx context.Context, topic string, includeConfig bool) (*TopicMetadata, error) {
