@@ -213,27 +213,64 @@ func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp) ([]Topic
 	return result, nil
 }
 
-func (m *Manager) GetGroups(ctx context.Context, filter *regexp.Regexp) ([]string, error) {
+func (m *Manager) GetGroups(ctx context.Context, filter *regexp.Regexp, includeStates bool) ([]*ConsumerGroupDetails, error) {
 	m.Log(internal.Verbose, "Retrieving consumer groups from the server")
-	groups, err := m.admin.ListConsumerGroups()
+	groupList, err := m.admin.ListConsumerGroups()
 	if err != nil {
 		return nil, err
 	}
-	result := make([]string, 0)
-	for group := range groups {
+	result := make(map[string]*ConsumerGroupDetails)
+	names := make([]string, 0)
+	for group := range groupList {
 		m.Logf(internal.SuperVerbose, "Consumer group %s has been found on the server", group)
 		select {
 		case <-ctx.Done():
-			return result, nil
+			return []*ConsumerGroupDetails{}, nil
 		default:
 			if filter != nil && !filter.Match([]byte(group)) {
 				m.Logf(internal.SuperVerbose, "Filtering out %s consumer group", group)
 				continue
 			}
-			result = append(result, group)
+			result[group] = &ConsumerGroupDetails{
+				Name:    group,
+				Members: make(GroupMembers),
+			}
+			if includeStates {
+				names = append(names, group)
+			}
 		}
 	}
-	return result, nil
+	if includeStates {
+		m.Log(internal.Verbose, "Retrieving consumer group states from the server")
+		details, err := m.admin.DescribeConsumerGroups(names)
+		if err != nil {
+			return nil, err
+		}
+		for _, detail := range details {
+			if group, ok := result[detail.GroupId]; ok {
+				group.ProtocolType = detail.ProtocolType
+				group.Protocol = detail.Protocol
+				group.State = detail.State
+				m.Logf(internal.VeryVerbose, "Retrieving %s group's coordinator from the server", group.Name)
+				coordinator, err := m.client.Coordinator(group.Name)
+				if err != nil {
+					return nil, fmt.Errorf("failed to fetch the group coordinator details of %s: %w", group.Name, err)
+				}
+				group.Coordinator = Broker{
+					Host: internal.RemovePort(coordinator.Addr()),
+					ID:   coordinator.ID(),
+				}
+			}
+		}
+	}
+
+	output := make([]*ConsumerGroupDetails, len(result))
+	var i int
+	for _, details := range result {
+		output[i] = details
+		i++
+	}
+	return output, nil
 }
 
 func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMembers bool) (*ConsumerGroupDetails, error) {
@@ -244,6 +281,7 @@ func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMember
 	}
 
 	result := &ConsumerGroupDetails{
+		Name:    group,
 		Members: make(GroupMembers),
 	}
 	select {
@@ -257,6 +295,7 @@ func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMember
 		result.State = d.State
 		result.Protocol = d.Protocol
 		result.ProtocolType = d.ProtocolType
+		m.Logf(internal.VeryVerbose, "Retrieving %s group's coordinator from the server", group)
 		coordinator, err := m.client.Coordinator(group)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch the group coordinator details: %w", err)

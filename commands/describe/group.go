@@ -10,6 +10,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/kafka"
 )
@@ -90,7 +91,11 @@ func (c *group) printTableOutput(details *kafka.ConsumerGroupDetails) {
 		output.H("Protocol", tablewriter.ALIGN_CENTER),
 		output.H("Protocol Type", tablewriter.ALIGN_CENTER),
 	)
-	table.Append([]string{details.Coordinator.Address, details.State, details.Protocol, details.ProtocolType})
+	table.Append([]string{details.Coordinator.Address,
+		internal.HighlightGroupState(details.State, c.globalParams.EnableColor),
+		details.Protocol,
+		details.ProtocolType},
+	)
 	table.Render()
 
 	if c.includeMembers {

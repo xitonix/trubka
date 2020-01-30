@@ -81,18 +81,23 @@ func (g *groupOffset) printTableOutput(topics kafka.TopicPartitionOffset) {
 				output.H("Current", tablewriter.ALIGN_CENTER),
 				output.H("Lag", tablewriter.ALIGN_CENTER),
 			)
+			table.SetColMinWidth(0, 10)
 			table.SetColMinWidth(1, 10)
 			table.SetColMinWidth(2, 10)
 			table.SetColMinWidth(3, 10)
-			table.SetAlignment(tablewriter.ALIGN_CENTER)
 			partitions := partitionOffsets.SortPartitions()
+			var totalLag int64
 			for _, partition := range partitions {
 				offsets := partitionOffsets[int32(partition)]
+				lag := offsets.Lag()
+				totalLag += offsets.Lag()
 				latest := humanize.Comma(offsets.Latest)
 				current := humanize.Comma(offsets.Current)
 				part := strconv.FormatInt(int64(partition), 10)
-				table.Append([]string{part, latest, current, fmt.Sprint(highlightLag(offsets.Lag(), g.globalParams.EnableColor))})
+				table.Append([]string{part, latest, current, fmt.Sprint(highlightLag(lag, g.globalParams.EnableColor))})
 			}
+			table.SetFooter([]string{" ", " ", " ", humanize.Comma(totalLag)})
+			table.SetFooterAlignment(tablewriter.ALIGN_CENTER)
 			table.Render()
 		}
 	}
@@ -102,14 +107,17 @@ func (g *groupOffset) printPlainTextOutput(topics kafka.TopicPartitionOffset) {
 	for topic, partitionOffsets := range topics {
 		fmt.Printf("%s\n", internal.Bold(topic, g.globalParams.EnableColor))
 		if len(partitionOffsets) > 0 {
-			fmt.Printf("\n\n")
+			fmt.Printf("\n")
+			var totalLag int64
 			partitions := partitionOffsets.SortPartitions()
 			for _, partition := range partitions {
 				offsets := partitionOffsets[int32(partition)]
+				lag := offsets.Lag()
+				totalLag += offsets.Lag()
 				fmt.Printf("   Partition %2d: %d out of %d (Lag: %s) \n", partition, offsets.Current, offsets.Latest,
-					highlightLag(offsets.Lag(), g.globalParams.EnableColor))
+					highlightLag(lag, g.globalParams.EnableColor))
 			}
-			fmt.Println()
+			fmt.Printf("   -----------------\n   Total Lag: %s\n\n", humanize.Comma(totalLag))
 		}
 	}
 }
