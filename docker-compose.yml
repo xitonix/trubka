@@ -1,0 +1,37 @@
+# This will run a single node Kafka cluster locally for testing purposes.
+# The Kafka management console will be loaded on localhost:9000.
+# To use the management console, you need to register your cluster first.
+version: '3'
+services:
+  zookeeper:
+    image: 'confluent/zookeeper'
+    ports:
+      - '2181:2181'
+    environment:
+      - zk_id="1"
+  kafka:
+    image: 'confluentinc/cp-kafka:latest'
+    ports:
+      - '9092:9092'
+    depends_on:
+      - zookeeper
+    environment:
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_NUM_PARTITIONS=8
+      - CONFLUENT_METRICS_ENABLE='false'
+      - CONFLUENT_METRICS_REPORTER_ZOOKEEPER_CONNECT=zookeeper:2181
+      - CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS=1
+  kafkamgr:
+    image: 'sheepkiller/kafka-manager'
+    ports:
+      - '9000:9000'
+    depends_on:
+      - zookeeper
+    environment:
+      - ZK_HOSTS=zookeeper:2181
+      - APPLICATION_SECRET=letmein
+    
