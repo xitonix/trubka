@@ -17,11 +17,12 @@ import (
 )
 
 type topic struct {
-	kafkaParams  *commands.KafkaParameters
-	globalParams *commands.GlobalParameters
-	topic        string
-	loadConfigs  bool
-	format       string
+	kafkaParams    *commands.KafkaParameters
+	globalParams   *commands.GlobalParameters
+	topic          string
+	loadConfigs    bool
+	includeOffsets bool
+	format         string
 }
 
 func addTopicSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -33,6 +34,8 @@ func addTopicSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	c.Arg("topic", "The topic to describe.").Required().StringVar(&cmd.topic)
 	c.Flag("load-config", "Loads the topic's configurations from the server.").
 		Short('C').BoolVar(&cmd.loadConfigs)
+	c.Flag("include-offsets", "Reads the latest available offset of each partition from the server.").
+		Short('o').BoolVar(&cmd.includeOffsets)
 	commands.AddFormatFlag(c, &cmd.format)
 }
 
