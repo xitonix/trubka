@@ -318,7 +318,7 @@ func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMember
 	return result, nil
 }
 
-func (m *Manager) DescribeTopic(ctx context.Context, topic string, includeConfig bool) (*TopicMetadata, error) {
+func (m *Manager) DescribeTopic(ctx context.Context, topic string, includeConfig, includeOffsets bool) (*TopicMetadata, error) {
 	m.Logf(internal.Verbose, "Retrieving %s topic details from the server", topic)
 	result := &TopicMetadata{
 		Partitions:    make([]*PartitionMeta, 0),
@@ -344,6 +344,14 @@ func (m *Manager) DescribeTopic(ctx context.Context, topic string, includeConfig
 				Replicas:        m.toBrokers(pm.Replicas),
 				OfflineReplicas: m.toBrokers(pm.OfflineReplicas),
 				Leader:          m.getBrokerById(pm.Leader),
+				Offset:          -1,
+			}
+			if includeOffsets {
+				offset, err := m.client.GetOffset(topic, pm.ID, sarama.OffsetOldest)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read the offset of partition %d: %w", pm.ID, err)
+				}
+				pMeta.Offset = offset
 			}
 			result.Partitions = append(result.Partitions, pMeta)
 		}

@@ -6,6 +6,7 @@ type PartitionMeta struct {
 	Replicas        []*Broker
 	OfflineReplicas []*Broker
 	Leader          *Broker
+	Offset          int64
 }
 
 type PartitionMetaById []*PartitionMeta

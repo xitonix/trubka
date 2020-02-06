@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -34,7 +35,7 @@ func addTopicSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	c.Arg("topic", "The topic to describe.").Required().StringVar(&cmd.topic)
 	c.Flag("load-config", "Loads the topic's configurations from the server.").
 		Short('C').BoolVar(&cmd.loadConfigs)
-	c.Flag("include-offsets", "Reads the latest available offset of each partition from the server.").
+	c.Flag("include-offsets", "Queries the server to read the latest available offset of each partition.").
 		Short('o').BoolVar(&cmd.includeOffsets)
 	commands.AddFormatFlag(c, &cmd.format)
 }
@@ -51,7 +52,7 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 		cancel()
 	}()
 
-	meta, err := manager.DescribeTopic(ctx, t.topic, t.loadConfigs)
+	meta, err := manager.DescribeTopic(ctx, t.topic, t.loadConfigs, t.includeOffsets)
 	if err != nil {
 		return err
 	}
@@ -71,13 +72,29 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 }
 
 func (t *topic) printPlainTextOutput(meta *kafka.TopicMetadata) {
+	var totalOffsets int64
 	for _, pm := range meta.Partitions {
-		fmt.Printf("P%d: Leader: %s\n - ISRs: %s\n - Replicas: %s\n - Offline Replicas: %s\n\n",
+		var offset string
+		if t.includeOffsets {
+			offset = fmt.Sprintf("\n - Offset: %s", humanize.Comma(pm.Offset))
+			totalOffsets += pm.Offset
+		}
+		fmt.Printf("P%d: %s\n - Leader: %s\n - ISRs: %s\n - Replicas: %s",
 			pm.Id,
+			offset,
 			pm.Leader.Host,
 			t.brokersToLine(pm.ISRs...),
-			t.brokersToLine(pm.Replicas...),
-			t.brokersToLine(pm.OfflineReplicas...))
+			t.brokersToLine(pm.Replicas...))
+
+		if len(pm.OfflineReplicas) > 0 {
+			fmt.Printf("\n - Offline Replicas: %s", t.brokersToLine(pm.OfflineReplicas...))
+		}
+		fmt.Print("\n\n")
+	}
+
+	if t.includeOffsets {
+		fmt.Println(output.Underline("Total Offsets"))
+		fmt.Println(humanize.Comma(totalOffsets))
 	}
 
 	if t.loadConfigs {
@@ -86,26 +103,51 @@ func (t *topic) printPlainTextOutput(meta *kafka.TopicMetadata) {
 }
 
 func (t *topic) printTableOutput(meta *kafka.TopicMetadata) {
-	table := output.InitStaticTable(os.Stdout,
-		output.H("Partition", tablewriter.ALIGN_CENTER),
-		output.H("Leader", tablewriter.ALIGN_LEFT),
-		output.H("Replicas", tablewriter.ALIGN_LEFT),
-		output.H("Offline Replicas", tablewriter.ALIGN_LEFT),
-		output.H("ISRs", tablewriter.ALIGN_LEFT),
-	)
+	var table *tablewriter.Table
+	if t.includeOffsets {
+		table = output.InitStaticTable(os.Stdout,
+			output.H("Partition", tablewriter.ALIGN_CENTER),
+			output.H("Offset", tablewriter.ALIGN_CENTER),
+			output.H("Leader", tablewriter.ALIGN_LEFT),
+			output.H("Replicas", tablewriter.ALIGN_LEFT),
+			output.H("Offline Replicas", tablewriter.ALIGN_LEFT),
+			output.H("ISRs", tablewriter.ALIGN_LEFT),
+		)
+	} else {
+		table = output.InitStaticTable(os.Stdout,
+			output.H("Partition", tablewriter.ALIGN_CENTER),
+			output.H("Leader", tablewriter.ALIGN_LEFT),
+			output.H("Replicas", tablewriter.ALIGN_LEFT),
+			output.H("Offline Replicas", tablewriter.ALIGN_LEFT),
+			output.H("ISRs", tablewriter.ALIGN_LEFT),
+		)
+	}
 
+	var totalOffsets int64
 	for _, pm := range meta.Partitions {
 		partition := strconv.FormatInt(int64(pm.Id), 10)
-		table.Append([]string{
-			partition,
+		row := []string{partition}
+
+		if t.includeOffsets {
+			row = append(row, humanize.Comma(pm.Offset))
+			totalOffsets += pm.Offset
+		}
+		row = append(row,
 			output.SpaceIfEmpty(t.brokersToList(pm.Leader)),
 			output.SpaceIfEmpty(t.brokersToList(pm.Replicas...)),
 			output.SpaceIfEmpty(t.brokersToList(pm.OfflineReplicas...)),
 			output.SpaceIfEmpty(t.brokersToList(pm.ISRs...)),
-		})
+		)
+		table.Append(row)
 	}
-	table.SetFooter([]string{fmt.Sprintf("Total: %d", len(meta.Partitions)), " ", " ", " ", " "})
-	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
+
+	footer := []string{fmt.Sprintf("Total: %d", len(meta.Partitions))}
+	if t.includeOffsets {
+		footer = append(footer, humanize.Comma(totalOffsets))
+	}
+	footer = append(footer, " ", " ", " ", " ")
+	table.SetFooter(footer)
+	table.SetFooterAlignment(tablewriter.ALIGN_CENTER)
 	table.Render()
 
 	if t.loadConfigs {
