@@ -1,4 +1,4 @@
-package publish
+package produce
 
 import (
 	"io/ioutil"
@@ -12,9 +12,10 @@ import (
 )
 
 func AddCommands(app *kingpin.Application, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
-	parent := app.Command("publish", "A command to publish messages to kafka")
+	parent := app.Command("produce", "A command to publish messages to kafka.")
 	addPlainSubCommand(parent, global, kafkaParams)
 	addProtoSubCommand(parent, global, kafkaParams)
+	addSchemaSubCommand(parent, global)
 }
 
 func initialiseProducer(kafkaParams *commands.KafkaParameters, verbosity internal.VerbosityLevel) (*kafka.Producer, error) {

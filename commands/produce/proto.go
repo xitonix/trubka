@@ -1,8 +1,9 @@
-package publish
+package produce
 
 import (
 	"fmt"
 
+	"github.com/golang/protobuf/jsonpb"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
@@ -25,7 +26,7 @@ func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 		kafkaParams:  kafkaParams,
 		globalParams: global,
 	}
-	c := parent.Command("proto", "Publishes json/plain text messages to Kafka.").Action(cmd.run)
+	c := parent.Command("proto", "Publishes protobuf messages to Kafka.").Action(cmd.run)
 	c.Arg("topic", "The topic to publish to.").Required().StringVar(&cmd.topic)
 	c.Arg("proto", "The proto to publish to.").Required().StringVar(&cmd.proto)
 	c.Arg("content", "The message content. You can pipe the content in, or pass it as the command's second argument.").StringVar(&cmd.message)
@@ -53,16 +54,22 @@ func (c *proto) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
+	marshaller := jsonpb.Marshaler{
+		EnumsAsInts:  true,
+		EmitDefaults: true,
+		Indent:       "  ",
+		OrigName:     false,
+		AnyResolver:  nil,
+	}
+
 	msg, err := loader.Get(c.proto)
+	b, err := msg.MarshalJSONPB(&marshaller)
 	if err != nil {
 		return err
 	}
 
-	j, err := msg.MarshalJSONIndent()
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(j))
+	fmt.Println(string(b))
+
 	return nil
 
 	//ctx, cancel := context.WithCancel(context.Background())
