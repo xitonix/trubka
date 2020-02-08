@@ -2,6 +2,7 @@ package produce
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/golang/protobuf/jsonpb"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -48,12 +49,16 @@ func (c *schema) run(_ *kingpin.ParseContext) error {
 	}
 
 	msg, err := loader.Get(c.proto)
+	if err != nil {
+		return err
+	}
+
 	b, err := msg.MarshalJSONPB(&marshaller)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(string(b))
+	fmt.Println(strings.ReplaceAll(string(b), "null", "{}"))
 
 	return nil
 }
