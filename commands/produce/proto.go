@@ -1,6 +1,12 @@
 package produce
 
 import (
+	"fmt"
+	"regexp"
+	"time"
+
+	"github.com/brianvoe/gofakeit/v4"
+	"github.com/jhump/protoreflect/dynamic"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
@@ -16,12 +22,16 @@ type proto struct {
 	proto        string
 	count        uint32
 	protoRoot    string
+	random       bool
+	protoMessage *dynamic.Message
+	textEx       *regexp.Regexp
 }
 
 func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	cmd := &proto{
 		kafkaParams:  kafkaParams,
 		globalParams: global,
+		textEx:       regexp.MustCompile(`(?i)\[Text\]`),
 	}
 	c := parent.Command("proto", "Publishes protobuf messages to Kafka.").Action(cmd.run)
 	c.Arg("topic", "The topic to publish to.").Required().StringVar(&cmd.topic)
@@ -38,6 +48,9 @@ func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 		Default("1").
 		Short('c').
 		Uint32Var(&cmd.count)
+	c.Flag("generate-random-data", "Replaces the random generator place holder functions with the random value.").
+		Short('g').
+		BoolVar(&cmd.random)
 }
 
 func (c *proto) run(_ *kingpin.ParseContext) error {
@@ -60,19 +73,31 @@ func (c *proto) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	err = message.UnmarshalJSON([]byte(value))
+	c.protoMessage = message
+
+	return produce(c.kafkaParams, c.globalParams, c.topic, c.key, value, c.serializeProto, c.count)
+}
+
+func (c *proto) serializeProto(value string) ([]byte, error) {
+	if c.random {
+		value = c.replaceRandomGenerator(value)
+	}
+	err := c.protoMessage.UnmarshalJSON([]byte(value))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if err != nil {
-		return err
-	}
+	return c.protoMessage.Marshal()
+}
 
-	valueBytes, err := message.Marshal()
-	if err != nil {
-		return err
-	}
+func (c *proto) replaceRandomGenerator(value string) string {
+	gofakeit.Seed(time.Now().UnixNano())
+	value = c.replaceTextGenerators(value)
+	fmt.Println(value)
+	return value
+}
 
-	return produce(c.kafkaParams, c.globalParams, c.topic, c.key, valueBytes, c.count)
+func (c *proto) replaceTextGenerators(value string) string {
+	//
+	return value
 }

@@ -18,6 +18,8 @@ import (
 	"github.com/xitonix/trubka/kafka"
 )
 
+type valueSerializer func(raw string) ([]byte, error)
+
 func AddCommands(app *kingpin.Application, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	parent := app.Command("produce", "A command to publish messages to kafka.")
 	addPlainSubCommand(parent, global, kafkaParams)
@@ -48,7 +50,7 @@ func initialiseProducer(kafkaParams *commands.KafkaParameters, verbosity interna
 	return producer, nil
 }
 
-func produce(kafkaParams *commands.KafkaParameters, globalParams *commands.GlobalParameters, topic string, key string, value []byte, count uint32) error {
+func produce(kafkaParams *commands.KafkaParameters, globalParams *commands.GlobalParameters, topic string, key, value string, serialize valueSerializer, count uint32) error {
 	producer, err := initialiseProducer(kafkaParams, globalParams.Verbosity)
 	if err != nil {
 		return err
@@ -88,7 +90,11 @@ func produce(kafkaParams *commands.KafkaParameters, globalParams *commands.Globa
 			if len(key) == 0 {
 				key = fmt.Sprintf("%d%d", time.Now().UnixNano(), i)
 			}
-			partition, offset, err := producer.Produce(topic, []byte(key), value)
+			vBytes, err := serialize(value)
+			if err != nil {
+				return err
+			}
+			partition, offset, err := producer.Produce(topic, []byte(key), vBytes)
 			if err != nil {
 				return fmt.Errorf("failed to publish to kafka: %w", err)
 			}

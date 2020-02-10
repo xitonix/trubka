@@ -38,5 +38,13 @@ func (c *plain) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	return produce(c.kafkaParams, c.globalParams, c.topic, c.key, []byte(value), c.count)
+	return produce(c.kafkaParams,
+		c.globalParams,
+		c.topic,
+		c.key,
+		value,
+		func(value string) ([]byte, error) {
+			return []byte(value), nil
+		},
+		c.count)
 }

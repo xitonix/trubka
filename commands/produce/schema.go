@@ -3,6 +3,7 @@ package produce
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/golang/protobuf/protoc-gen-go/descriptor"
@@ -14,15 +15,19 @@ import (
 )
 
 type schema struct {
-	globalParams *commands.GlobalParameters
-	proto        string
-	protoRoot    string
-	random       bool
+	globalParams   *commands.GlobalParameters
+	proto          string
+	protoRoot      string
+	random         bool
+	emailAddressEx *regexp.Regexp
+	ipAddressEx    *regexp.Regexp
 }
 
 func addSchemaSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters) {
 	cmd := &schema{
-		globalParams: global,
+		globalParams:   global,
+		emailAddressEx: regexp.MustCompile(`(?i)email|email[-_]address|emailAddress`),
+		ipAddressEx:    regexp.MustCompile(`(?i)ip[-_]address|ipAddress`),
 	}
 	c := parent.Command("schema", "Produces the JSON representation of the given proto message. The produced schema can be used to publish to Kafka.").Action(cmd.run)
 	c.Arg("proto", "The fully qualified name of the proto message to generate the JSON schema of.").Required().StringVar(&cmd.proto)
@@ -83,7 +88,7 @@ func (c *schema) readSchema(mp map[string]interface{}, oneOffChoice string, md *
 			}
 			defaultValue := field.GetDefaultValue()
 			if c.random {
-				mp[name] = getGeneratorFunc(name, t, defaultValue)
+				mp[name] = c.getGeneratorFunc(name, t, defaultValue)
 			} else {
 				mp[name] = defaultValue
 			}
@@ -91,50 +96,54 @@ func (c *schema) readSchema(mp map[string]interface{}, oneOffChoice string, md *
 	}
 }
 
-func getGeneratorFunc(name string, t descriptor.FieldDescriptorProto_Type, fallback interface{}) interface{} {
+func (c *schema) getGeneratorFunc(name string, t descriptor.FieldDescriptorProto_Type, fallback interface{}) interface{} {
 	name = strings.ToLower(name)
 	switch t {
 	case descriptor.FieldDescriptorProto_TYPE_STRING:
-		return getStringFunc(name)
+		return c.getStringFunc(name)
 	case descriptor.FieldDescriptorProto_TYPE_DOUBLE:
-		return "[Double|1.0|7.5]"
+		return "[Double]"
 	case descriptor.FieldDescriptorProto_TYPE_FLOAT:
-		return "[Float|1.0|3.14]"
+		return "[Float]"
 	case descriptor.FieldDescriptorProto_TYPE_INT64:
-		return "[Int64|1|100]"
+		return "[Int64]"
 	case descriptor.FieldDescriptorProto_TYPE_UINT64:
-		return "[UInt64|1|100]"
+		return "[UInt64]"
 	case descriptor.FieldDescriptorProto_TYPE_INT32:
-		return "[Int64|1|100]"
+		return "[Int64]"
 	case descriptor.FieldDescriptorProto_TYPE_FIXED64:
-		return "[FUInt64|1|100]"
+		return "[FUInt64]"
 	case descriptor.FieldDescriptorProto_TYPE_FIXED32:
-		return "[FUInt32|1|100]"
+		return "[FUInt32]"
 	case descriptor.FieldDescriptorProto_TYPE_BOOL:
 		return "[Bool]"
 	case descriptor.FieldDescriptorProto_TYPE_BYTES:
-		return "[Bytes|0|5]"
+		return "[Bytes]"
 	case descriptor.FieldDescriptorProto_TYPE_UINT32:
-		return "[UInt32|1|100]"
-	// case descriptor.FieldDescriptorProto_TYPE_ENUM:
+		return "[UInt32]"
+	case descriptor.FieldDescriptorProto_TYPE_ENUM:
+		return "[UInt8]"
 	case descriptor.FieldDescriptorProto_TYPE_SFIXED32:
-		return "[FInt32|1|100]"
+		return "[FInt32]"
 	case descriptor.FieldDescriptorProto_TYPE_SFIXED64:
-		return "[FInt64|1|100]"
+		return "[FInt64]"
 	case descriptor.FieldDescriptorProto_TYPE_SINT32:
-		return "[FInt32|1|100]"
+		return "[FInt32]"
 	case descriptor.FieldDescriptorProto_TYPE_SINT64:
-		return "[FInt64|1|100]"
+		return "[FInt64]"
 	default:
 		return fallback
 	}
 }
 
-func getStringFunc(name string) interface{} {
-	if strings.Contains(name, "email") {
+func (c *schema) getStringFunc(name string) interface{} {
+	if c.emailAddressEx.MatchString(name) {
 		return "[Email]"
 	}
-	return "[Text|1|10]"
+	if c.ipAddressEx.MatchString(name) {
+		return "[IPV4]"
+	}
+	return "[Text]"
 }
 
 func chooseOneOff(parent *desc.OneOfDescriptor) string {
