@@ -102,27 +102,27 @@ func (c *schema) getGeneratorFunc(name string, t descriptor.FieldDescriptorProto
 	case descriptor.FieldDescriptorProto_TYPE_STRING:
 		return c.getStringFunc(name)
 	case descriptor.FieldDescriptorProto_TYPE_DOUBLE:
-		return "[Double]"
+		return "D[##.##]"
 	case descriptor.FieldDescriptorProto_TYPE_FLOAT:
-		return "[Float]"
+		return "D[##.##]"
 	case descriptor.FieldDescriptorProto_TYPE_INT64:
-		return "[Int64]"
+		return "D[#####]"
 	case descriptor.FieldDescriptorProto_TYPE_UINT64:
-		return "[UInt64]"
+		return "D[####]"
 	case descriptor.FieldDescriptorProto_TYPE_INT32:
 		return "[Int64]"
 	case descriptor.FieldDescriptorProto_TYPE_FIXED64:
-		return "[FUInt64]"
+		return "D[#####]"
 	case descriptor.FieldDescriptorProto_TYPE_FIXED32:
-		return "[FUInt32]"
+		return "D[#####]"
 	case descriptor.FieldDescriptorProto_TYPE_BOOL:
 		return "[Bool]"
 	case descriptor.FieldDescriptorProto_TYPE_BYTES:
-		return "[Bytes]"
+		return "B64[???????]"
 	case descriptor.FieldDescriptorProto_TYPE_UINT32:
-		return "[UInt32]"
+		return "D[#####]"
 	case descriptor.FieldDescriptorProto_TYPE_ENUM:
-		return "[UInt8]"
+		return "D[#]"
 	case descriptor.FieldDescriptorProto_TYPE_SFIXED32:
 		return "[FInt32]"
 	case descriptor.FieldDescriptorProto_TYPE_SFIXED64:
@@ -143,7 +143,7 @@ func (c *schema) getStringFunc(name string) interface{} {
 	if c.ipAddressEx.MatchString(name) {
 		return "[IPV4]"
 	}
-	return "[Text]"
+	return "?????"
 }
 
 func chooseOneOff(parent *desc.OneOfDescriptor) string {
