@@ -36,6 +36,7 @@ type proto struct {
 	bytesEx      *regexp.Regexp
 	intRangeEx   *regexp.Regexp
 	floatRangeEx *regexp.Regexp
+	rangeEx      *regexp.Regexp
 }
 
 func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -45,6 +46,8 @@ func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 		textEx:       regexp.MustCompile(`\?+`),
 		emailEx:      regexp.MustCompile(`\s*\[Email]\s*`),
 		intRangeEx:   regexp.MustCompile(`"(?i)\s*N\[\s*-?\s*\d+\s*:\s*-?\s*\d+\s*]\s*"`),
+		// Integer range for none-numeric fields
+		rangeEx:      regexp.MustCompile(`(?i)R\[\s*-?\s*\d+\s*:\s*-?\s*\d+\s*]`),
 		floatRangeEx: regexp.MustCompile(`"(?i)\s*F\[\s*-?\s*[\d\.]+\s*:\s*-?\s*[\d\.]+\s*(:\s*[\d\.]+\s*)?\s*]"`),
 		intEx:        regexp.MustCompile(`"(?i)\s*N\[.*]\s*"`),
 		floatEx:      regexp.MustCompile(`"(?i)\s*F\[.*]\s*"`),
@@ -127,6 +130,10 @@ func (c *proto) replaceRandomGenerator(value string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	value, err = c.replaceNoneNumericRangeGenerators(value)
+	if err != nil {
+		return "", err
+	}
 	value = c.replaceIntNumberGenerators(value)
 	value = c.replaceFloatNumberGenerators(value)
 	value = c.replaceAllNonNumericHashes(value)
@@ -153,6 +160,36 @@ func (c *proto) replaceBytesGenerators(value string) string {
 	return value
 }
 
+func (c *proto) replaceNoneNumericRangeGenerators(value string) (result string, err error) {
+
+	result = c.rangeEx.ReplaceAllStringFunc(value, func(match string) string {
+		match = strings.Trim(match, "R[] ")
+		parts := strings.Split(match, ":")
+		if len(parts) != 2 {
+			err = errors.New("the number range must be in m:n format")
+		}
+		from, e := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
+		if e != nil {
+			err = fmt.Errorf("the lower range value must be a valid integer: %w", e)
+			return ""
+		}
+		to, e := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+		if err != nil {
+			err = fmt.Errorf("the upper range value must be a valid integer: %w", e)
+			return ""
+		}
+
+		if from > to {
+			err = fmt.Errorf("the upper range value (%d) must be greater than the lower range value (%d)", to, from)
+			return ""
+		}
+
+		return strconv.FormatInt(int64(gofakeit.Number(int(from), int(to))), 10)
+	})
+
+	return
+}
+
 func (c *proto) replaceIntRangeGenerators(value string) (result string, err error) {
 
 	result = c.intRangeEx.ReplaceAllStringFunc(value, func(match string) string {
@@ -160,7 +197,7 @@ func (c *proto) replaceIntRangeGenerators(value string) (result string, err erro
 		match = strings.TrimSpace(strings.Trim(match, "\"]"))
 		parts := strings.Split(match, ":")
 		if len(parts) != 2 {
-			err = errors.New("the number range must be in m:n format")
+			err = errors.New("the range must be in m:n format")
 		}
 		from, e := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
 		if e != nil {
@@ -191,7 +228,7 @@ func (c *proto) replaceFloatRangeGenerators(value string) (result string, err er
 		match = strings.TrimSpace(strings.Trim(match, "\"]"))
 		parts := strings.Split(match, ":")
 		if len(parts) < 2 {
-			err = errors.New("the number range must be in m:n format")
+			err = errors.New("the range must be in m:n format")
 		}
 		from, e := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
 		if e != nil {
