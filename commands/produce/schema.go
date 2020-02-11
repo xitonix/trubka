@@ -86,53 +86,68 @@ func (c *schema) readSchema(mp map[string]interface{}, oneOffChoice string, md *
 			if options != nil && options.Deprecated != nil && *options.Deprecated {
 				continue
 			}
-			defaultValue := field.GetDefaultValue()
 			if c.random {
-				mp[name] = c.getGeneratorFunc(name, t, defaultValue)
+				mp[name] = c.getGeneratorFunc(field)
 			} else {
-				mp[name] = defaultValue
+				mp[name] = field.GetDefaultValue()
 			}
 		}
 	}
 }
 
-func (c *schema) getGeneratorFunc(name string, t descriptor.FieldDescriptorProto_Type, fallback interface{}) interface{} {
-	name = strings.ToLower(name)
+func (c *schema) getGeneratorFunc(field *desc.FieldDescriptor) interface{} {
+	name := strings.ToLower(field.GetName())
+	t := field.GetType()
 	switch t {
 	case descriptor.FieldDescriptorProto_TYPE_STRING:
 		return c.getStringFunc(name)
 	case descriptor.FieldDescriptorProto_TYPE_DOUBLE:
-		return "D[##.##]"
+		return "F[##.##]"
 	case descriptor.FieldDescriptorProto_TYPE_FLOAT:
-		return "D[##.##]"
+		return "F[##.##]"
 	case descriptor.FieldDescriptorProto_TYPE_INT64:
-		return "D[#####]"
+		return "N[########]"
 	case descriptor.FieldDescriptorProto_TYPE_UINT64:
-		return "D[####]"
+		return "N[########]"
 	case descriptor.FieldDescriptorProto_TYPE_INT32:
-		return "[Int64]"
+		return "N[#####]"
 	case descriptor.FieldDescriptorProto_TYPE_FIXED64:
-		return "D[#####]"
+		return "N[########]"
 	case descriptor.FieldDescriptorProto_TYPE_FIXED32:
-		return "D[#####]"
+		return "N[#####]"
 	case descriptor.FieldDescriptorProto_TYPE_BOOL:
 		return "[Bool]"
 	case descriptor.FieldDescriptorProto_TYPE_BYTES:
 		return "B64[???????]"
 	case descriptor.FieldDescriptorProto_TYPE_UINT32:
-		return "D[#####]"
+		return "N[#####]"
 	case descriptor.FieldDescriptorProto_TYPE_ENUM:
-		return "D[#]"
+		values := field.GetEnumType().GetValues()
+		var min, max int32
+		for _, v := range values {
+			options := v.GetEnumValueOptions()
+			if options != nil && options.Deprecated != nil && *options.Deprecated {
+				continue
+			}
+			num := v.GetNumber()
+			if num < min {
+				min = num
+			}
+			if num > max {
+				max = num
+			}
+		}
+		return fmt.Sprintf("N[%d:%d]", min, max)
 	case descriptor.FieldDescriptorProto_TYPE_SFIXED32:
-		return "[FInt32]"
+		return "N[#####]"
 	case descriptor.FieldDescriptorProto_TYPE_SFIXED64:
-		return "[FInt64]"
+		return "N[########]"
 	case descriptor.FieldDescriptorProto_TYPE_SINT32:
-		return "[FInt32]"
+		return "N[#####]"
 	case descriptor.FieldDescriptorProto_TYPE_SINT64:
-		return "[FInt64]"
+		return "N[########]"
 	default:
-		return fallback
+		return field.GetDefaultValue()
 	}
 }
 

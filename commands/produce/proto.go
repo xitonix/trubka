@@ -2,6 +2,7 @@ package produce
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -29,10 +30,12 @@ type proto struct {
 	protoMessage *dynamic.Message
 	textEx       *regexp.Regexp
 	emailEx      *regexp.Regexp
-	numEx        *regexp.Regexp
+	intEx        *regexp.Regexp
+	floatEx      *regexp.Regexp
 	hashEx       *regexp.Regexp
 	bytesEx      *regexp.Regexp
-	int64Ex      *regexp.Regexp
+	intRangeEx   *regexp.Regexp
+	floatRangeEx *regexp.Regexp
 }
 
 func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -40,10 +43,12 @@ func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 		kafkaParams:  kafkaParams,
 		globalParams: global,
 		textEx:       regexp.MustCompile(`\?+`),
-		emailEx:      regexp.MustCompile(`\w*\[Email]\w*`),
-		numEx:        regexp.MustCompile(`"(?i)\w*D\[.*]\w*"`),
-		bytesEx:      regexp.MustCompile(`(?i)\w*B64\[.*]\w*`),
-		int64Ex:      regexp.MustCompile(`(?i)"\w*\[Int64]\w*"`),
+		emailEx:      regexp.MustCompile(`\s*\[Email]\s*`),
+		intRangeEx:   regexp.MustCompile(`"(?i)\s*N\[\s*-?\s*\d+\s*:\s*-?\s*\d+\s*]\s*"`),
+		floatRangeEx: regexp.MustCompile(`"(?i)\s*F\[\s*-?\s*[\d\.]+\s*:\s*-?\s*[\d\.]+\s*(:\s*[\d\.]+\s*)?\s*]"`),
+		intEx:        regexp.MustCompile(`"(?i)\s*N\[.*]\s*"`),
+		floatEx:      regexp.MustCompile(`"(?i)\s*F\[.*]\s*"`),
+		bytesEx:      regexp.MustCompile(`(?i)\s*B64\[.*]\s*`),
 		hashEx:       regexp.MustCompile(`#+`),
 	}
 	c := parent.Command("proto", "Publishes protobuf messages to Kafka.").Action(cmd.run)
@@ -93,8 +98,14 @@ func (c *proto) run(_ *kingpin.ParseContext) error {
 
 func (c *proto) serializeProto(value string) ([]byte, error) {
 	if c.random {
-		value = c.replaceRandomGenerator(value)
+		v, err := c.replaceRandomGenerator(value)
+		if err != nil {
+			return nil, err
+		}
+		value = v
 	}
+
+	fmt.Println(value)
 	err := c.protoMessage.UnmarshalJSON([]byte(value))
 	if err != nil {
 		return nil, err
@@ -103,14 +114,24 @@ func (c *proto) serializeProto(value string) ([]byte, error) {
 	return c.protoMessage.Marshal()
 }
 
-func (c *proto) replaceRandomGenerator(value string) string {
+func (c *proto) replaceRandomGenerator(value string) (string, error) {
 	gofakeit.Seed(time.Now().UnixNano())
+	var err error
 	value = c.replaceTextGenerators(value)
-	value = c.replaceNumberGenerators(value)
+	// Ranges need to be processed before normal numbers
+	value, err = c.replaceIntRangeGenerators(value)
+	if err != nil {
+		return "", err
+	}
+	value, err = c.replaceFloatRangeGenerators(value)
+	if err != nil {
+		return "", err
+	}
+	value = c.replaceIntNumberGenerators(value)
+	value = c.replaceFloatNumberGenerators(value)
+	value = c.replaceAllNonNumericHashes(value)
 	value = c.replaceBytesGenerators(value)
-	value = c.replaceInt64Generators(value)
-	fmt.Println(value)
-	return value
+	return value, nil
 }
 
 func (c *proto) replaceTextGenerators(value string) string {
@@ -132,26 +153,100 @@ func (c *proto) replaceBytesGenerators(value string) string {
 	return value
 }
 
-func (c *proto) replaceInt64Generators(value string) string {
-	value = c.int64Ex.ReplaceAllStringFunc(value, func(match string) string {
-		return strconv.FormatInt(gofakeit.Int64(), 10)
+func (c *proto) replaceIntRangeGenerators(value string) (result string, err error) {
+
+	result = c.intRangeEx.ReplaceAllStringFunc(value, func(match string) string {
+		match = strings.Replace(match, "N[", "", 1)
+		match = strings.TrimSpace(strings.Trim(match, "\"]"))
+		parts := strings.Split(match, ":")
+		if len(parts) != 2 {
+			err = errors.New("the number range must be in m:n format")
+		}
+		from, e := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
+		if e != nil {
+			err = fmt.Errorf("the lower range value must be a valid integer: %w", e)
+			return ""
+		}
+		to, e := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+		if err != nil {
+			err = fmt.Errorf("the upper range value must be a valid integer: %w", e)
+			return ""
+		}
+
+		if from > to {
+			err = fmt.Errorf("the upper range value (%d) must be greater than the lower range value (%d)", to, from)
+			return ""
+		}
+
+		return strconv.FormatInt(int64(gofakeit.Number(int(from), int(to))), 10)
 	})
-	return value
+
+	return
 }
 
-func (c *proto) replaceNumberGenerators(value string) string {
-	value = c.numEx.ReplaceAllStringFunc(value, func(match string) string {
-		match = strings.Replace(match, "D[", "", 1)
+func (c *proto) replaceFloatRangeGenerators(value string) (result string, err error) {
+	// Float range: F[from:to:<optional decimal places>]
+	result = c.floatRangeEx.ReplaceAllStringFunc(value, func(match string) string {
+		match = strings.Replace(match, "F[", "", 1)
 		match = strings.TrimSpace(strings.Trim(match, "\"]"))
-		// The first zero is treated specially in gofakeit.Numerify!
+		parts := strings.Split(match, ":")
+		if len(parts) < 2 {
+			err = errors.New("the number range must be in m:n format")
+		}
+		from, e := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+		if e != nil {
+			err = fmt.Errorf("the lower range value must be a valid floating point number: %w", e)
+			return ""
+		}
+		to, e := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+		if e != nil {
+			err = fmt.Errorf("the upper range value must be a valid floating point number: %w", e)
+			return ""
+		}
+
+		if from > to {
+			err = fmt.Errorf("the upper range value (%f) must be greater than the lower range value (%f)", to, from)
+			return ""
+		}
+
+		format := "%f"
+		if len(parts) >= 3 {
+			decimal, e := strconv.ParseUint(strings.TrimSpace(parts[2]), 10, 32)
+			if e != nil {
+				err = fmt.Errorf("the number of decimal places must be a valid positive integer: %w", e)
+				return ""
+			}
+			format = fmt.Sprintf("%%.%df", decimal)
+		}
+
+		return fmt.Sprintf(format, gofakeit.Float64Range(from, to))
+	})
+
+	return
+}
+
+func (c *proto) replaceIntNumberGenerators(value string) string {
+	return c.intEx.ReplaceAllStringFunc(value, func(match string) string {
+		match = strings.Replace(match, "N[", "", 1)
+		match = strings.TrimSpace(strings.Trim(match, "\"]"))
+		return gofakeit.Numerify(match)
+	})
+}
+
+func (c *proto) replaceFloatNumberGenerators(value string) string {
+	return c.floatEx.ReplaceAllStringFunc(value, func(match string) string {
+		match = strings.Replace(match, "F[", "", 1)
+		match = strings.TrimSpace(strings.Trim(match, "\"]"))
+		// The first zero will be replaced in gofakeit.Numerify!
 		if len(match) > 0 && match[0] == '0' {
 			match = strings.Replace(match, "0", "*^*", 1)
 		}
 		return strings.Replace(gofakeit.Numerify(match), "*^*", "0", 1)
 	})
+}
 
-	value = c.hashEx.ReplaceAllStringFunc(value, func(match string) string {
+func (c *proto) replaceAllNonNumericHashes(value string) string {
+	return c.hashEx.ReplaceAllStringFunc(value, func(match string) string {
 		return gofakeit.Numerify(match)
 	})
-	return value
 }
