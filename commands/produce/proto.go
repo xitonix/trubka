@@ -14,6 +14,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/protobuf"
 )
 
@@ -28,8 +29,6 @@ type proto struct {
 	protoRoot    string
 	random       bool
 	protoMessage *dynamic.Message
-	textEx       *regexp.Regexp
-	emailEx      *regexp.Regexp
 	intEx        *regexp.Regexp
 	floatEx      *regexp.Regexp
 	hashEx       *regexp.Regexp
@@ -43,8 +42,6 @@ func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	cmd := &proto{
 		kafkaParams:  kafkaParams,
 		globalParams: global,
-		textEx:       regexp.MustCompile(`\?+`),
-		emailEx:      regexp.MustCompile(`\s*\[Email]\s*`),
 		intRangeEx:   regexp.MustCompile(`"(?i)\s*N\[\s*-?\s*\d+\s*:\s*-?\s*\d+\s*]\s*"`),
 		// Integer range for none-numeric fields
 		rangeEx:      regexp.MustCompile(`(?i)R\[\s*-?\s*\d+\s*:\s*-?\s*\d+\s*]`),
@@ -120,7 +117,6 @@ func (c *proto) serializeProto(value string) ([]byte, error) {
 func (c *proto) replaceRandomGenerator(value string) (string, error) {
 	gofakeit.Seed(time.Now().UnixNano())
 	var err error
-	value = c.replaceTextGenerators(value)
 	// Ranges need to be processed before normal numbers
 	value, err = c.replaceIntRangeGenerators(value)
 	if err != nil {
@@ -137,21 +133,81 @@ func (c *proto) replaceRandomGenerator(value string) (string, error) {
 	value = c.replaceIntNumberGenerators(value)
 	value = c.replaceFloatNumberGenerators(value)
 	value = c.replaceAllNonNumericHashes(value)
-	value = c.replaceBytesGenerators(value)
+	value = c.replaceExtraGenerators(value)
+	value = c.replaceB64Generators(value)
 	return value, nil
 }
 
-func (c *proto) replaceTextGenerators(value string) string {
-	value = c.textEx.ReplaceAllStringFunc(value, func(match string) string {
-		return gofakeit.Lexify(match)
-	})
-	value = c.emailEx.ReplaceAllStringFunc(value, func(match string) string {
-		return gofakeit.Email()
-	})
+func (c *proto) replaceExtraGenerators(value string) string {
+	matchers := []struct {
+		ex       *regexp.Regexp
+		replacer func(match string) string
+	}{
+		{
+			ex: regexp.MustCompile(`(?i)(Email|EmailAddress)\[\s*]`),
+			replacer: func(match string) string {
+				return gofakeit.Email()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`(?i)IP\[\s*v4\s*]`),
+			replacer: func(match string) string {
+				return gofakeit.IPv4Address()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`(?i)IP\[\s*v6\s*]`),
+			replacer: func(match string) string {
+				return gofakeit.IPv6Address()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`(?i)FirstName\[\s*]`),
+			replacer: func(match string) string {
+				return gofakeit.FirstName()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`(?i)LastName\[\s*]`),
+			replacer: func(match string) string {
+				return gofakeit.LastName()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`(?i)State\[\s*]`),
+			replacer: func(match string) string {
+				return gofakeit.State()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`\?+`),
+			replacer: func(match string) string {
+				return gofakeit.Lexify(match)
+			},
+		},
+		{
+			ex: regexp.MustCompile(`(?i)Pick\[.*]`),
+			replacer: func(match string) string {
+				items := match[strings.Index(match, "[")+1 : strings.Index(match, "]")]
+				if internal.IsEmpty(items) {
+					return match
+				}
+				list := strings.FieldsFunc(items, func(r rune) bool {
+					return r == ',' || r == ' '
+				})
+				return gofakeit.RandString(list)
+			},
+		},
+	}
+
+	for _, matcher := range matchers {
+		value = matcher.ex.ReplaceAllStringFunc(value, matcher.replacer)
+	}
+
 	return value
 }
 
-func (c *proto) replaceBytesGenerators(value string) string {
+func (c *proto) replaceB64Generators(value string) string {
 	value = c.bytesEx.ReplaceAllStringFunc(value, func(match string) string {
 		match = strings.Replace(match, "B64[", "", 1)
 		match = strings.TrimSpace(strings.Trim(match, "]"))

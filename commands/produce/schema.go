@@ -116,7 +116,7 @@ func (c *schema) getGeneratorFunc(field *desc.FieldDescriptor) interface{} {
 	case descriptor.FieldDescriptorProto_TYPE_FIXED32:
 		return "N[#####]"
 	case descriptor.FieldDescriptorProto_TYPE_BOOL:
-		return "[Bool]"
+		return "B[]"
 	case descriptor.FieldDescriptorProto_TYPE_BYTES:
 		return "B64[???????]"
 	case descriptor.FieldDescriptorProto_TYPE_UINT32:
@@ -153,10 +153,10 @@ func (c *schema) getGeneratorFunc(field *desc.FieldDescriptor) interface{} {
 
 func (c *schema) getStringFunc(name string) interface{} {
 	if c.emailAddressEx.MatchString(name) {
-		return "[Email]"
+		return "Email[]"
 	}
 	if c.ipAddressEx.MatchString(name) {
-		return "[IPV4]"
+		return "IP[v4]"
 	}
 	return "?????"
 }
