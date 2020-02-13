@@ -102,25 +102,25 @@ func (c *schema) getGeneratorFunc(field *desc.FieldDescriptor) interface{} {
 	case descriptor.FieldDescriptorProto_TYPE_STRING:
 		return c.getStringFunc(name)
 	case descriptor.FieldDescriptorProto_TYPE_DOUBLE:
-		return "F[##.##]"
+		return "F(##.##)"
 	case descriptor.FieldDescriptorProto_TYPE_FLOAT:
-		return "F[##.##]"
+		return "F(##.##)"
 	case descriptor.FieldDescriptorProto_TYPE_INT64:
-		return "N[########]"
+		return "N(########)"
 	case descriptor.FieldDescriptorProto_TYPE_UINT64:
-		return "N[########]"
+		return "N(########)"
 	case descriptor.FieldDescriptorProto_TYPE_INT32:
-		return "N[#####]"
+		return "N(#####)"
 	case descriptor.FieldDescriptorProto_TYPE_FIXED64:
-		return "N[########]"
+		return "N(########)"
 	case descriptor.FieldDescriptorProto_TYPE_FIXED32:
-		return "N[#####]"
+		return "N(#####)"
 	case descriptor.FieldDescriptorProto_TYPE_BOOL:
-		return "B[]"
+		return "Bool()"
 	case descriptor.FieldDescriptorProto_TYPE_BYTES:
-		return "B64[???????]"
+		return "B64(???????)"
 	case descriptor.FieldDescriptorProto_TYPE_UINT32:
-		return "N[#####]"
+		return "N(#####)"
 	case descriptor.FieldDescriptorProto_TYPE_ENUM:
 		values := field.GetEnumType().GetValues()
 		var min, max int32
@@ -137,15 +137,15 @@ func (c *schema) getGeneratorFunc(field *desc.FieldDescriptor) interface{} {
 				max = num
 			}
 		}
-		return fmt.Sprintf("N[%d:%d]", min, max)
+		return fmt.Sprintf("N(%d:%d)", min, max)
 	case descriptor.FieldDescriptorProto_TYPE_SFIXED32:
-		return "N[#####]"
+		return "N(#####)"
 	case descriptor.FieldDescriptorProto_TYPE_SFIXED64:
-		return "N[########]"
+		return "N(########)"
 	case descriptor.FieldDescriptorProto_TYPE_SINT32:
-		return "N[#####]"
+		return "N(#####)"
 	case descriptor.FieldDescriptorProto_TYPE_SINT64:
-		return "N[########]"
+		return "N(########)"
 	default:
 		return field.GetDefaultValue()
 	}
@@ -153,12 +153,12 @@ func (c *schema) getGeneratorFunc(field *desc.FieldDescriptor) interface{} {
 
 func (c *schema) getStringFunc(name string) interface{} {
 	if c.emailAddressEx.MatchString(name) {
-		return "Email[]"
+		return "Email()"
 	}
 	if c.ipAddressEx.MatchString(name) {
-		return "IP[v4]"
+		return "IP(v4)"
 	}
-	return "?????"
+	return "S(?????)"
 }
 
 func chooseOneOff(parent *desc.OneOfDescriptor) string {

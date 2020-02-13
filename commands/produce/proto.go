@@ -29,27 +29,21 @@ type proto struct {
 	protoRoot    string
 	random       bool
 	protoMessage *dynamic.Message
-	intEx        *regexp.Regexp
-	floatEx      *regexp.Regexp
-	hashEx       *regexp.Regexp
-	bytesEx      *regexp.Regexp
-	intRangeEx   *regexp.Regexp
-	floatRangeEx *regexp.Regexp
-	rangeEx      *regexp.Regexp
 }
 
+const (
+	floatEx            = `[-+]?[0-9]*\.?[0-9]+`
+	intEx              = `[0-9]+`
+	signedIntEx        = `[-+]?[0-9]+`
+	intPlaceHolderEx   = "([0-9]|#)*"
+	floatPlaceHolderEx = `[-+]?([0-9]|#)*\.?([0-9]|#)+`
+)
+
 func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
+
 	cmd := &proto{
 		kafkaParams:  kafkaParams,
 		globalParams: global,
-		intRangeEx:   regexp.MustCompile(`"(?i)\s*N\[\s*-?\s*\d+\s*:\s*-?\s*\d+\s*]\s*"`),
-		// Integer range for none-numeric fields
-		rangeEx:      regexp.MustCompile(`(?i)R\[\s*-?\s*\d+\s*:\s*-?\s*\d+\s*]`),
-		floatRangeEx: regexp.MustCompile(`"(?i)\s*F\[\s*-?\s*[\d\.]+\s*:\s*-?\s*[\d\.]+\s*(:\s*[\d\.]+\s*)?\s*]"`),
-		intEx:        regexp.MustCompile(`"(?i)\s*N\[.*]\s*"`),
-		floatEx:      regexp.MustCompile(`"(?i)\s*F\[.*]\s*"`),
-		bytesEx:      regexp.MustCompile(`(?i)\s*B64\[.*]\s*`),
-		hashEx:       regexp.MustCompile(`#+`),
 	}
 	c := parent.Command("proto", "Publishes protobuf messages to Kafka.").Action(cmd.run)
 	c.Arg("topic", "The topic to publish to.").Required().StringVar(&cmd.topic)
@@ -126,13 +120,8 @@ func (c *proto) replaceRandomGenerator(value string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	value, err = c.replaceNoneNumericRangeGenerators(value)
-	if err != nil {
-		return "", err
-	}
 	value = c.replaceIntNumberGenerators(value)
 	value = c.replaceFloatNumberGenerators(value)
-	value = c.replaceAllNonNumericHashes(value)
 	value = c.replaceExtraGenerators(value)
 	value = c.replaceB64Generators(value)
 	return value, nil
@@ -144,49 +133,49 @@ func (c *proto) replaceExtraGenerators(value string) string {
 		replacer func(match string) string
 	}{
 		{
-			ex: regexp.MustCompile(`(?i)(Email|EmailAddress)\[\s*]`),
+			ex: regexp.MustCompile(`(Email|EmailAddress)\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.Email()
 			},
 		},
 		{
-			ex: regexp.MustCompile(`(?i)IP\[\s*v4\s*]`),
+			ex: regexp.MustCompile(`IP\(v4\)`),
 			replacer: func(match string) string {
 				return gofakeit.IPv4Address()
 			},
 		},
 		{
-			ex: regexp.MustCompile(`(?i)IP\[\s*v6\s*]`),
+			ex: regexp.MustCompile(`IP\(v6\)`),
 			replacer: func(match string) string {
 				return gofakeit.IPv6Address()
 			},
 		},
 		{
-			ex: regexp.MustCompile(`(?i)FirstName\[\s*]`),
+			ex: regexp.MustCompile(`FirstName\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.FirstName()
 			},
 		},
 		{
-			ex: regexp.MustCompile(`(?i)LastName\[\s*]`),
+			ex: regexp.MustCompile(`LastName\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.LastName()
 			},
 		},
 		{
-			ex: regexp.MustCompile(`(?i)State\[\s*]`),
+			ex: regexp.MustCompile(`State\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.State()
 			},
 		},
 		{
-			ex: regexp.MustCompile(`\?+`),
+			ex: regexp.MustCompile(`S\([\w\?]+\)`),
 			replacer: func(match string) string {
-				return gofakeit.Lexify(match)
+				return gofakeit.Lexify(match[2 : len(match)-1])
 			},
 		},
 		{
-			ex: regexp.MustCompile(`(?i)Pick\[.*]`),
+			ex: regexp.MustCompile(`(?i)Pick\(.*\)`),
 			replacer: func(match string) string {
 				items := match[strings.Index(match, "[")+1 : strings.Index(match, "]")]
 				if internal.IsEmpty(items) {
@@ -208,49 +197,18 @@ func (c *proto) replaceExtraGenerators(value string) string {
 }
 
 func (c *proto) replaceB64Generators(value string) string {
-	value = c.bytesEx.ReplaceAllStringFunc(value, func(match string) string {
-		match = strings.Replace(match, "B64[", "", 1)
-		match = strings.TrimSpace(strings.Trim(match, "]"))
-		return base64.StdEncoding.EncodeToString([]byte(match))
+	base64Ex := regexp.MustCompile(`B64\(.*\)`)
+	value = base64Ex.ReplaceAllStringFunc(value, func(match string) string {
+		m := gofakeit.Lexify(match[2 : len(match)-1])
+		return base64.StdEncoding.EncodeToString([]byte(m))
 	})
 	return value
 }
 
-func (c *proto) replaceNoneNumericRangeGenerators(value string) (result string, err error) {
-
-	result = c.rangeEx.ReplaceAllStringFunc(value, func(match string) string {
-		match = strings.Trim(match, "R[] ")
-		parts := strings.Split(match, ":")
-		if len(parts) != 2 {
-			err = errors.New("the number range must be in m:n format")
-		}
-		from, e := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
-		if e != nil {
-			err = fmt.Errorf("the lower range value must be a valid integer: %w", e)
-			return ""
-		}
-		to, e := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
-		if err != nil {
-			err = fmt.Errorf("the upper range value must be a valid integer: %w", e)
-			return ""
-		}
-
-		if from > to {
-			err = fmt.Errorf("the upper range value (%d) must be greater than the lower range value (%d)", to, from)
-			return ""
-		}
-
-		return strconv.FormatInt(int64(gofakeit.Number(int(from), int(to))), 10)
-	})
-
-	return
-}
-
 func (c *proto) replaceIntRangeGenerators(value string) (result string, err error) {
-
-	result = c.intRangeEx.ReplaceAllStringFunc(value, func(match string) string {
-		match = strings.Replace(match, "N[", "", 1)
-		match = strings.TrimSpace(strings.Trim(match, "\"]"))
+	intRangeEx := regexp.MustCompile(fmt.Sprintf(`"\s*N\(%s:%[1]s\)\s*"|NS\(%[1]s:%[1]s\)`, signedIntEx))
+	result = intRangeEx.ReplaceAllStringFunc(value, func(match string) string {
+		match = strings.Trim(match, getCutSet(match, "N"))
 		parts := strings.Split(match, ":")
 		if len(parts) != 2 {
 			err = errors.New("the range must be in m:n format")
@@ -279,9 +237,9 @@ func (c *proto) replaceIntRangeGenerators(value string) (result string, err erro
 
 func (c *proto) replaceFloatRangeGenerators(value string) (result string, err error) {
 	// Float range: F[from:to:<optional decimal places>]
-	result = c.floatRangeEx.ReplaceAllStringFunc(value, func(match string) string {
-		match = strings.Replace(match, "F[", "", 1)
-		match = strings.TrimSpace(strings.Trim(match, "\"]"))
+	floatRangeEx := regexp.MustCompile(fmt.Sprintf(`"\s*F\(%s:%[1]s(:%s)?\)\s*"|FS\(%[1]s:%[1]s(:%[2]s)?\)`, floatEx, intEx))
+	result = floatRangeEx.ReplaceAllStringFunc(value, func(match string) string {
+		match = strings.Trim(match, getCutSet(match, "F"))
 		parts := strings.Split(match, ":")
 		if len(parts) < 2 {
 			err = errors.New("the range must be in m:n format")
@@ -319,17 +277,17 @@ func (c *proto) replaceFloatRangeGenerators(value string) (result string, err er
 }
 
 func (c *proto) replaceIntNumberGenerators(value string) string {
-	return c.intEx.ReplaceAllStringFunc(value, func(match string) string {
-		match = strings.Replace(match, "N[", "", 1)
-		match = strings.TrimSpace(strings.Trim(match, "\"]"))
+	intEx := regexp.MustCompile(fmt.Sprintf(`"\s*N\(%s\)\s*"|NS\(%[1]s\)`, intPlaceHolderEx))
+	return intEx.ReplaceAllStringFunc(value, func(match string) string {
+		match = strings.Trim(match, getCutSet(match, "N"))
 		return gofakeit.Numerify(match)
 	})
 }
 
 func (c *proto) replaceFloatNumberGenerators(value string) string {
-	return c.floatEx.ReplaceAllStringFunc(value, func(match string) string {
-		match = strings.Replace(match, "F[", "", 1)
-		match = strings.TrimSpace(strings.Trim(match, "\"]"))
+	floatEx := regexp.MustCompile(fmt.Sprintf(`"\s*F\(%s\)\s*"|FS\(%[1]s\)`, floatPlaceHolderEx))
+	return floatEx.ReplaceAllStringFunc(value, func(match string) string {
+		match = strings.Trim(match, getCutSet(match, "F"))
 		// The first zero will be replaced in gofakeit.Numerify!
 		if len(match) > 0 && match[0] == '0' {
 			match = strings.Replace(match, "0", "*^*", 1)
@@ -338,8 +296,10 @@ func (c *proto) replaceFloatNumberGenerators(value string) string {
 	})
 }
 
-func (c *proto) replaceAllNonNumericHashes(value string) string {
-	return c.hashEx.ReplaceAllStringFunc(value, func(match string) string {
-		return gofakeit.Numerify(match)
-	})
+func getCutSet(match, fn string) string {
+	prefix := fn + "S"
+	if strings.Contains(match, prefix) {
+		return prefix + "()"
+	}
+	return fn + "()\" "
 }
