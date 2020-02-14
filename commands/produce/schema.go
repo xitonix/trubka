@@ -68,30 +68,29 @@ func (c *schema) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *schema) readSchema(mp map[string]interface{}, oneOffChoice string, md *desc.MessageDescriptor) {
-	for _, field := range md.GetFields() {
+	fields := md.GetFields()
+	for _, field := range fields {
 		options := field.GetFieldOptions()
 		if options != nil && options.Deprecated != nil && *options.Deprecated {
 			continue
 		}
 		t := field.GetType()
 		name := field.GetName()
+		oneOff := field.GetOneOf()
+		oneOffChoice = chooseOneOff(oneOff)
+		if oneOffChoice != "" && name != oneOffChoice && oneOff != nil {
+			continue
+		}
+
 		if t == descriptor.FieldDescriptorProto_TYPE_MESSAGE {
 			if gt, set := c.getGoogleType(name, field); set {
 				mp[name] = gt
 				continue
 			}
-			oneOffChoice = chooseOneOff(field.GetOneOf())
-			if oneOffChoice != "" && name != oneOffChoice && field.GetOneOf() != nil {
-				continue
-			}
 			parent := make(map[string]interface{})
-			mp[field.GetName()] = parent
+			mp[name] = parent
 			c.readSchema(parent, oneOffChoice, field.GetMessageType())
 		} else {
-			options := field.GetFieldOptions()
-			if options != nil && options.Deprecated != nil && *options.Deprecated {
-				continue
-			}
 			if c.random {
 				mp[name] = c.getGeneratorFunc(field)
 			} else {
@@ -99,6 +98,21 @@ func (c *schema) readSchema(mp map[string]interface{}, oneOffChoice string, md *
 			}
 		}
 	}
+}
+
+func chooseOneOff(oneOff *desc.OneOfDescriptor) string {
+	if oneOff == nil {
+		return ""
+	}
+	choices := oneOff.GetChoices()
+	for _, choice := range choices {
+		options := choice.GetFieldOptions()
+		if options != nil && options.Deprecated != nil && *options.Deprecated {
+			continue
+		}
+		return choice.GetName()
+	}
+	return ""
 }
 
 func (c *schema) getGoogleType(name string, field *desc.FieldDescriptor) (value string, set bool) {
@@ -136,25 +150,25 @@ func (c *schema) getGeneratorFunc(field *desc.FieldDescriptor) interface{} {
 	case descriptor.FieldDescriptorProto_TYPE_STRING:
 		return c.getStringFunc(name)
 	case descriptor.FieldDescriptorProto_TYPE_DOUBLE:
-		return "F(##.##)"
+		return "Float(##.##)"
 	case descriptor.FieldDescriptorProto_TYPE_FLOAT:
-		return "F(##.##)"
+		return "Float(##.##)"
 	case descriptor.FieldDescriptorProto_TYPE_INT64:
-		return "N(########)"
+		return "Int(########)"
 	case descriptor.FieldDescriptorProto_TYPE_UINT64:
-		return "N(########)"
+		return "Int(########)"
 	case descriptor.FieldDescriptorProto_TYPE_INT32:
-		return "N(#####)"
+		return "Int(#####)"
 	case descriptor.FieldDescriptorProto_TYPE_FIXED64:
-		return "N(########)"
+		return "Int(########)"
 	case descriptor.FieldDescriptorProto_TYPE_FIXED32:
-		return "N(#####)"
+		return "Int(#####)"
 	case descriptor.FieldDescriptorProto_TYPE_BOOL:
 		return "Bool()"
 	case descriptor.FieldDescriptorProto_TYPE_BYTES:
 		return "B64(???????)"
 	case descriptor.FieldDescriptorProto_TYPE_UINT32:
-		return "N(#####)"
+		return "Int(#####)"
 	case descriptor.FieldDescriptorProto_TYPE_ENUM:
 		values := field.GetEnumType().GetValues()
 		var min, max int32
@@ -171,15 +185,15 @@ func (c *schema) getGeneratorFunc(field *desc.FieldDescriptor) interface{} {
 				max = num
 			}
 		}
-		return fmt.Sprintf("N(%d:%d)", min, max)
+		return fmt.Sprintf("Int(%d:%d)", min, max)
 	case descriptor.FieldDescriptorProto_TYPE_SFIXED32:
-		return "N(#####)"
+		return "Int(#####)"
 	case descriptor.FieldDescriptorProto_TYPE_SFIXED64:
-		return "N(########)"
+		return "Int(########)"
 	case descriptor.FieldDescriptorProto_TYPE_SINT32:
-		return "N(#####)"
+		return "Int(#####)"
 	case descriptor.FieldDescriptorProto_TYPE_SINT64:
-		return "N(########)"
+		return "Int(########)"
 	default:
 		return field.GetDefaultValue()
 	}
@@ -192,20 +206,5 @@ func (c *schema) getStringFunc(name string) interface{} {
 	if c.ipAddressEx.MatchString(name) {
 		return "IP(v4)"
 	}
-	return "S(?????)"
-}
-
-func chooseOneOff(parent *desc.OneOfDescriptor) string {
-	if parent == nil {
-		return ""
-	}
-	choices := parent.GetChoices()
-	for _, choice := range choices {
-		options := choice.GetFieldOptions()
-		if options != nil && options.Deprecated != nil && *options.Deprecated {
-			continue
-		}
-		return choice.GetName()
-	}
-	return ""
+	return "Str(?????)"
 }

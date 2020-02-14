@@ -133,6 +133,12 @@ func (c *proto) replaceExtraGenerators(value string) string {
 		replacer func(match string) string
 	}{
 		{
+			ex: regexp.MustCompile(`Str\([\s\?]+\)`),
+			replacer: func(match string) string {
+				return gofakeit.Lexify(match[2 : len(match)-1])
+			},
+		},
+		{
 			ex: regexp.MustCompile(`(Email|EmailAddress)\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.Email()
@@ -196,12 +202,6 @@ func (c *proto) replaceExtraGenerators(value string) string {
 			ex: regexp.MustCompile(`UUID\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.UUID()
-			},
-		},
-		{
-			ex: regexp.MustCompile(`S\([\s\?]+\)`),
-			replacer: func(match string) string {
-				return gofakeit.Lexify(match[2 : len(match)-1])
 			},
 		},
 		{
@@ -321,9 +321,9 @@ func (c *proto) replaceB64Generators(value string) string {
 }
 
 func (c *proto) replaceIntRangeGenerators(value string) (result string, err error) {
-	intRangeEx := regexp.MustCompile(fmt.Sprintf(`"\s*N\(%s:%[1]s\)\s*"|NS\(%[1]s:%[1]s\)`, signedIntEx))
+	intRangeEx := regexp.MustCompile(fmt.Sprintf(`"\s*Int\(%s:%[1]s\)\s*"|IntS\(%[1]s:%[1]s\)`, signedIntEx))
 	result = intRangeEx.ReplaceAllStringFunc(value, func(match string) string {
-		match = strings.Trim(match, getCutSet(match, "N"))
+		match = strings.Trim(match, getCutSet(match, "Int"))
 		parts := strings.Split(match, ":")
 		if len(parts) != 2 {
 			err = errors.New("the range must be in m:n format")
@@ -352,9 +352,9 @@ func (c *proto) replaceIntRangeGenerators(value string) (result string, err erro
 
 func (c *proto) replaceFloatRangeGenerators(value string) (result string, err error) {
 	// Float range: F[from:to:<optional decimal places>]
-	floatRangeEx := regexp.MustCompile(fmt.Sprintf(`"\s*F\(%s:%[1]s(:%s)?\)\s*"|FS\(%[1]s:%[1]s(:%[2]s)?\)`, floatEx, intEx))
+	floatRangeEx := regexp.MustCompile(fmt.Sprintf(`"\s*Float\(%s:%[1]s(:%s)?\)\s*"|FloatS\(%[1]s:%[1]s(:%[2]s)?\)`, floatEx, intEx))
 	result = floatRangeEx.ReplaceAllStringFunc(value, func(match string) string {
-		match = strings.Trim(match, getCutSet(match, "F"))
+		match = strings.Trim(match, getCutSet(match, "Float"))
 		parts := strings.Split(match, ":")
 		if len(parts) < 2 {
 			err = errors.New("the range must be in m:n format")
@@ -392,18 +392,18 @@ func (c *proto) replaceFloatRangeGenerators(value string) (result string, err er
 }
 
 func (c *proto) replaceIntNumberGenerators(value string) string {
-	intEx := regexp.MustCompile(fmt.Sprintf(`"\s*N\(%s\)\s*"|NS\(%[1]s\)`, intPlaceHolderEx))
+	intEx := regexp.MustCompile(fmt.Sprintf(`"\s*Int\(%s\)\s*"|IntS\(%[1]s\)`, intPlaceHolderEx))
 	return intEx.ReplaceAllStringFunc(value, func(match string) string {
-		match = strings.Trim(match, getCutSet(match, "N"))
+		match = strings.Trim(match, getCutSet(match, "Int"))
 		return gofakeit.Numerify(match)
 	})
 }
 
 func (c *proto) replaceFloatNumberGenerators(value string) string {
-	floatEx := regexp.MustCompile(fmt.Sprintf(`"\s*F\(%s\)\s*"|FS\(%[1]s\)`, floatPlaceHolderEx))
+	floatEx := regexp.MustCompile(fmt.Sprintf(`"\s*Float\(%s\)\s*"|FloatS\(%[1]s\)`, floatPlaceHolderEx))
 	return floatEx.ReplaceAllStringFunc(value, func(match string) string {
 
-		match = strings.Trim(match, getCutSet(match, "F"))
+		match = strings.Trim(match, getCutSet(match, "Float"))
 		// The first zero will be replaced in gofakeit.Numerify!
 		if len(match) > 0 && match[0] == '0' {
 			match = strings.Replace(match, "0", "*^*", 1)
