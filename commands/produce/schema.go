@@ -21,6 +21,7 @@ type schema struct {
 	random         bool
 	emailAddressEx *regexp.Regexp
 	ipAddressEx    *regexp.Regexp
+	utcExp         *regexp.Regexp
 }
 
 func addSchemaSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters) {
@@ -28,6 +29,7 @@ func addSchemaSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParam
 		globalParams:   global,
 		emailAddressEx: regexp.MustCompile(`(?i)email|email[-_]address|emailAddress`),
 		ipAddressEx:    regexp.MustCompile(`(?i)ip[-_]address|ipAddress`),
+		utcExp:         regexp.MustCompile(`(?i)utc|gmt`),
 	}
 	c := parent.Command("schema", "Produces the JSON representation of the given proto message. The produced schema can be used to publish to Kafka.").Action(cmd.run)
 	c.Arg("proto", "The fully qualified name of the proto message to generate the JSON schema of.").Required().StringVar(&cmd.proto)
@@ -74,6 +76,10 @@ func (c *schema) readSchema(mp map[string]interface{}, oneOffChoice string, md *
 		t := field.GetType()
 		name := field.GetName()
 		if t == descriptor.FieldDescriptorProto_TYPE_MESSAGE {
+			if gt, set := c.getGoogleType(name, field); set {
+				mp[name] = gt
+				continue
+			}
 			oneOffChoice = chooseOneOff(field.GetOneOf())
 			if oneOffChoice != "" && name != oneOffChoice && field.GetOneOf() != nil {
 				continue
@@ -93,6 +99,34 @@ func (c *schema) readSchema(mp map[string]interface{}, oneOffChoice string, md *
 			}
 		}
 	}
+}
+
+func (c *schema) getGoogleType(name string, field *desc.FieldDescriptor) (value string, set bool) {
+	ft := field.GetMessageType()
+	if ft == nil {
+		return "", false
+	}
+
+	switch ft.GetFullyQualifiedName() {
+	case "google.protobuf.Timestamp":
+		set = true
+		if c.random {
+			if c.utcExp.MatchString(name) {
+				value = "Timestamp(2006-01-02T15:04:05Z07:00,UTC)"
+			} else {
+				value = "Timestamp(2006-01-02T15:04:05Z07:00)"
+			}
+		}
+	case "google.protobuf.Duration":
+		set = true
+		if c.random {
+			value = "FS(1:10:3)s"
+		}
+	default:
+		value = ""
+		set = false
+	}
+	return
 }
 
 func (c *schema) getGeneratorFunc(field *desc.FieldDescriptor) interface{} {

@@ -163,25 +163,140 @@ func (c *proto) replaceExtraGenerators(value string) string {
 			},
 		},
 		{
+			ex: regexp.MustCompile(`Country\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.Country()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`CountryAbr\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.CountryAbr()
+			},
+		},
+		{
 			ex: regexp.MustCompile(`State\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.State()
 			},
 		},
 		{
-			ex: regexp.MustCompile(`S\([\w\?]+\)`),
+			ex: regexp.MustCompile(`City\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.City()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`"\s*Bool\(\)\s*"`),
+			replacer: func(match string) string {
+				return gofakeit.RandString([]string{"true", "false"})
+			},
+		},
+		{
+			ex: regexp.MustCompile(`UUID\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.UUID()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`S\([\s\?]+\)`),
 			replacer: func(match string) string {
 				return gofakeit.Lexify(match[2 : len(match)-1])
 			},
 		},
 		{
-			ex: regexp.MustCompile(`(?i)Pick\(.*\)`),
+			ex: regexp.MustCompile(`Timestamp\(.+\)`),
 			replacer: func(match string) string {
-				items := match[strings.Index(match, "[")+1 : strings.Index(match, "]")]
-				if internal.IsEmpty(items) {
+				t := gofakeit.Date()
+				match = match[10 : len(match)-1]
+				utcEx := regexp.MustCompile(`(?i)\s*[,]?\s*UTC|GMT\s*`)
+				match = utcEx.ReplaceAllStringFunc(match, func(s string) string {
+					t = t.UTC()
+					return ""
+				})
+				return t.Format(strings.TrimSpace(match))
+			},
+		},
+		{
+			ex: regexp.MustCompile(`Color\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.Color()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`HexColor\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.HexColor()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`Currency\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.CurrencyShort()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`Gender\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.Gender()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`UserAgent\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.UserAgent()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`Username\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.Username()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`URL\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.URL()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`TimeZoneFull\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.TimeZoneFull()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`TimeZone\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.TimeZone()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`Month\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.Month()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`WeekDay\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.WeekDay()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`HTTPMethod\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.HTTPMethod()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`"\s*Pick\(.*\)\s*"|PickS\(.*\)`),
+			replacer: func(match string) string {
+				match = strings.Trim(match, getCutSet(match, "Pick"))
+				if internal.IsEmpty(match) {
 					return match
 				}
-				list := strings.FieldsFunc(items, func(r rune) bool {
+				list := strings.FieldsFunc(match, func(r rune) bool {
 					return r == ',' || r == ' '
 				})
 				return gofakeit.RandString(list)
@@ -287,6 +402,7 @@ func (c *proto) replaceIntNumberGenerators(value string) string {
 func (c *proto) replaceFloatNumberGenerators(value string) string {
 	floatEx := regexp.MustCompile(fmt.Sprintf(`"\s*F\(%s\)\s*"|FS\(%[1]s\)`, floatPlaceHolderEx))
 	return floatEx.ReplaceAllStringFunc(value, func(match string) string {
+
 		match = strings.Trim(match, getCutSet(match, "F"))
 		// The first zero will be replaced in gofakeit.Numerify!
 		if len(match) > 0 && match[0] == '0' {
