@@ -50,7 +50,12 @@ func initialiseProducer(kafkaParams *commands.KafkaParameters, verbosity interna
 	return producer, nil
 }
 
-func produce(kafkaParams *commands.KafkaParameters, globalParams *commands.GlobalParameters, topic string, key, value string, serialize valueSerializer, count uint32) error {
+func produce(kafkaParams *commands.KafkaParameters,
+	globalParams *commands.GlobalParameters,
+	topic string,
+	key, value string,
+	serialize valueSerializer,
+	count uint32) error {
 	producer, err := initialiseProducer(kafkaParams, globalParams.Verbosity)
 	if err != nil {
 		return err
@@ -73,7 +78,10 @@ func produce(kafkaParams *commands.KafkaParameters, globalParams *commands.Globa
 	if count > 1 {
 		msg = "messages"
 	}
-	fmt.Printf("Publishing %d %s to Kafka\n", count, msg)
+
+	if globalParams.Verbosity >= internal.Verbose {
+		fmt.Printf("Publishing %d %s to Kafka\n", count, msg)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -81,7 +89,6 @@ func produce(kafkaParams *commands.KafkaParameters, globalParams *commands.Globa
 		internal.WaitForCancellationSignal()
 		cancel()
 	}()
-
 	for i := uint32(1); i <= count; i++ {
 		select {
 		case <-ctx.Done():
@@ -98,7 +105,7 @@ func produce(kafkaParams *commands.KafkaParameters, globalParams *commands.Globa
 			if err != nil {
 				return fmt.Errorf("failed to publish to kafka: %w", err)
 			}
-			if globalParams.Verbosity >= internal.Verbose {
+			if globalParams.Verbosity >= internal.VeryVerbose {
 				fmt.Printf("Message#%d has been published to the offset %d of partition %d (PK: %s)\n",
 					i,
 					offset,

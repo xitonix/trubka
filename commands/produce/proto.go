@@ -19,16 +19,19 @@ import (
 )
 
 type proto struct {
-	kafkaParams  *commands.KafkaParameters
-	globalParams *commands.GlobalParameters
-	message      string
-	key          string
-	topic        string
-	proto        string
-	count        uint32
-	protoRoot    string
-	random       bool
-	protoMessage *dynamic.Message
+	kafkaParams    *commands.KafkaParameters
+	globalParams   *commands.GlobalParameters
+	message        string
+	key            string
+	topic          string
+	proto          string
+	count          uint32
+	protoRoot      string
+	random         bool
+	protoMessage   *dynamic.Message
+	highlightStyle string
+	highlighter    *internal.JsonHighlighter
+	contentType    string
 }
 
 const (
@@ -37,6 +40,12 @@ const (
 	signedIntEx        = `[-+]?[0-9]+`
 	intPlaceHolderEx   = "([0-9]|#)*"
 	floatPlaceHolderEx = `[-+]?([0-9]|#)*\.?([0-9]|#)+`
+)
+
+const (
+	contentTypeJson = internal.Json
+	contentTypeB64  = "base64"
+	contentTypeRaw  = "raw"
 )
 
 func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -63,6 +72,13 @@ func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	c.Flag("generate-random-data", "Replaces the random generator place holder functions with the random value.").
 		Short('g').
 		BoolVar(&cmd.random)
+	c.Flag("content-type", "The type of the message content.").
+		Default(contentTypeJson).
+		StringVar(&cmd.contentType)
+	c.Flag("style", fmt.Sprintf("The highlighting style of the Json message content. Applicable to --content-type=%s only. Set to 'none' to disable.", contentTypeJson)).
+		Default(internal.DefaultHighlightStyle).
+		EnumVar(&cmd.highlightStyle,
+			internal.HighlightStyles...)
 }
 
 func (c *proto) run(_ *kingpin.ParseContext) error {
@@ -86,11 +102,20 @@ func (c *proto) run(_ *kingpin.ParseContext) error {
 	}
 
 	c.protoMessage = message
+	c.highlighter = internal.NewJsonHighlighter(c.highlightStyle, c.globalParams.EnableColor)
 
 	return produce(c.kafkaParams, c.globalParams, c.topic, c.key, value, c.serializeProto, c.count)
 }
 
 func (c *proto) serializeProto(value string) ([]byte, error) {
+	if strings.EqualFold(c.contentType, contentTypeB64) {
+		return base64.StdEncoding.DecodeString(value)
+	}
+
+	if strings.EqualFold(c.contentType, contentTypeRaw) {
+		return []byte(value), nil
+	}
+
 	if c.random {
 		v, err := c.replaceRandomGenerator(value)
 		if err != nil {
@@ -99,7 +124,10 @@ func (c *proto) serializeProto(value string) ([]byte, error) {
 		value = v
 	}
 
-	fmt.Println(value)
+	if c.globalParams.Verbosity >= internal.Verbose {
+		fmt.Printf("%s\n", c.highlighter.Highlight([]byte(value)))
+	}
+
 	err := c.protoMessage.UnmarshalJSON([]byte(value))
 	if err != nil {
 		return nil, err
