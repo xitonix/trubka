@@ -1,6 +1,7 @@
 package protobuf
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -37,6 +38,8 @@ func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, top
 	)
 
 	switch m.format {
+	case internal.Base64:
+		result, err = m.marshalBase64(msg)
 	case internal.Hex:
 		result, err = m.marshalHex(msg, false)
 	case internal.HexIndent:
@@ -72,6 +75,16 @@ func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, top
 	}
 
 	return result, nil
+}
+
+func (m *Marshaller) marshalBase64(msg *dynamic.Message) ([]byte, error) {
+	output, err := msg.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	buf := make([]byte, base64.StdEncoding.EncodedLen(len(output)))
+	base64.StdEncoding.Encode(buf, output)
+	return buf, nil
 }
 
 func (m *Marshaller) marshalHex(msg *dynamic.Message, indent bool) ([]byte, error) {

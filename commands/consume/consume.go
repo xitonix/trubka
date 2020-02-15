@@ -56,7 +56,8 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 			internal.Text,
 			internal.TextIndent,
 			internal.Hex,
-			internal.HexIndent)
+			internal.HexIndent,
+			internal.Base64)
 
 	command.Flag("environment", `To store the offsets on the disk in environment specific paths. It's only required if you use Trubka to consume from different Kafka clusters on the same machine (eg. dev/prod).`).
 		Short('e').

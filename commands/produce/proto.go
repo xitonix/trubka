@@ -42,12 +42,6 @@ const (
 	floatPlaceHolderEx = `[-+]?([0-9]|#)*\.?([0-9]|#)+`
 )
 
-const (
-	contentTypeJson = internal.Json
-	contentTypeB64  = "base64"
-	contentTypeRaw  = "raw"
-)
-
 func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 
 	cmd := &proto{
@@ -73,9 +67,9 @@ func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 		Short('g').
 		BoolVar(&cmd.random)
 	c.Flag("content-type", "The type of the message content.").
-		Default(contentTypeJson).
-		StringVar(&cmd.contentType)
-	c.Flag("style", fmt.Sprintf("The highlighting style of the Json message content. Applicable to --content-type=%s only. Set to 'none' to disable.", contentTypeJson)).
+		Default(internal.Json).
+		EnumVar(&cmd.contentType, internal.Json, internal.Base64)
+	c.Flag("style", fmt.Sprintf("The highlighting style of the Json message content. Applicable to --content-type=%s only. Set to 'none' to disable.", internal.Json)).
 		Default(internal.DefaultHighlightStyle).
 		EnumVar(&cmd.highlightStyle,
 			internal.HighlightStyles...)
@@ -108,12 +102,8 @@ func (c *proto) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *proto) serializeProto(value string) ([]byte, error) {
-	if strings.EqualFold(c.contentType, contentTypeB64) {
+	if strings.EqualFold(c.contentType, internal.Base64) {
 		return base64.StdEncoding.DecodeString(value)
-	}
-
-	if strings.EqualFold(c.contentType, contentTypeRaw) {
-		return []byte(value), nil
 	}
 
 	if c.random {
