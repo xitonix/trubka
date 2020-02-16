@@ -32,6 +32,7 @@ type proto struct {
 	highlightStyle string
 	highlighter    *internal.JsonHighlighter
 	contentType    string
+	fixedOffsetEx  *regexp.Regexp
 }
 
 const (
@@ -45,13 +46,14 @@ const (
 func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 
 	cmd := &proto{
-		kafkaParams:  kafkaParams,
-		globalParams: global,
+		kafkaParams:   kafkaParams,
+		globalParams:  global,
+		fixedOffsetEx: regexp.MustCompile(`(?i)UTC[+-][0-9]+(:[0-9]+)?`),
 	}
 	c := parent.Command("proto", "Publishes protobuf messages to Kafka.").Action(cmd.run)
 	c.Arg("topic", "The topic to publish to.").Required().StringVar(&cmd.topic)
 	c.Arg("proto", "The proto to publish to.").Required().StringVar(&cmd.proto)
-	c.Arg("content", "The JSON representation of the message. You can pipe the content in, or pass it as the command's second argument.").StringVar(&cmd.message)
+	c.Arg("content", "The JSON/Base64 representation of the message. You can pipe the content in, or pass it as the command's second argument.").StringVar(&cmd.message)
 	c.Flag("proto-root", "The path to the folder where your *.proto files live.").
 		Short('r').
 		Required().
@@ -63,7 +65,7 @@ func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 		Default("1").
 		Short('c').
 		Uint32Var(&cmd.count)
-	c.Flag("generate-random-data", "Replaces the random generator place holder functions with the random value.").
+	c.Flag("generate-random-data", "Replaces the random generator place holder functions with random values.").
 		Short('g').
 		BoolVar(&cmd.random)
 	c.Flag("content-type", "The type of the message content.").
@@ -130,28 +132,33 @@ func (c *proto) replaceRandomGenerator(value string) (string, error) {
 	gofakeit.Seed(time.Now().UnixNano())
 	var err error
 	// Ranges need to be processed before normal numbers
-	value, err = c.replaceIntRangeGenerators(value)
+	value, err = replaceIntRangeGenerators(value)
 	if err != nil {
 		return "", err
 	}
-	value, err = c.replaceFloatRangeGenerators(value)
+	value, err = replaceFloatRangeGenerators(value)
 	if err != nil {
 		return "", err
 	}
-	value = c.replaceIntNumberGenerators(value)
-	value = c.replaceFloatNumberGenerators(value)
-	value = c.replaceExtraGenerators(value)
-	value = c.replaceB64Generators(value)
+
+	value = replaceIntNumberGenerators(value)
+	value = replaceFloatNumberGenerators(value)
+	value = replaceExtraGenerators(value)
+	value, err = c.replaceTimestampGenerators(value)
+	if err != nil {
+		return "", err
+	}
+	value = replaceB64Generators(value)
 	return value, nil
 }
 
-func (c *proto) replaceExtraGenerators(value string) string {
+func replaceExtraGenerators(value string) string {
 	matchers := []struct {
 		ex       *regexp.Regexp
 		replacer func(match string) string
 	}{
 		{
-			ex: regexp.MustCompile(`Str\([\s\?]+\)`),
+			ex: regexp.MustCompile(`Str\([\s?]+\)`),
 			replacer: func(match string) string {
 				return gofakeit.Lexify(match[2 : len(match)-1])
 			},
@@ -220,19 +227,6 @@ func (c *proto) replaceExtraGenerators(value string) string {
 			ex: regexp.MustCompile(`UUID\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.UUID()
-			},
-		},
-		{
-			ex: regexp.MustCompile(`Timestamp\(.+\)`),
-			replacer: func(match string) string {
-				t := gofakeit.Date()
-				match = match[10 : len(match)-1]
-				utcEx := regexp.MustCompile(`(?i)\s*[,]?\s*UTC|GMT\s*`)
-				match = utcEx.ReplaceAllStringFunc(match, func(s string) string {
-					t = t.UTC()
-					return ""
-				})
-				return t.Format(strings.TrimSpace(match))
 			},
 		},
 		{
@@ -329,7 +323,7 @@ func (c *proto) replaceExtraGenerators(value string) string {
 	return value
 }
 
-func (c *proto) replaceB64Generators(value string) string {
+func replaceB64Generators(value string) string {
 	base64Ex := regexp.MustCompile(`B64\(.*\)`)
 	value = base64Ex.ReplaceAllStringFunc(value, func(match string) string {
 		m := gofakeit.Lexify(match[2 : len(match)-1])
@@ -338,7 +332,7 @@ func (c *proto) replaceB64Generators(value string) string {
 	return value
 }
 
-func (c *proto) replaceIntRangeGenerators(value string) (result string, err error) {
+func replaceIntRangeGenerators(value string) (result string, err error) {
 	intRangeEx := regexp.MustCompile(fmt.Sprintf(`"\s*Int\(%s:%[1]s\)\s*"|IntS\(%[1]s:%[1]s\)`, signedIntEx))
 	result = intRangeEx.ReplaceAllStringFunc(value, func(match string) string {
 		match = strings.Trim(match, getCutSet(match, "Int"))
@@ -368,7 +362,89 @@ func (c *proto) replaceIntRangeGenerators(value string) (result string, err erro
 	return
 }
 
-func (c *proto) replaceFloatRangeGenerators(value string) (result string, err error) {
+func (c *proto) replaceTimestampGenerators(value string) (result string, err error) {
+	ex := regexp.MustCompile(`(Now|Timestamp)\(.*\)`)
+	now := time.Now()
+	timeZoneEx := regexp.MustCompile(`(?i)\s*,\s*'.+\s*'`)
+	result = ex.ReplaceAllStringFunc(value, func(match string) string {
+		var t time.Time
+		if strings.HasPrefix(match, "Now") {
+			match = match[4 : len(match)-1]
+			t = now
+		} else {
+			match = match[10 : len(match)-1]
+			t = gofakeit.Date()
+		}
+		match = timeZoneEx.ReplaceAllStringFunc(match, func(timezone string) string {
+			timezone = strings.Trim(timezone, "', ")
+			loc, e := c.parseTimezone(timezone)
+			if e != nil {
+				err = e
+				return ""
+			}
+			t = t.In(loc)
+			return ""
+		})
+
+		if err != nil {
+			return ""
+		}
+
+		layout := strings.TrimSpace(strings.ReplaceAll(match, "'", ""))
+		if internal.IsEmpty(layout) {
+			layout = time.RFC3339
+		}
+		return t.Format(layout)
+	})
+	return
+}
+
+func (c *proto) parseTimezone(timezone string) (*time.Location, error) {
+	if internal.IsEmpty(timezone) {
+		return nil, errors.New("timezone value cannot be empty")
+	}
+
+	loc, err := time.LoadLocation(timezone)
+	if err == nil {
+		return loc, nil
+	}
+
+	// The value might be a fixed offset in UTC±hh:mm format
+	timezone = strings.TrimSpace(timezone)
+	if !c.fixedOffsetEx.MatchString(timezone) {
+		return nil, timezoneError(timezone)
+	}
+
+	parts := strings.Split(timezone[3:], ":")
+	if len(parts) == 0 {
+		return nil, timezoneError(timezone)
+	}
+
+	hours, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return nil, timezoneError(timezone)
+	}
+
+	var minutes int
+	if len(parts) > 1 {
+		minutes, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return nil, timezoneError(timezone)
+		}
+	} else {
+		timezone += ":00"
+	}
+	if hours < 0 {
+		minutes *= -1
+	}
+	return time.FixedZone(timezone, (hours*60*60)+(minutes*60)), nil
+}
+
+func timezoneError(timezone string) error {
+	return fmt.Errorf("the timezone value must be either in UTC±hh:mm format or a standard IANA value (eg 'America/New_York'): %s", timezone)
+}
+
+func replaceFloatRangeGenerators(value string) (result string, err error) {
 	// Float range: F[from:to:<optional decimal places>]
 	floatRangeEx := regexp.MustCompile(fmt.Sprintf(`"\s*Float\(%s:%[1]s(:%s)?\)\s*"|FloatS\(%[1]s:%[1]s(:%[2]s)?\)`, floatEx, intEx))
 	result = floatRangeEx.ReplaceAllStringFunc(value, func(match string) string {
@@ -409,7 +485,7 @@ func (c *proto) replaceFloatRangeGenerators(value string) (result string, err er
 	return
 }
 
-func (c *proto) replaceIntNumberGenerators(value string) string {
+func replaceIntNumberGenerators(value string) string {
 	intEx := regexp.MustCompile(fmt.Sprintf(`"\s*Int\(%s\)\s*"|IntS\(%[1]s\)`, intPlaceHolderEx))
 	return intEx.ReplaceAllStringFunc(value, func(match string) string {
 		match = strings.Trim(match, getCutSet(match, "Int"))
@@ -417,7 +493,7 @@ func (c *proto) replaceIntNumberGenerators(value string) string {
 	})
 }
 
-func (c *proto) replaceFloatNumberGenerators(value string) string {
+func replaceFloatNumberGenerators(value string) string {
 	floatEx := regexp.MustCompile(fmt.Sprintf(`"\s*Float\(%s\)\s*"|FloatS\(%[1]s\)`, floatPlaceHolderEx))
 	return floatEx.ReplaceAllStringFunc(value, func(match string) string {
 

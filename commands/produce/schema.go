@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
@@ -126,15 +127,15 @@ func (c *schema) getGoogleType(name string, field *desc.FieldDescriptor) (value 
 		set = true
 		if c.random {
 			if c.utcExp.MatchString(name) {
-				value = "Timestamp(2006-01-02T15:04:05Z07:00,UTC)"
+				value = fmt.Sprintf("Now('%s','UTC')", time.RFC3339)
 			} else {
-				value = "Timestamp(2006-01-02T15:04:05Z07:00)"
+				value = fmt.Sprintf("Now('%s')", time.RFC3339)
 			}
 		}
 	case "google.protobuf.Duration":
 		set = true
 		if c.random {
-			value = "FS(1:10:3)s"
+			value = "FloatS(1:10:3)s"
 		}
 	default:
 		value = ""
