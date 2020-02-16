@@ -64,7 +64,7 @@ func AddFormatFlag(c *kingpin.CmdClause, format *string) {
 }
 
 func PrintConfigTable(entries []*kafka.ConfigEntry) {
-	fmt.Printf("\n%s\n", output.UnderlineWithCount("Configurations", len(entries)))
+	output.WithCount("Configurations", len(entries))
 	table := output.InitStaticTable(os.Stdout,
 		output.H("Name", tablewriter.ALIGN_LEFT),
 		output.H("Value", tablewriter.ALIGN_LEFT),
@@ -81,7 +81,7 @@ func PrintConfigTable(entries []*kafka.ConfigEntry) {
 }
 
 func PrintConfigPlain(entries []*kafka.ConfigEntry) {
-	fmt.Printf("\n%s\n", output.UnderlineWithCount("Configurations", len(entries)))
+	output.UnderlineWithCount("Configurations", len(entries))
 	for _, config := range entries {
 		fmt.Printf(" - %s: %s\n", config.Name, config.Value)
 	}

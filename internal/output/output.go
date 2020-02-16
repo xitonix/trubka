@@ -16,9 +16,17 @@ func Underline(in string) string {
 	return in + "\n" + strings.Repeat("-", len(in))
 }
 
-func UnderlineWithCount(title string, count int) string {
-	title = fmt.Sprintf("%s (%d)", title, count)
-	return Underline(title)
+func UnderlineWithCount(title string, count int) {
+	title = Underline(titledCounter(title, count))
+	fmt.Printf("\n%s\n", title)
+}
+
+func WithCount(title string, count int) {
+	fmt.Printf("\n%s\n", titledCounter(title, count))
+}
+
+func titledCounter(title string, count int) string {
+	return fmt.Sprintf("%s (%d)", title, count)
 }
 
 func InitStaticTable(writer io.Writer, headers ...TableHeader) *tablewriter.Table {

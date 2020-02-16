@@ -81,7 +81,7 @@ func (b *broker) printHeader(isController bool) {
 }
 func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) {
 	b.printHeader(meta.IsController)
-	fmt.Printf("\n%s\n", output.UnderlineWithCount("Consumer Group", len(meta.ConsumerGroups)))
+	output.UnderlineWithCount("Consumer Groups", len(meta.ConsumerGroups))
 	for _, group := range meta.ConsumerGroups {
 		fmt.Printf(" - %s\n", group)
 	}
@@ -166,7 +166,7 @@ func (b *broker) printLogsPlain(logs []*kafka.LogFile) {
 }
 
 func (b *broker) printAPITable(apis []*kafka.API) {
-	fmt.Printf("\n%s\n", output.Underline("Supported API Versions"))
+	output.WithCount("Supported API Versions", len(apis))
 	table := output.InitStaticTable(os.Stdout,
 		output.H("API Key", tablewriter.ALIGN_CENTER),
 		output.H("Name", tablewriter.ALIGN_LEFT),
@@ -189,7 +189,7 @@ func (b *broker) printAPITable(apis []*kafka.API) {
 }
 
 func (b *broker) printAPIPlain(apis []*kafka.API) {
-	fmt.Printf("\n%s\n", output.UnderlineWithCount("Supported API Versions", len(apis)))
+	output.UnderlineWithCount("Supported API Versions", len(apis))
 	for _, api := range apis {
 		fmt.Printf(" %s\n", api)
 	}

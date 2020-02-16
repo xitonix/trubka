@@ -68,6 +68,7 @@ func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
 		output.H("ID", tablewriter.ALIGN_LEFT),
 		output.H("Address", tablewriter.ALIGN_LEFT),
 	)
+	output.WithCount("Brokers", len(meta.Brokers))
 	for _, broker := range meta.Brokers {
 		id := strconv.FormatInt(int64(broker.ID), 10)
 		host := broker.Host
@@ -88,7 +89,7 @@ func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
 }
 
 func (c *cluster) printPlainTextOutput(meta *kafka.ClusterMetadata) {
-	fmt.Printf("\n%s\n", output.UnderlineWithCount("Brokers", len(meta.Brokers)))
+	output.UnderlineWithCount("Brokers", len(meta.Brokers))
 	for _, broker := range meta.Brokers {
 		fmt.Printf("%s\n", broker.String())
 	}

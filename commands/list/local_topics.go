@@ -66,6 +66,8 @@ func (l *listLocalTopics) printTableOutput(store map[string][]string) {
 		for _, topic := range topics {
 			table.Append([]string{output.SpaceIfEmpty(topic)})
 		}
+		table.SetFooter([]string{fmt.Sprintf("Total: %d", len(topics))})
+		table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
 		table.Render()
 		fmt.Println()
 	}
@@ -73,7 +75,8 @@ func (l *listLocalTopics) printTableOutput(store map[string][]string) {
 
 func (l *listLocalTopics) printPlainTextOutput(store map[string][]string) {
 	for env, topics := range store {
-		fmt.Printf("%s: %s\n", internal.Bold("Environment", l.globalParams.EnableColor), internal.Bold(env, l.globalParams.EnableColor))
+		line := fmt.Sprintf("Environment: %s (%d)", env, len(topics))
+		fmt.Println(internal.Bold(line, l.globalParams.EnableColor))
 		sort.Strings(topics)
 		for _, topic := range topics {
 			fmt.Printf("  - %s\n", topic)
