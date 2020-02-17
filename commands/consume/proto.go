@@ -24,7 +24,7 @@ type consumeProto struct {
 	protoRoot               string
 	topic                   string
 	messageType             string
-	format                  string
+	encodeTo                string
 	outputDir               string
 	environment             string
 	logFile                 string
@@ -51,7 +51,6 @@ func addConsumeProtoCommand(parent *kingpin.CmdClause, global *commands.GlobalPa
 	c := parent.Command("proto", "Starts consuming protobuf encoded events from the given Kafka topic.").Action(cmd.run)
 	bindCommonConsumeFlags(c,
 		&cmd.topic,
-		&cmd.format,
 		&cmd.environment,
 		&cmd.outputDir,
 		&cmd.logFile,
@@ -82,6 +81,16 @@ func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
 	command.Flag("proto-filter", "The optional regular expression to filter the proto types by (Interactive mode only).").
 		Short('p').
 		RegexpVar(&c.protoFilter)
+
+	command.Flag("encode-to", "The format in which the incoming Kafka messages will be written to the output.").
+		Default(internal.JsonIndentEncoding).
+		Short('E').
+		EnumVar(&c.encodeTo,
+			internal.PlainTextEncoding,
+			internal.JsonEncoding,
+			internal.JsonIndentEncoding,
+			internal.Base64Encoding,
+			internal.HexEncoding)
 }
 
 func (c *consumeProto) run(_ *kingpin.ParseContext) error {
@@ -171,7 +180,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		go func() {
 			defer wg.Done()
 
-			marshaller := protobuf.NewMarshaller(c.format,
+			marshaller := protobuf.NewMarshaller(c.encodeTo,
 				c.includeTimestamp,
 				c.includeTopicName && !writeEventsToFile,
 				c.includeKey,

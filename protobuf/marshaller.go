@@ -12,7 +12,7 @@ import (
 )
 
 type Marshaller struct {
-	format           string
+	outputEncoding   string
 	includeTimeStamp bool
 	includeTopicName bool
 	includeKey       bool
@@ -20,9 +20,9 @@ type Marshaller struct {
 	highlighter      *internal.JsonHighlighter
 }
 
-func NewMarshaller(format string, includeTimeStamp, includeTopicName, includeKey bool, enableColor bool, highlightStyle string) *Marshaller {
+func NewMarshaller(outputEncoding string, includeTimeStamp, includeTopicName, includeKey bool, enableColor bool, highlightStyle string) *Marshaller {
 	return &Marshaller{
-		format:           strings.TrimSpace(strings.ToLower(format)),
+		outputEncoding:   strings.TrimSpace(strings.ToLower(outputEncoding)),
 		includeTimeStamp: includeTimeStamp,
 		includeTopicName: includeTopicName,
 		includeKey:       includeKey,
@@ -37,20 +37,14 @@ func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, top
 		err    error
 	)
 
-	switch m.format {
-	case internal.Base64:
+	switch m.outputEncoding {
+	case internal.Base64Encoding:
 		result, err = m.marshalBase64(msg)
-	case internal.Hex:
-		result, err = m.marshalHex(msg, false)
-	case internal.HexIndent:
-		result, err = m.marshalHex(msg, true)
-	case internal.Text:
-		result, err = m.marshal(msg.MarshalText)
-	case internal.TextIndent:
-		result, err = m.marshal(msg.MarshalTextIndent)
-	case internal.Json:
+	case internal.HexEncoding:
+		result, err = m.marshalHex(msg)
+	case internal.JsonEncoding:
 		result, err = m.marshal(msg.MarshalJSON)
-	case internal.JsonIndent:
+	case internal.JsonIndentEncoding:
 		result, err = m.marshal(msg.MarshalJSONIndent)
 		if m.enableColor {
 			result = m.highlighter.Highlight(result)
@@ -87,16 +81,12 @@ func (m *Marshaller) marshalBase64(msg *dynamic.Message) ([]byte, error) {
 	return buf, nil
 }
 
-func (m *Marshaller) marshalHex(msg *dynamic.Message, indent bool) ([]byte, error) {
+func (m *Marshaller) marshalHex(msg *dynamic.Message) ([]byte, error) {
 	output, err := msg.Marshal()
 	if err != nil {
 		return nil, err
 	}
-	fm := "%X"
-	if indent {
-		fm = "% X"
-	}
-	out := []byte(fmt.Sprintf(fm, output))
+	out := []byte(fmt.Sprintf("%X", output))
 	return out, nil
 }
 

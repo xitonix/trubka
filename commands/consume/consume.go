@@ -27,7 +27,7 @@ func AddCommands(app *kingpin.Application, global *commands.GlobalParameters, ka
 }
 
 func bindCommonConsumeFlags(command *kingpin.CmdClause,
-	topic, format, environment, outputDir, logFile, from *string,
+	topic, environment, outputDir, logFile, from *string,
 	includeTimestamp, includeKey, includeTopicName, enableAutoTopicCreation, reverse, interactive, interactiveWithCustomOffset, count *bool,
 	searchQuery, topicFilter **regexp.Regexp, highlightStyle *string) {
 
@@ -47,17 +47,6 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 
 	command.Flag("auto-topic-creation", `Enables automatic topic creation before consuming if it's allowed by the server.`).
 		BoolVar(enableAutoTopicCreation)
-
-	command.Flag("format", "The format in which the Kafka messages will be written to the output.").
-		Default(internal.JsonIndent).
-		EnumVar(format,
-			internal.Json,
-			internal.JsonIndent,
-			internal.Text,
-			internal.TextIndent,
-			internal.Hex,
-			internal.HexIndent,
-			internal.Base64)
 
 	command.Flag("environment", `To store the offsets on the disk in environment specific paths. It's only required if you use Trubka to consume from different Kafka clusters on the same machine (eg. dev/prod).`).
 		Short('e').
@@ -102,7 +91,7 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 		HintOptions("newest", "oldest", pastHour, "0:10,1:20,:0").
 		StringVar(from)
 
-	command.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --format=%s only. Set to 'none' to disable.", internal.JsonIndent)).
+	command.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --encode-to=%s only. Set to 'none' to disable.", internal.JsonIndentEncoding)).
 		Default(internal.DefaultHighlightStyle).
 		EnumVar(highlightStyle,
 			internal.HighlightStyles...)

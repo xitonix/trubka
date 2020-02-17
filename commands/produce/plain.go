@@ -1,9 +1,12 @@
 package produce
 
 import (
+	"fmt"
+
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal"
 )
 
 type plain struct {
@@ -30,6 +33,7 @@ func addPlainSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 		Default("1").
 		Short('c').
 		Uint32Var(&cmd.count)
+
 }
 
 func (c *plain) run(_ *kingpin.ParseContext) error {
@@ -38,12 +42,11 @@ func (c *plain) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	return produce(c.kafkaParams,
-		c.globalParams,
-		c.topic,
-		c.key,
-		value,
+	return produce(c.kafkaParams, c.globalParams, c.topic, c.key, value,
 		func(value string) ([]byte, error) {
+			if c.globalParams.Verbosity >= internal.Verbose {
+				fmt.Printf("%s\n", value)
+			}
 			return []byte(value), nil
 		},
 		c.count)

@@ -2,6 +2,7 @@ package produce
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"regexp"
@@ -54,6 +55,9 @@ func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	c.Arg("topic", "The topic to publish to.").Required().StringVar(&cmd.topic)
 	c.Arg("proto", "The proto to publish to.").Required().StringVar(&cmd.proto)
 	c.Arg("content", "The JSON/Base64 representation of the message. You can pipe the content in, or pass it as the command's second argument.").StringVar(&cmd.message)
+	c.Flag("content-type", "The type of the message content.").
+		Default(internal.JsonEncoding).
+		EnumVar(&cmd.contentType, internal.JsonEncoding, internal.Base64Encoding, internal.HexEncoding)
 	c.Flag("proto-root", "The path to the folder where your *.proto files live.").
 		Short('r').
 		Required().
@@ -68,10 +72,7 @@ func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	c.Flag("generate-random-data", "Replaces the random generator place holder functions with random values.").
 		Short('g').
 		BoolVar(&cmd.random)
-	c.Flag("content-type", "The type of the message content.").
-		Default(internal.Json).
-		EnumVar(&cmd.contentType, internal.Json, internal.Base64)
-	c.Flag("style", fmt.Sprintf("The highlighting style of the Json message content. Applicable to --content-type=%s only. Set to 'none' to disable.", internal.Json)).
+	c.Flag("style", fmt.Sprintf("The highlighting style of the Json message content. Applicable to --content-type=%s only. Set to 'none' to disable.", internal.JsonEncoding)).
 		Default(internal.DefaultHighlightStyle).
 		EnumVar(&cmd.highlightStyle,
 			internal.HighlightStyles...)
@@ -103,29 +104,45 @@ func (c *proto) run(_ *kingpin.ParseContext) error {
 	return produce(c.kafkaParams, c.globalParams, c.topic, c.key, value, c.serializeProto, c.count)
 }
 
-func (c *proto) serializeProto(value string) ([]byte, error) {
-	if strings.EqualFold(c.contentType, internal.Base64) {
-		return base64.StdEncoding.DecodeString(value)
-	}
+func (c *proto) serializeProto(value string) (result []byte, err error) {
+	var isJson bool
+	switch strings.ToLower(c.contentType) {
+	case internal.Base64Encoding:
+		result, err = base64.StdEncoding.DecodeString(value)
+	case internal.HexEncoding:
+		value = strings.Replace(value, " ", "", -1)
+		result, err = hex.DecodeString(value)
+	default:
+		isJson = true
+		if c.random {
+			value, err = c.replaceRandomGenerator(value)
+			if err != nil {
+				return nil, err
+			}
+		}
 
-	if c.random {
-		v, err := c.replaceRandomGenerator(value)
+		err = c.protoMessage.UnmarshalJSON([]byte(value))
 		if err != nil {
 			return nil, err
 		}
-		value = v
-	}
 
-	if c.globalParams.Verbosity >= internal.Verbose {
+		result, err = c.protoMessage.Marshal()
+	}
+	if err == nil {
+		c.printContent(value, isJson)
+	}
+	return
+}
+
+func (c *proto) printContent(value string, json bool) {
+	if c.globalParams.Verbosity < internal.Verbose {
+		return
+	}
+	if json {
 		fmt.Printf("%s\n", c.highlighter.Highlight([]byte(value)))
+	} else {
+		fmt.Printf("%s\n", value)
 	}
-
-	err := c.protoMessage.UnmarshalJSON([]byte(value))
-	if err != nil {
-		return nil, err
-	}
-
-	return c.protoMessage.Marshal()
 }
 
 func (c *proto) replaceRandomGenerator(value string) (string, error) {
