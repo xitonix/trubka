@@ -32,7 +32,7 @@ type proto struct {
 	protoMessage   *dynamic.Message
 	highlightStyle string
 	highlighter    *internal.JsonHighlighter
-	contentType    string
+	decodeFrom     string
 	fixedOffsetEx  *regexp.Regexp
 }
 
@@ -54,10 +54,11 @@ func addProtoSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	c := parent.Command("proto", "Publishes protobuf messages to Kafka.").Action(cmd.run)
 	c.Arg("topic", "The topic to publish to.").Required().StringVar(&cmd.topic)
 	c.Arg("proto", "The proto to publish to.").Required().StringVar(&cmd.proto)
-	c.Arg("content", "The JSON/Base64 representation of the message. You can pipe the content in, or pass it as the command's second argument.").StringVar(&cmd.message)
-	c.Flag("content-type", "The type of the message content.").
+	c.Arg("content", "The JSON/Base64/Hex representation of the message. You can pipe the content in, or pass it as the command's second argument.").StringVar(&cmd.message)
+	c.Flag("decode-from", "The encoding of the message content. The default value is no encoding (json).").
+		Short('D').
 		Default(internal.JsonEncoding).
-		EnumVar(&cmd.contentType, internal.JsonEncoding, internal.Base64Encoding, internal.HexEncoding)
+		EnumVar(&cmd.decodeFrom, internal.JsonEncoding, internal.Base64Encoding, internal.HexEncoding)
 	c.Flag("proto-root", "The path to the folder where your *.proto files live.").
 		Short('r').
 		Required().
@@ -106,7 +107,7 @@ func (c *proto) run(_ *kingpin.ParseContext) error {
 
 func (c *proto) serializeProto(value string) (result []byte, err error) {
 	var isJson bool
-	switch strings.ToLower(c.contentType) {
+	switch strings.ToLower(c.decodeFrom) {
 	case internal.Base64Encoding:
 		result, err = base64.StdEncoding.DecodeString(value)
 	case internal.HexEncoding:
@@ -177,7 +178,7 @@ func replaceExtraGenerators(value string) string {
 		{
 			ex: regexp.MustCompile(`Str\([\s?]+\)`),
 			replacer: func(match string) string {
-				return gofakeit.Lexify(match[2 : len(match)-1])
+				return gofakeit.Lexify(match[4 : len(match)-1])
 			},
 		},
 		{
@@ -235,8 +236,9 @@ func replaceExtraGenerators(value string) string {
 			},
 		},
 		{
-			ex: regexp.MustCompile(`"\s*Bool\(\)\s*"`),
+			ex: regexp.MustCompile(`"\s*Bool\(\)\s*|BoolS\(\)`),
 			replacer: func(match string) string {
+				match = strings.Trim(match, getCutSet(match, "Bool"))
 				return gofakeit.RandString([]string{"true", "false"})
 			},
 		},
@@ -247,13 +249,13 @@ func replaceExtraGenerators(value string) string {
 			},
 		},
 		{
-			ex: regexp.MustCompile(`Color\(\)`),
+			ex: regexp.MustCompile(`Color\(\)|Colour\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.Color()
 			},
 		},
 		{
-			ex: regexp.MustCompile(`HexColor\(\)`),
+			ex: regexp.MustCompile(`HexColor\(\)|HexColour\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.HexColor()
 			},

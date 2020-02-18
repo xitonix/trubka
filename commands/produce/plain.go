@@ -23,7 +23,7 @@ func addPlainSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 		kafkaParams:  kafkaParams,
 		globalParams: global,
 	}
-	c := parent.Command("plain", "Publishes json/plain text messages to Kafka.").Action(cmd.run)
+	c := parent.Command("plain", "Publishes plain text messages to Kafka. The content can be arbitrary text, json, base64 or hex encoded strings.").Action(cmd.run)
 	c.Arg("topic", "The topic to publish to.").Required().StringVar(&cmd.topic)
 	c.Arg("content", "The message content. You can pipe the content in, or pass it as the command's second argument.").StringVar(&cmd.message)
 	c.Flag("key", "The partition key of the message. If not set, a random value will be selected.").
