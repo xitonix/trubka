@@ -275,15 +275,17 @@ Here is a list of the template functions provided by Trubka. More methods will b
   - B64(IP(v4)): Generates the base64 encoded string of a random IP v4
 - **Email()** or **EmailAddress()**
 - **FirstName()** and **LastName()**
-- **Country()** and **CountryAbr()**
+- **Country()**
+- **CountryAbr()**: Generates a random abbreviated country string (eg. FI)
 - **State()** and **City()**
-- **UUID()**
-- **Color()** and **HexColor()**
+- **UUID()**: Generates a random unique identifier (eg. 590c1440-9888-45b0-bd51-a817ee07c3f2)
+- **Color()**: Generates a random color name (eg. MediumOrchid)
+- **HexColor()**: Generates a color hex code (eg. #a99fb4)
 - **Currency()**
 - **Gender()**: "male" or "female"
+- **URL()**
 - **UserAgent()**: Generates a random broswer user agent
 - **Username()**
-- **URL()**
 - **TimeZoneFull()**
 - **TimeZone()**
 - **Month()**: Full month name (eg. January)

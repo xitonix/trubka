@@ -267,6 +267,12 @@ func replaceExtraGenerators(value string) string {
 			},
 		},
 		{
+			ex: regexp.MustCompile(`CurrencyLong\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.CurrencyLong()
+			},
+		},
+		{
 			ex: regexp.MustCompile(`Gender\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.Gender()
@@ -320,6 +326,103 @@ func replaceExtraGenerators(value string) string {
 				return gofakeit.HTTPMethod()
 			},
 		},
+		{
+			ex: regexp.MustCompile(`Animal\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.Animal()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`AnimalType\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.AnimalType()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`FarmAnimal\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.FarmAnimal()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`BeerName\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.BeerName()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`BeerStyle\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.BeerStyle()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`BuzzWord\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.BuzzWord()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`CarMaker\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.CarMaker()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`CarModel\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.CarModel()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`Cat\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.Cat()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`Company\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.Company()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`CompanySuffix\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.CompanySuffix()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`CreditCardCvv\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.CreditCardCvv()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`CreditCardExp\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.CreditCardExp()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`"\s*CreditCardNumber\(\)\s*"|CreditCardNumberS\(\)`),
+			replacer: func(match string) string {
+				return strconv.Itoa(gofakeit.CreditCardNumber())
+			},
+		},
+		{
+			ex: regexp.MustCompile(`"\s*CreditCardNumberLuhn\(\)\s*"|CreditCardNumberLuhnS\(\)`),
+			replacer: func(match string) string {
+				return strconv.Itoa(gofakeit.CreditCardNumberLuhn())
+			},
+		},
+		{
+			ex: regexp.MustCompile(`CreditCardType\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.CreditCardType()
+			},
+		},
+		// PICK must be the last replacer in the list
 		{
 			ex: regexp.MustCompile(`"\s*Pick\(.*\)\s*"|PickS\(.*\)`),
 			replacer: func(match string) string {
