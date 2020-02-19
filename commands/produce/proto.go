@@ -200,6 +200,12 @@ func replaceExtraGenerators(value string) string {
 			},
 		},
 		{
+			ex: regexp.MustCompile(`MacAddress\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.MacAddress()
+			},
+		},
+		{
 			ex: regexp.MustCompile(`FirstName\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.FirstName()
@@ -209,6 +215,24 @@ func replaceExtraGenerators(value string) string {
 			ex: regexp.MustCompile(`LastName\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.LastName()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`Name\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.Name()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`NamePrefix\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.NamePrefix()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`NameSuffix\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.NameSuffix()
 			},
 		},
 		{
@@ -230,9 +254,39 @@ func replaceExtraGenerators(value string) string {
 			},
 		},
 		{
+			ex: regexp.MustCompile(`StateAbr\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.StateAbr()
+			},
+		},
+		{
 			ex: regexp.MustCompile(`City\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.City()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`Street\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.Street()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`StreetName\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.StreetName()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`StreetPrefix\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.StreetPrefix()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`StreetSuffix\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.StreetSuffix()
 			},
 		},
 		{
@@ -297,9 +351,27 @@ func replaceExtraGenerators(value string) string {
 			},
 		},
 		{
+			ex: regexp.MustCompile(`DomainName\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.DomainName()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`DomainSuffix\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.DomainSuffix()
+			},
+		},
+		{
 			ex: regexp.MustCompile(`TimeZoneFull\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.TimeZoneFull()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`TimeZoneAbv\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.TimeZoneAbv()
 			},
 		},
 		{
@@ -327,6 +399,12 @@ func replaceExtraGenerators(value string) string {
 			},
 		},
 		{
+			ex: regexp.MustCompile(`PetName\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.PetName()
+			},
+		},
+		{
 			ex: regexp.MustCompile(`Animal\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.Animal()
@@ -342,6 +420,18 @@ func replaceExtraGenerators(value string) string {
 			ex: regexp.MustCompile(`FarmAnimal\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.FarmAnimal()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`Cat\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.Cat()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`Dog\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.Dog()
 			},
 		},
 		{
@@ -372,12 +462,6 @@ func replaceExtraGenerators(value string) string {
 			ex: regexp.MustCompile(`CarModel\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.CarModel()
-			},
-		},
-		{
-			ex: regexp.MustCompile(`Cat\(\)`),
-			replacer: func(match string) string {
-				return gofakeit.Cat()
 			},
 		},
 		{
@@ -420,6 +504,56 @@ func replaceExtraGenerators(value string) string {
 			ex: regexp.MustCompile(`CreditCardType\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.CreditCardType()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`FuelType\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.FuelType()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`ProgrammingLanguage\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.ProgrammingLanguage()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`Language\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.Language()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`MimeType\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.MimeType()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`PhoneFormatted\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.PhoneFormatted()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`Phone\(\)`),
+			replacer: func(match string) string {
+				return gofakeit.Phone()
+			},
+		},
+		{
+			ex: regexp.MustCompile(`Sentence\(\s*[0-9]+\s*\)`),
+			replacer: func(match string) string {
+				param := strings.TrimSpace(match[9 : len(match)-1])
+				if param == "" {
+					return ""
+				}
+				count, err := strconv.Atoi(param)
+				if err != nil {
+					return match
+				}
+				return gofakeit.Sentence(count)
 			},
 		},
 		// PICK must be the last replacer in the list
