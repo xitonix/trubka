@@ -1,6 +1,11 @@
 package internal
 
-import "github.com/gookit/color"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/gookit/color"
+)
 
 var (
 	yellow = color.Warn.Render
@@ -45,6 +50,14 @@ func RedIfTrue(input interface{}, eval func() bool, colorEnabled bool) interface
 // GreenIfTrue highlights the input in green, if coloring is enabled and the evaluation function returns true.
 func GreenIfTrue(input interface{}, eval func() bool, colorEnabled bool) interface{} {
 	return colorIfEnabled(input, green, colorEnabled && eval())
+}
+
+func HighlightGroupState(state string, colorEnabled bool) string {
+	s := GreenIfTrue(state, func() bool {
+		return strings.EqualFold(state, "Stable")
+	}, colorEnabled)
+
+	return fmt.Sprint(s)
 }
 
 func colorIfEnabled(input interface{}, p painter, colorEnabled bool) interface{} {

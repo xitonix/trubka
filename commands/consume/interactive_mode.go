@@ -1,4 +1,4 @@
-package commands
+package consume
 
 import (
 	"bufio"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 
+	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 	"github.com/xitonix/trubka/protobuf"
@@ -248,25 +249,6 @@ func parseIndex(input, entryName string, length int) (int, error) {
 	return i - 1, nil
 }
 
-// askForConfirmation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"
-// and then press enter. It has fuzzy matching, so "y", "Y", "yes", "YES", and "Yes" all count as
-// confirmations. If the input is not recognized, it will ask again. The function does not return
-// until it gets a valid response from the user.
-func askForConfirmation(s string) bool {
-	scanner := bufio.NewScanner(os.Stdin)
-	msg := fmt.Sprintf("%s [y/n]?: ", s)
-	for fmt.Print(msg); scanner.Scan(); fmt.Print(msg) {
-		r := strings.ToLower(strings.TrimSpace(scanner.Text()))
-		switch r {
-		case "y", "yes":
-			return true
-		case "n", "no", "q", "quit", "exit":
-			return false
-		}
-	}
-	return false
-}
-
 func askForStartingOffset(topic string, defaultCP *kafka.PartitionCheckpoints) (cp *kafka.PartitionCheckpoints, err error) {
 	var cancelled bool
 	go func() {
@@ -319,7 +301,7 @@ func confirmConsumerStart(topics map[string]*kafka.PartitionCheckpoints, contrac
 	}
 	fmt.Println()
 	table.Render()
-	return askForConfirmation("Start consuming")
+	return commands.AskForConfirmation("Start consuming")
 }
 
 func askedToExit(input string) bool {

@@ -1,4 +1,4 @@
-package commands
+package consume
 
 import (
 	"bytes"
@@ -11,23 +11,25 @@ import (
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 )
 
 type consumePlain struct {
-	globalParams *GlobalParameters
-	kafkaParams  *kafkaParameters
+	globalParams *commands.GlobalParameters
+	kafkaParams  *commands.KafkaParameters
 
 	topic                   string
-	format                  string
+	decodeFrom              string
+	encodeTo                string
 	outputDir               string
 	environment             string
 	logFile                 string
 	searchQuery             *regexp.Regexp
+	topicFilter             *regexp.Regexp
 	interactive             bool
 	interactiveWithOffset   bool
-	topicFilter             *regexp.Regexp
 	reverse                 bool
 	includeTimestamp        bool
 	includeKey              bool
@@ -38,7 +40,7 @@ type consumePlain struct {
 	highlightStyle          string
 }
 
-func addConsumePlainCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
+func addConsumePlainCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	cmd := &consumePlain{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
@@ -46,7 +48,6 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 	c := parent.Command("plain", "Starts consuming plain text or json events from the given Kafka topic.").Action(cmd.run)
 	bindCommonConsumeFlags(c,
 		&cmd.topic,
-		&cmd.format,
 		&cmd.environment,
 		&cmd.outputDir,
 		&cmd.logFile,
@@ -62,10 +63,23 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 		&cmd.searchQuery,
 		&cmd.topicFilter,
 		&cmd.highlightStyle)
+
+	c.Flag("decode-from", "The encoding of the incoming message content.").
+		Short('D').
+		Default(internal.PlainTextEncoding).
+		EnumVar(&cmd.decodeFrom, internal.PlainTextEncoding, internal.Base64Encoding, internal.HexEncoding)
+
+	c.Flag("format", "The format in which the incoming Kafka messages will be written to the output.").
+		Default(internal.PlainTextEncoding).
+		Short('F').
+		EnumVar(&cmd.encodeTo,
+			internal.PlainTextEncoding,
+			internal.JsonIndentEncoding,
+			internal.Base64Encoding,
+			internal.HexEncoding)
 }
 
 func (c *consumePlain) run(_ *kingpin.ParseContext) error {
-
 	interactive := c.interactive || c.interactiveWithOffset
 	if !interactive && internal.IsEmpty(c.topic) {
 		return errors.New("which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i)")
@@ -124,7 +138,8 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	go func() {
 		defer wg.Done()
 
-		marshaller := internal.NewPlainTextMarshaller(c.format,
+		marshaller := internal.NewPlainTextMarshaller(c.decodeFrom,
+			c.encodeTo,
 			c.includeTimestamp,
 			c.includeTopicName && !writeEventsToFile,
 			c.includeKey,
@@ -203,10 +218,10 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (c *consumePlain) process(event *kafka.Event, marshaller *internal.Marshaller, highlight bool) ([]byte, error) {
+func (c *consumePlain) process(event *kafka.Event, marshaller *internal.PlainTextMarshaller, highlight bool) ([]byte, error) {
 	output, err := marshaller.Marshal(event.Value, event.Key, event.Timestamp, event.Topic, event.Partition)
 	if err != nil {
-		return nil, fmt.Errorf("invalid '%s' message received from Kafka: %w", c.format, err)
+		return nil, fmt.Errorf("invalid '%s' message received from Kafka: %w", c.decodeFrom, err)
 	}
 
 	if c.searchQuery != nil {
@@ -220,6 +235,5 @@ func (c *consumePlain) process(event *kafka.Event, marshaller *internal.Marshall
 			}
 		}
 	}
-
 	return output, nil
 }

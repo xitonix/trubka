@@ -1,4 +1,4 @@
-package commands
+package consume
 
 import (
 	"bytes"
@@ -11,19 +11,20 @@ import (
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/kafka"
 	"github.com/xitonix/trubka/protobuf"
 )
 
 type consumeProto struct {
-	globalParams *GlobalParameters
-	kafkaParams  *kafkaParameters
+	globalParams *commands.GlobalParameters
+	kafkaParams  *commands.KafkaParameters
 
 	protoRoot               string
 	topic                   string
 	messageType             string
-	format                  string
+	encodeTo                string
 	outputDir               string
 	environment             string
 	logFile                 string
@@ -42,7 +43,7 @@ type consumeProto struct {
 	highlightStyle          string
 }
 
-func addConsumeProtoCommand(parent *kingpin.CmdClause, global *GlobalParameters, kafkaParams *kafkaParameters) {
+func addConsumeProtoCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	cmd := &consumeProto{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
@@ -50,7 +51,6 @@ func addConsumeProtoCommand(parent *kingpin.CmdClause, global *GlobalParameters,
 	c := parent.Command("proto", "Starts consuming protobuf encoded events from the given Kafka topic.").Action(cmd.run)
 	bindCommonConsumeFlags(c,
 		&cmd.topic,
-		&cmd.format,
 		&cmd.environment,
 		&cmd.outputDir,
 		&cmd.logFile,
@@ -81,6 +81,16 @@ func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
 	command.Flag("proto-filter", "The optional regular expression to filter the proto types by (Interactive mode only).").
 		Short('p').
 		RegexpVar(&c.protoFilter)
+
+	command.Flag("format", "The format in which the incoming Kafka messages will be written to the output.").
+		Default(internal.JsonIndentEncoding).
+		Short('F').
+		EnumVar(&c.encodeTo,
+			internal.PlainTextEncoding,
+			internal.JsonEncoding,
+			internal.JsonIndentEncoding,
+			internal.Base64Encoding,
+			internal.HexEncoding)
 }
 
 func (c *consumeProto) run(_ *kingpin.ParseContext) error {
@@ -170,7 +180,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		go func() {
 			defer wg.Done()
 
-			marshaller := protobuf.NewMarshaller(c.format,
+			marshaller := protobuf.NewMarshaller(c.encodeTo,
 				c.includeTimestamp,
 				c.includeTopicName && !writeEventsToFile,
 				c.includeKey,

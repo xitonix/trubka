@@ -46,7 +46,6 @@ func main() {
 	config.Producer.Return.Successes = true
 	config.Producer.Partitioner = sarama.NewHashPartitioner
 	config.Version = sarama.MaxVersion
-
 	producer, err := sarama.NewSyncProducer(brokers.Get(), config)
 	if err != nil {
 		exit(fmt.Errorf("failed to create a new producer: %w", err))

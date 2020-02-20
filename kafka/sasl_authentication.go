@@ -21,16 +21,18 @@ type sasl struct {
 	username  string
 	password  string
 	client    func() sarama.SCRAMClient
+	version   int16
 }
 
 // This will return nil if the mechanism is not valid.
-func newSASL(mechanism, username, password string) *sasl {
+func newSASL(mechanism, username, password string, version SASLHandshakeVersion) *sasl {
 	switch strings.ToLower(mechanism) {
 	case SASLMechanismPlain:
 		return &sasl{
 			mechanism: sarama.SASLTypePlaintext,
 			username:  username,
 			password:  password,
+			version:   version.toSaramaVersion(),
 		}
 	case SASLMechanismSCRAM256:
 		hash := func() hash.Hash { return sha256.New() }
@@ -39,6 +41,7 @@ func newSASL(mechanism, username, password string) *sasl {
 			mechanism: sarama.SASLTypeSCRAMSHA256,
 			username:  username,
 			password:  password,
+			version:   version.toSaramaVersion(),
 		}
 	case SASLMechanismSCRAM512:
 		hash := func() hash.Hash { return sha512.New() }
@@ -47,6 +50,7 @@ func newSASL(mechanism, username, password string) *sasl {
 			mechanism: sarama.SASLTypeSCRAMSHA512,
 			username:  username,
 			password:  password,
+			version:   version.toSaramaVersion(),
 		}
 	default:
 		return nil

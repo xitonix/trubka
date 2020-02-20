@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -18,6 +19,14 @@ func IsEmpty(val string) bool {
 
 func FormatTime(t time.Time) string {
 	return t.Format("02-01-2006T15:04:05.999999999")
+}
+
+func GetNotFoundMessage(entity, filterName string, ex *regexp.Regexp) string {
+	msg := fmt.Sprintf("No %s has been found.", entity)
+	if ex != nil {
+		msg += fmt.Sprintf(" You might need to tweak the %s filter (%s).", filterName, ex.String())
+	}
+	return msg
 }
 
 func FormatTimeUTC(t time.Time) string {
@@ -40,6 +49,31 @@ func WaitForCancellationSignal() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
 	<-signals
+}
+
+func RemovePort(address string) string {
+	if i := strings.Index(address, ":"); i > 0 {
+		return address[:i]
+	}
+	return address
+}
+
+func IgnoreRegexCase(r *regexp.Regexp) (*regexp.Regexp, error) {
+	if r == nil {
+		return r, nil
+	}
+	ex, err := regexp.Compile("(?i)" + r.String())
+	if err != nil {
+		return nil, err
+	}
+	return ex, nil
+}
+
+func BoolToString(b bool) string {
+	if b {
+		return "YES"
+	}
+	return "NO"
 }
 
 func Title(err error) string {

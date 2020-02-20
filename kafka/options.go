@@ -49,9 +49,9 @@ func WithClusterVersion(version string) Option {
 }
 
 // WithSASL enables SASL authentication.
-func WithSASL(mechanism, username, password string) Option {
+func WithSASL(mechanism, username, password, handshakeVersion string) Option {
 	return func(options *Options) {
-		options.sasl = newSASL(mechanism, username, password)
+		options.sasl = newSASL(mechanism, username, password, SASLHandshakeVersion(handshakeVersion))
 	}
 }
 

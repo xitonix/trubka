@@ -60,7 +60,6 @@ func NewFileLoader(root string, files ...string) (*FileLoader, error) {
 	if len(files) == 0 {
 		return nil, fmt.Errorf("no protocol buffer (*.proto) files found in %s", root)
 	}
-
 	resolved, err := protoparse.ResolveFilenames(importPaths, files...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve the protocol buffer (*.proto) files: %w", err)

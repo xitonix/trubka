@@ -4,14 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"regexp"
 	"sync"
 
 	"github.com/Shopify/sarama"
-
-	"github.com/rcrowley/go-metrics"
 
 	"github.com/xitonix/trubka/internal"
 )
@@ -19,7 +16,6 @@ import (
 // Consumer represents a new Kafka cluster consumer.
 type Consumer struct {
 	brokers                 []string
-	config                  *Options
 	printer                 internal.Printer
 	internalConsumer        sarama.Consumer
 	internalClient          sarama.Client
@@ -34,17 +30,7 @@ type Consumer struct {
 
 // NewConsumer creates a new instance of Kafka cluster consumer.
 func NewConsumer(brokers []string, printer internal.Printer, environment string, enableAutoTopicCreation bool, options ...Option) (*Consumer, error) {
-	if len(brokers) == 0 {
-		return nil, errors.New("the brokers list cannot be empty")
-	}
-	ops := NewOptions()
-	for _, option := range options {
-		option(ops)
-	}
-
-	sarama.Logger = log.New(ops.logWriter, "KAFKA Client: ", log.LstdFlags)
-
-	client, err := initClient(brokers, ops)
+	client, err := initClient(brokers, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +46,6 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 	}
 
 	return &Consumer{
-		config:                  ops,
 		brokers:                 brokers,
 		printer:                 printer,
 		internalConsumer:        consumer,
@@ -365,38 +350,6 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*PartitionCheckpoints)
 		topicPartitionOffsets[topic] = offsets
 	}
 	return topicPartitionOffsets, nil
-}
-
-func initClient(brokers []string, ops *Options) (sarama.Client, error) {
-	version, err := sarama.ParseKafkaVersion(ops.ClusterVersion)
-	if err != nil {
-		return nil, err
-	}
-
-	config := sarama.NewConfig()
-	config.Version = version
-	config.Consumer.Return.Errors = true
-	config.ClientID = "Trubka"
-	metrics.UseNilMetrics = true
-	if ops.sasl != nil {
-		config.Net.SASL.Enable = true
-		config.Net.SASL.Mechanism = ops.sasl.mechanism
-		config.Net.SASL.User = ops.sasl.username
-		config.Net.SASL.Password = ops.sasl.password
-		config.Net.SASL.SCRAMClientGeneratorFunc = ops.sasl.client
-	}
-
-	if ops.TLS != nil {
-		config.Net.TLS.Enable = true
-		config.Net.TLS.Config = ops.TLS
-	}
-
-	client, err := sarama.NewClient(brokers, config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialise the Kafka client: %w", err)
-	}
-
-	return client, nil
 }
 
 func getOffsetString(offset int64) interface{} {

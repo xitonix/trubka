@@ -40,41 +40,24 @@ func NewLocalOffsetManager(level internal.VerbosityLevel) *LocalOffsetManager {
 	}
 }
 
-// GetOffsetFiles returns a list of all the offset files for the given environment.
-func (l *LocalOffsetManager) GetOffsetFiles(environment string, topicFilter *regexp.Regexp) ([]string, error) {
+func (l *LocalOffsetManager) GetOffsetFileOrRoot(environment string, topic string) (string, error) {
 	if internal.IsEmpty(environment) {
-		return nil, ErrEmptyEnvironment
+		return "", ErrEmptyEnvironment
 	}
-	root := configdir.LocalConfig(localOffsetRoot, environment)
-	l.Logf(internal.Verbose, "Looking for local offsets in %s", root)
 
-	files := make([]string, 0)
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() || !strings.HasSuffix(path, offsetFileExtension) {
-			return nil
-		}
-
-		file := filepath.Base(path)
-		if topicFilter != nil && !topicFilter.Match([]byte(file)) {
-			return nil
-		}
-		l.Logf(internal.VeryVerbose, "Local offset file has been found: %s", file)
-		files = append(files, path)
-		return nil
-	})
-
+	singleTopicMode := !internal.IsEmpty(topic) && !strings.EqualFold(topic, "all")
+	offsetPath := configdir.LocalConfig(localOffsetRoot, environment)
+	if singleTopicMode {
+		offsetPath = filepath.Join(offsetPath, topic+offsetFileExtension)
+	}
+	_, err := os.Stat(offsetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("the local offset directory could not be found at %s", root)
+			return "", fmt.Errorf("no consumer offset has been found in %s", offsetPath)
 		}
-		return nil, err
+		return "", fmt.Errorf("failed to access the requested local offset : %w", err)
 	}
-
-	return files, nil
+	return offsetPath, nil
 }
 
 // ReadLocalTopicOffsets returns the locally stored offsets of the given topic for the specified environment if exists.
@@ -106,11 +89,9 @@ func (l *LocalOffsetManager) ReadLocalTopicOffsets(topic string, environment str
 	return ToPartitionOffset(stored, false), nil
 }
 
-// ListLocalOffsets lists the locally stored offsets for the the topics of all the available environments.
-//
-// The returned map is keyed by the environment name.
-func (l *LocalOffsetManager) ListLocalOffsets(topicFilter *regexp.Regexp, envFilter *regexp.Regexp) (map[string]TopicPartitionOffset, error) {
-	result := make(map[string]TopicPartitionOffset)
+// List lists all the environments and the topics stored locally
+func (l *LocalOffsetManager) List(topicFilter *regexp.Regexp, envFilter *regexp.Regexp) (map[string][]string, error) {
+	result := make(map[string][]string)
 	root := configdir.LocalConfig(localOffsetRoot)
 	l.Logf(internal.Verbose, "Searching for local offsets in %s", root)
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -123,23 +104,19 @@ func (l *LocalOffsetManager) ListLocalOffsets(topicFilter *regexp.Regexp, envFil
 		}
 		environment := filepath.Base(filepath.Dir(path))
 		if envFilter != nil && !envFilter.Match([]byte(environment)) {
+			l.Logf(internal.SuperVerbose, "The provided environment filter (%s) does not match with %s environment", envFilter.String(), environment)
 			return nil
 		}
 		file := filepath.Base(path)
 		topic := strings.TrimSuffix(file, offsetFileExtension)
 		if topicFilter != nil && !topicFilter.Match([]byte(topic)) {
-			l.Logf(internal.SuperVerbose, "The provided filter (%s) does not match with %s topic", topicFilter.String(), topic)
+			l.Logf(internal.SuperVerbose, "The provided topic filter (%s) does not match with %s topic", topicFilter.String(), topic)
 			return nil
 		}
-		po, err := l.ReadLocalTopicOffsets(file, environment)
-		if err != nil {
-			return err
-		}
 		if _, ok := result[environment]; !ok {
-			result[environment] = make(TopicPartitionOffset)
+			result[environment] = make([]string, 0)
 		}
-		result[environment][topic] = po
-		l.Logf(internal.Chatty, "%d partition offset(s) found locally for %s/%s", len(po), environment, topic)
+		result[environment] = append(result[environment], topic)
 		return nil
 	})
 	if err != nil {
