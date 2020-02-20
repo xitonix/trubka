@@ -29,6 +29,7 @@ func addDeleteTopicSubCommand(parent *kingpin.CmdClause, global *commands.Global
 
 	c.Flag("silent", "Deletes the topic without user confirmation.").
 		Short('s').
+		NoEnvar().
 		BoolVar(&cmd.silent)
 }
 

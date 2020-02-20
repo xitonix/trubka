@@ -34,8 +34,10 @@ func addTopicSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	c := parent.Command("topic", "Describes a Kafka topic.").Action(cmd.run)
 	c.Arg("topic", "The topic to describe.").Required().StringVar(&cmd.topic)
 	c.Flag("load-config", "Loads the topic's configurations from the server.").
+		NoEnvar().
 		Short('C').BoolVar(&cmd.loadConfigs)
 	c.Flag("include-offsets", "Queries the server to read the latest available offset of each partition.").
+		NoEnvar().
 		Short('o').BoolVar(&cmd.includeOffsets)
 	commands.AddFormatFlag(c, &cmd.format)
 }

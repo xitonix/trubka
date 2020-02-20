@@ -29,6 +29,7 @@ func addDeleteGroupSubCommand(parent *kingpin.CmdClause, global *commands.Global
 
 	c.Flag("silent", "Deletes the consumer group without user confirmation.").
 		Short('s').
+		NoEnvar().
 		BoolVar(&cmd.silent)
 }
 

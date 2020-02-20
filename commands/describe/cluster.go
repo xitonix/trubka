@@ -30,7 +30,9 @@ func addClusterSubCommand(parent *kingpin.CmdClause, global *commands.GlobalPara
 	}
 	c := parent.Command("cluster", "Describes the Kafka cluster.").Action(cmd.run)
 	c.Flag("load-config", "Loads the cluster's configurations from the server.").
-		Short('C').BoolVar(&cmd.loadConfigs)
+		NoEnvar().
+		Short('C').
+		BoolVar(&cmd.loadConfigs)
 	commands.AddFormatFlag(c, &cmd.format)
 }
 

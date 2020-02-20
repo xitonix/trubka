@@ -34,17 +34,22 @@ func addCreateTopicSubCommand(parent *kingpin.CmdClause, global *commands.Global
 	c.Flag("number-of-partitions", "Number of partitions.").
 		Short('p').
 		Required().
+		NoEnvar().
 		Int32Var(&cmd.numberOfPartitions)
 
 	c.Flag("replication-factor", "Replication factor.").
 		Short('r').
 		Required().
+		NoEnvar().
 		Int16Var(&cmd.replicationFactor)
 
 	c.Flag("validate-only", "Validates the request instead of creating the topic.").
+		Short('A').
+		NoEnvar().
 		BoolVar(&cmd.validateOnly)
 
 	c.Flag("retention", "Topic retention period. Examples 300ms, 150s, 1.5h or 2h45m.").
+		NoEnvar().
 		DurationVar(&cmd.retention)
 }
 

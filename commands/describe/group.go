@@ -31,6 +31,7 @@ func addGroupSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	c := parent.Command("group", "Describes a consumer group.").Action(cmd.run)
 	c.Arg("group", "The consumer group name to describe.").Required().StringVar(&cmd.group)
 	c.Flag("include-members", "Lists the group members and partition assignments in the output.").
+		NoEnvar().
 		Short('m').
 		BoolVar(&cmd.includeMembers)
 	commands.AddFormatFlag(c, &cmd.format)

@@ -36,12 +36,15 @@ func addBrokerSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParam
 	c.Arg("broker", "The broker address or Id.").Required().StringVar(&cmd.identifier)
 	c.Flag("include-logs", "Fetches information about the broker log files.").
 		Short('l').
+		NoEnvar().
 		BoolVar(&cmd.includeLogs)
 	c.Flag("include-api-versions", "Fetches the API versions supported by the broker.").
+		NoEnvar().
 		Short('a').
 		BoolVar(&cmd.includeAPIVersions)
 	c.Flag("topic-filter", "An optional regular expression to filter the aggregated topic logs by. Works with --include-logs only.").
 		Short('t').
+		NoEnvar().
 		RegexpVar(&cmd.topicsFilter)
 	commands.AddFormatFlag(c, &cmd.format)
 }

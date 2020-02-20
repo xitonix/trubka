@@ -30,6 +30,7 @@ func addCreatePartitionsSubCommand(parent *kingpin.CmdClause, global *commands.G
 	c.Flag("number-of-partitions", "Number of partitions.").
 		Short('p').
 		Required().
+		NoEnvar().
 		Int32Var(&cmd.numberOfPartitions)
 }
 

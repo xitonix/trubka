@@ -59,6 +59,7 @@ func GetBrokers(commaSeparated string) []string {
 func AddFormatFlag(c *kingpin.CmdClause, format *string) {
 	c.Flag("format", "Sets the output format.").
 		Default(TableFormat).
+		NoEnvar().
 		Short('f').
 		EnumVar(format, PlainTextFormat, TableFormat)
 }
