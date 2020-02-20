@@ -507,12 +507,6 @@ func replaceExtraGenerators(value string) string {
 			},
 		},
 		{
-			ex: regexp.MustCompile(`FuelType\(\)`),
-			replacer: func(match string) string {
-				return gofakeit.FuelType()
-			},
-		},
-		{
 			ex: regexp.MustCompile(`ProgrammingLanguage\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.ProgrammingLanguage()

@@ -256,82 +256,105 @@ $> cat EntityDefined.json | trubka produce proto TopicA contracts.EntityDefined 
 
 Here is the list of template functions supported by Trubka:
 
-| **Function(s)** | **Description**                                              | Example(s)                                       |
-| :-------------: | ------------------------------------------------------------ | ------------------------------------------------ |
-|    Str(????)    | Generates a random string by replacing each `?` with a random letter | Str(??): `gd`                                    |
-|    Int(####)    | Generates a random integer by replacing each `#` with a random digit | Int(##): `73`<br />Int(2#1): `281`               |
-|   IntS(####)    | Generates the string representation of an integer by replacing each `#` with a random digit | IntS(##): `"73"`                                 |
-|  Int(from,to)   | Generates an integer between `from` and `to`                 | Int(10,20): `14`                                 |
-|  IntS(from,to)  | Generates the string representation of an integer between `from` and `to` | IntS(10,20): `"14"`                              |
-|  Float(##.##)   | Generates a random floating point number by replacing each `#` with a random digit | Float(##.##): `14.32`<br />Float(0.##2): `0.182` |
-|                 |                                                              |                                                  |
-
-- **Float(##.##)**: Generates a random floating point number by replacing each `#` with a random digit
-- **FloatS(##.##)**: Generates the string representation of a random floating point number by replacing each `#` with a random digit
-- **Float(from,to,[decimal places])**: Generates an floating point number between `from` and `to`. For example Float(0.1,1.5) or Float(0.1,1.5,2)
-- **FloatS(from,to,[decimal places])**: Generates the string representation of an floating point number between `from` and `to`
-- **Bool()**: true/false
-- **BoolS()**: "true"/"false"
-- **IP(v4)** and **IP(v6)**
-- **MacAddress()**
-- **Timestamp(['layout'],['timezone'])**: The layout must follow the Go's [time formatting](https://golang.org/pkg/time/#Time.Format) standard (default RFC3339) and the Timezone can be either a standard IANA value or a UTC offset in `UTC±hh:mm` format. Both parameters must be enclosed by single quotes if provided.
-- **Now(['layout'],['timezone'])**: Generates the current time. See the Timestamp explanation above for more details
-- **B64(...)**: Generates the base64 encoded value of its input. For example:
-  - B64(Str(???)): base64 encodes a randomly generated string of length three
-  - B64(IP(v4)): Generates the base64 encoded string of a random IP v4
-- **Email()** or **EmailAddress()**
-- **Name()** 
-- **FirstName()** and **LastName()**
-- **NamePrefix()**: Example Mr.
-- **NameSuffix()**: Example Jr.
-- **Country()**
-- **CountryAbr()**: Generates a random abbreviated country string (eg. FI)
-- **State()** and **StateAbr()**
-- **Street()**: Example `364 East Rapidsborough`
-- **StreetName()**: Example `View`
-- **StreetPrefix()**: Example `Lake`
-- **StreetSuffix()**: Example `land`
-- **City()**
-- **UUID()**: Generates a random unique identifier (eg. 590c1440-9888-45b0-bd51-a817ee07c3f2)
-- **Color()** or **Colour()**: Generates a random color name (eg. MediumOrchid)
-- **HexColor()** or **HexColour()**: Generates a color hex code (eg. #a99fb4)
-- **Currency()** and **CurrencyAbr()**
-- **Gender()**: "male" or "female"
-- **URL()**
-- **ProgrammingLanguage()**
-- **DomainName()**: Example `google.com`
-- **DomainSuffix()**: Example `org`
-- **UserAgent()**: Generates a random broswer user agent
-- **Username()**
-- **TimeZone()**: Example `Kaliningrad Standard Time`
-- **TimeZoneFull()**: Example `(UTC+03:00) Kaliningrad, Minsk`
-- **TimeZoneAbr()**: Example `KST`
-- **Month()**: Full month name (eg. January)
-- **WeekDay()**: Full weekday (eg. Friday)
-- **HTTPMethod()**: "GET", "POST", etc
-- **Pick(args...)**: Randomly chooses an item from the list. For example Pick(1,2,10,100)
-- **PickS(args...)**: Randomly chooses the string representation of an item from the list. For example Pick(1,Go,true,FloatS(##.#),UUID())
-- **PetName()**, **Animal()**, **FarmAnimal()**, **AnimalType()**, **Cat()** and **Dog()**
-- **BeerName()**, **BeerStyle()**
-- **BuzzWord()**
-- **CarMaker()** and **CarModel()**
-- **Company()** (eg. `Moen, Pagac and Wuckert`) and **CompanySuffix()** (eg. Inc)
-- **CreditCardCvv()**, **CreditCardExp()**
-- **CreditCardNumber()**: Example `4136459948995369`
-- **CreditCardNumberS()**: Example `"4136459948995369"`
-- **CreditCardNumberLuhn()**: Generates a random credit card number int that passes [luhn test](https://en.wikipedia.org/wiki/Luhn_algorithm) (eg. `2720996615546177`)
-- **CreditCardNumberLuhnS()**: Generates a random credit card number string that passes [luhn test](https://en.wikipedia.org/wiki/Luhn_algorithm) (eg. `"2720996615546177"`)
-- **CreditCardType()**: Example `Visa`
-- **FuelType()**
-- **Language()**: Example `French`
-- **MimeType()**: Example `application/json`
-- **Phone()**: Example `6136459948`
-- **PhoneFormatted()**: Example `136-459-9489`
-- **Sentence(number of words)**: Example `Sentence(5)` > `Quia quae repellat consequatur quidem.`
+|          **Function(s)**           | **Description**                                              | Usage/Example                                                |
+| :--------------------------------: | :----------------------------------------------------------- | :----------------------------------------------------------- |
+|             Str(????)              | Generates a random string by replacing each `?` with a random letter. | Str(??): *gd*                                                |
+|             Int(####)              | Generates a random integer by replacing each `#` with a random digit. | Int(##): *73*<br />Int(2#1): *281*                           |
+|             IntS(####)             | Generates the string representation of an integer by replacing each `#` with a random digit. | IntS(##): *"73"*                                             |
+|            Int(from,to)            | Generates an integer between `from` and `to`.                | Int(10,20): *14*                                             |
+|           IntS(from,to)            | Generates the string representation of an integer between `from` and `to`. | IntS(10,20): *"14"*                                          |
+|            Float(##.##)            | Generates a random floating point number by replacing each `#` with a random digit. | Float(#.##): *1.18*<br />Float(0.#2): *0.82*                 |
+|           FloatS(##.##)            | Generates the string representation of a random floating point number by replacing each `#` with a random digit. | FloatS(#.#): *"1.2"*<br />FloatS(1.#2): *"1.72"*             |
+|  Float(from,to,[decimal places])   | Generates a floating point number between `from` and `to` with the optional limit for decimal places. | Float(0.1,1.5): *0.75*                                       |
+|  FloatS(from,to,[decimal places])  | Generates the string representation of an floating point number between `from` and `to`. | FloatS(0.1,1.5): *"0.75"*                                    |
+|               Bool()               | true or false                                                |                                                              |
+|              BoolS()               | "true" or "false"                                            |                                                              |
+|               IP(v4)               | Generates a random IP v4 string.                             | *"*248.177.118.254*"*                                        |
+|               IP(v6)               | Generates a random IP v6 string.                             | *"fde8:4372:2fcc:86e5:ffff:ffff:ffff:ffff"*                  |
+|            MacAddress()            | Generates a random MAC address string.                       | *"e1:74:cb:01:77:91"*                                        |
+| Timestamp(['layout'],['timezone']) | The layout must follow the Go's [time formatting](https://golang.org/pkg/time/#Time.Format) standard (default RFC3339) and the Timezone can be either a standard IANA value or a UTC offset in `UTC±hh:mm` format. **Both parameters must be enclosed by single quotes if provided**. | Timestamp('2006-01-02T15:04:05 MST')<br /><br />Timestamp('2006-01-02T15:04:05Z07:00','UTC')<br /><br />Timestamp('2006-01-02T15:04:05','UTC+10') |
+|    Now(['layout'],['timezone'])    | Generates the current time. See the Timestamp explanation above for more details. | Now('2006-01-02T15:04:05')<br /><br />Now('15:04:05Z07:00','UTC')<br /><br />Now('2006-01-02T15:04:05','UTC-8') |
+|              B64(...)              | Generates the base64 encoded value of its input.             | B64(Str(???))<br />B64(IP(v4))<br />B64(random data)         |
+|    Email()<br />EmailAddress()     | Generates a random email address.                            | *"address@domain.com"*                                       |
+|               Name()               | Generates a random full name.                                | *"John Smith"*                                               |
+|            FirstName()             | Generates a random first name.                               | *"John"*                                                     |
+|             LastName()             | Generates a random last name.                                | *"Smith"*                                                    |
+|            NamePrefix()            | Generates a random title.                                    | *"Mr."*                                                      |
+|            NameSuffix()            | Generates a random name suffix.                              | *"Jr."*                                                      |
+|             Country()              | Generates a random country name.                             | *"Australia"*                                                |
+|            CountryAbr()            | Generates a random country abbreviation.                     | *"FI"*                                                       |
+|              State()               | Generates a random US state name.                            | *"California"*                                               |
+|             StateAbr()             | Generates a random US state abbreviation.                    | *"California"*                                               |
+|              Street()              | Generates a random street address.                           | *"364 East Rapidsborough"*                                   |
+|            StreetName()            | Generates a random street name.                              | *"View"*                                                     |
+|           StreetPrefix()           | Generates a random string prefix.                            | *"Lake"*                                                     |
+|            StreetSuffix            | Generates a random string suffix.                            | *"land"*                                                     |
+|               City()               | Generates a random city name.                                | *"Marcelside"*                                               |
+|               UUID()               | Generates a random Universal Unique Identifier (UUID)        | *"5d093de6-c2e3-423d-87ad-c31f31d0e341"*                     |
+|          Color()/Colour()          | Generates a random colour name.                              | *"MediumOrchid"*                                             |
+|       HexColor()/HexColour()       | Generates the hex code of a random colour.                   | *"#a99fb4"*                                                  |
+|             Currency()             | Generates a random currency name.                            | *"Australian Dollar"*                                        |
+|           CurrencyAbr()            | Generates a random currency abbreviation.                    | *"USD"*                                                      |
+|              Gender()              | *"male"* or *"female"*                                       |                                                              |
+|               URL()                | Generates a random URL                                       | *"http://xitonix.io"*                                        |
+|       ProgrammingLanguage()        | Generates a random programming language                      | *"Go"*                                                       |
+|            DomainName()            | Generates a random HTTP domain name.                         | *"google.com"*                                               |
+|           DomainSuffix()           | Generates a random HTTP domain suffix.                       | *"org"*                                                      |
+|            UserAgent()             | Generates a random browser user agent string.                | *"Mozilla/5.0 (Windows NT 5.0) AppleWebKit/5362 (KHTML, like Gecko) Chrome/37.0.834.0 Mobile Safari/5362"* |
+|             Username()             | Generates a random username.                                 | *"Alex1364"*                                                 |
+|             TimeZone()             | Generates a random timezone name.                            | *"Kaliningrad Standard Time"*                                |
+|           TimeZoneFull()           | Generates a random full timezone name.                       | *"(UTC+03:00) Kaliningrad, Minsk"*                           |
+|           TimeZoneAbr()            | Generates a random timezone abbreviation.                    | *"KST"*                                                      |
+|              Month()               | Generates a random month name.                               | *"January"*                                                  |
+|             WeekDay()              | Generates a random weekday.                                  | *"Friday"*                                                   |
+|            HTTPMethod()            | Generates a random HTTP verb.                                | *"GET"*, *"POST"*, etc                                       |
+|           Pick(args...)            | Randomly chooses an item from the list. This function is useful to choose an item from numeric values. | Pick(1,100) may choose *1* or *100*                          |
+|           PickS(args...)           | Randomly chooses the string representation of an item from the list. | Pick(1,Go,true) may choose *"true"*, *"Go"* or *"1"*         |
+|             PetName()              | Generates a random pet name.                                 | *Ozzy Pawsborne*                                             |
+|              Animal()              | Generates a random animal name.                              | *"elk"*                                                      |
+|            FarmAnimal()            | Generates a random farm animal name.                         | *"Chicken"*                                                  |
+|            AnimalType()            | Generates a random animal type.                              | *"amphibians"*                                               |
+|               Cat()                | Generates a random cat name.                                 | *"Chausie"*                                                  |
+|               Dog()                | Generates a random dog name.                                 | *"Norwich Terrier"*                                          |
+|             BeerName()             | Generates a random beer name.                                | *"Duvel"*                                                    |
+|            BeerStyle()             | Generates a random beer style.                               | *"European Amber Lager"*                                     |
+|             BuzzWord()             | Generates a random buzz word.                                | *"Disintermediate"*                                          |
+|             CarMaker()             | Generates a random car maker name.                           | *"Nissan"*                                                   |
+|             CarModel()             | Generates a random car model.                                | *"Aveo"*                                                     |
+|             Company()              | Generates a random company name.                             | *"Moen, Pagac and Wuckert"*                                  |
+|          CompanySuffix()           | Generates a random company suffix.                           | *"Inc"*                                                      |
+|          CreditCardCvv()           | Generates a random credit card Cvv code.                     | *"043"*                                                      |
+|          CreditCardExp()           | Generates a random credit card expierety date.               | *"05/22"*                                                    |
+|         CreditCardNumber()         | Generates a random credit card number.                       | *4136459948995369*                                           |
+|        CreditCardNumberS()         | Generates a random credit card number string.                | *"4136459948995369"*                                         |
+|       CreditCardNumberLuhn()       | Generates a random credit card number int that passes [luhn test](https://en.wikipedia.org/wiki/Luhn_algorithm). | *2720996615546177*                                           |
+|      CreditCardNumberLuhnS()       | Generates a random credit card number string that passes [luhn test.](https://en.wikipedia.org/wiki/Luhn_algorithm) | *"2720996615546177"*                                         |
+|          CreditCardType()          | Generates a random credit card type.                         | *"Visa"*                                                     |
+|             MimeType()             | Generates a random mime type.                                | *"application/json"*                                         |
+|             Language()             | Generates a random language name.                            | *"French"*                                                   |
+|              Phone()               | Generates a random phone number.                             | *"6136459948"*                                               |
+|          PhoneFormatted()          | Generates a random formatted phone number.                   | *"136-459-9489"*                                             |
+|     Sentence(number of words)      | Generates a random sentence with the given number of words.  | Sentence(5): *"Quia quae repellat consequatur quidem."*      |
 
 **Note**
 
 The name of the template functions are case sensitive.
+
+#### Combining Template functions
+
+You can also combine the template functions together whenever it makes sense. Here are a few examples:
+
+```json
+{
+  "user": {
+    "id": "FirstName():LastName():IntS(10,50)"
+    "machine": "MacAddress()-IP(v4)",
+    "token": "B64(T-Str(????)-IntS(#####))"
+  },
+  "origin": "PickS(IP(v4), IP(v6))",
+  "credit_card": "CreditCardNumberS() CreditCardCvv() CreditCardExp()"
+}
+```
 
 # SASL Authentication
 
