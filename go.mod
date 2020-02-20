@@ -7,7 +7,7 @@ require (
 	github.com/alecthomas/chroma v0.7.1
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
-	github.com/brianvoe/gofakeit/v4 v4.2.1
+	github.com/brianvoe/gofakeit/v4 v4.2.3
 	github.com/dlclark/regexp2 v1.2.0 // indirect
 	github.com/dustin/go-humanize v1.0.0
 	github.com/golang/protobuf v1.3.3
@@ -15,6 +15,7 @@ require (
 	github.com/gookit/color v1.2.2
 	github.com/jhump/protoreflect v1.6.0
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
+	github.com/klauspost/compress v1.10.1 // indirect
 	github.com/mattn/go-runewidth v0.0.8 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/olekukonko/tablewriter v0.0.4
@@ -22,7 +23,9 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
 	github.com/xitonix/flags v0.1.1
+	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975 // indirect
+	golang.org/x/net v0.0.0-20200219183655-46282727080f // indirect
 	golang.org/x/sys v0.0.0-20190813064441-fde4db37ae7a // indirect
-	google.golang.org/genproto v0.0.0-20200205142000-a86caf926a67 // indirect
+	google.golang.org/genproto v0.0.0-20200218151345-dad8c97a84f5 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
