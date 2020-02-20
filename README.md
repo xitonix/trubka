@@ -26,9 +26,7 @@ Download the pre-built binaries for the platform of your choice from the [releas
 ## Usage
 
 ```bash
-usage: trubka [<flags>] <command> [<args> ...]
-
-A CLI tool for Kafka.
+$> trubka [<flags>] <command> [<args> ...]
 
 Flags:
       --help                     Show context-sensitive help (also try --help-long and --help-man).
@@ -41,6 +39,7 @@ Flags:
                                  SASL authentication username. Will be ignored if --sasl-mechanism is set to none.
   -P, --sasl-password=SASL-PASSWORD
                                  SASL authentication password. Will be ignored if --sasl-mechanism is set to none.
+      --sasl-version=v1          SASL handshake version. Will be ignored if --sasl-mechanism is set to none.
       --tls                      Enables TLS (Unverified by default). Mutual authentication can also be enabled by providing client key and certificate.
       --ca-cert=CA-CERT          Trusted root certificates for verifying the server. If not set, Trubka will skip server certificate and domain verification.
       --client-cert=CLIENT-CERT  Client certification file to enable mutual TLS authentication. Client key must also be provided.
