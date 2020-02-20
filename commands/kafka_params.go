@@ -5,12 +5,13 @@ import (
 )
 
 type KafkaParameters struct {
-	Brokers       string
-	Version       string
-	TLS           *tls.Config
-	SASLMechanism string
-	SASLUsername  string
-	SASLPassword  string
+	Brokers              string
+	Version              string
+	TLS                  *tls.Config
+	SASLMechanism        string
+	SASLUsername         string
+	SASLPassword         string
+	SASLHandshakeVersion string
 }
 
 type TLSParameters struct {

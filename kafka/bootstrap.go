@@ -36,6 +36,8 @@ func initClient(brokers []string, options ...Option) (sarama.Client, error) {
 	metrics.UseNilMetrics = true
 	if ops.sasl != nil {
 		config.Net.SASL.Enable = true
+		config.Net.SASL.Enable = true
+		config.Net.SASL.Version = ops.sasl.version
 		config.Net.SASL.Mechanism = ops.sasl.mechanism
 		config.Net.SASL.User = ops.sasl.username
 		config.Net.SASL.Password = ops.sasl.password

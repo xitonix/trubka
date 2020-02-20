@@ -42,7 +42,8 @@ func initialiseProducer(kafkaParams *commands.KafkaParameters, verbosity interna
 		kafka.WithLogWriter(saramaLogWriter),
 		kafka.WithSASL(kafkaParams.SASLMechanism,
 			kafkaParams.SASLUsername,
-			kafkaParams.SASLPassword))
+			kafkaParams.SASLPassword,
+			kafkaParams.SASLHandshakeVersion))
 
 	if err != nil {
 		return nil, err

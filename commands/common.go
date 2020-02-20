@@ -30,7 +30,8 @@ func InitKafkaManager(globalParams *GlobalParameters, kafkaParams *KafkaParamete
 		kafka.WithClusterVersion(kafkaParams.Version),
 		kafka.WithSASL(kafkaParams.SASLMechanism,
 			kafkaParams.SASLUsername,
-			kafkaParams.SASLPassword))
+			kafkaParams.SASLPassword,
+			kafkaParams.SASLHandshakeVersion))
 
 	if err != nil {
 		return nil, nil, nil, err

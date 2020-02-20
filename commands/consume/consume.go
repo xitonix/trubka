@@ -124,7 +124,8 @@ func initialiseConsumer(kafkaParams *commands.KafkaParameters,
 		kafka.WithLogWriter(saramaLogWriter),
 		kafka.WithSASL(kafkaParams.SASLMechanism,
 			kafkaParams.SASLUsername,
-			kafkaParams.SASLPassword))
+			kafkaParams.SASLPassword,
+			kafkaParams.SASLHandshakeVersion))
 
 	if err != nil {
 		return nil, err

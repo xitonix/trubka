@@ -118,6 +118,9 @@ func bindSASLFlags(app *kingpin.Application, params *commands.KafkaParameters) {
 	app.Flag("sasl-password", "SASL authentication password. Will be ignored if --sasl-mechanism is set to none.").
 		Short('P').
 		StringVar(&params.SASLPassword)
+	app.Flag("sasl-version", "SASL handshake version. Will be ignored if --sasl-mechanism is set to none.").
+		Default(string(kafka.SASLHandshakeV1)).
+		EnumVar(&params.SASLHandshakeVersion, string(kafka.SASLHandshakeV0), string(kafka.SASLHandshakeV1))
 }
 
 func configureTLS(params *commands.TLSParameters) (*tls.Config, error) {
