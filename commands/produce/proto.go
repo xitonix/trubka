@@ -315,13 +315,13 @@ func replaceExtraGenerators(value string) string {
 			},
 		},
 		{
-			ex: regexp.MustCompile(`Currency\(\)`),
+			ex: regexp.MustCompile(`CurrencyAbr\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.CurrencyShort()
 			},
 		},
 		{
-			ex: regexp.MustCompile(`CurrencyLong\(\)`),
+			ex: regexp.MustCompile(`Currency\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.CurrencyLong()
 			},
@@ -369,7 +369,7 @@ func replaceExtraGenerators(value string) string {
 			},
 		},
 		{
-			ex: regexp.MustCompile(`TimeZoneAbv\(\)`),
+			ex: regexp.MustCompile(`TimeZoneAbr\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.TimeZoneAbv()
 			},
@@ -589,10 +589,10 @@ func replaceB64Generators(value string) string {
 }
 
 func replaceIntRangeGenerators(value string) (result string, err error) {
-	intRangeEx := regexp.MustCompile(fmt.Sprintf(`"\s*Int\(%s:%[1]s\)\s*"|IntS\(%[1]s:%[1]s\)`, signedIntEx))
+	intRangeEx := regexp.MustCompile(fmt.Sprintf(`"\s*Int\(\s*%s\s*,\s*%[1]s\s*\)\s*"|IntS\(\s*%[1]s\s*,\s*%[1]s\s*\)`, signedIntEx))
 	result = intRangeEx.ReplaceAllStringFunc(value, func(match string) string {
 		match = strings.Trim(match, getCutSet(match, "Int"))
-		parts := strings.Split(match, ":")
+		parts := strings.Split(match, ",")
 		if len(parts) != 2 {
 			err = errors.New("the range must be in m:n format")
 		}
@@ -702,10 +702,10 @@ func timezoneError(timezone string) error {
 
 func replaceFloatRangeGenerators(value string) (result string, err error) {
 	// Float range: F[from:to:<optional decimal places>]
-	floatRangeEx := regexp.MustCompile(fmt.Sprintf(`"\s*Float\(%s:%[1]s(:%s)?\)\s*"|FloatS\(%[1]s:%[1]s(:%[2]s)?\)`, floatEx, intEx))
+	floatRangeEx := regexp.MustCompile(fmt.Sprintf(`"\s*Float\(\s*%s\s*,\s*%[1]s\s*(,\s*%s\s*)?\)\s*"|FloatS\(\s*%[1]s\s*,\s*%[1]s\s*(,\s*%[2]s\s*)?\)`, floatEx, intEx))
 	result = floatRangeEx.ReplaceAllStringFunc(value, func(match string) string {
 		match = strings.Trim(match, getCutSet(match, "Float"))
-		parts := strings.Split(match, ":")
+		parts := strings.Split(match, ",")
 		if len(parts) < 2 {
 			err = errors.New("the range must be in m:n format")
 		}

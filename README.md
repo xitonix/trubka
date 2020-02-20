@@ -222,7 +222,7 @@ $> trubka produce schema contracts.EntityDefined --proto-root /protocol_buffers_
 $> cat EntityDefined.json | trubka produce proto TopicA contracts.EntityDefined --proto-root /protocol_buffers_dir
 ```
 
-Not happy yet? Trubka also comes with a super flexible templating language which lets you randomize the Json representation of each message. Run the `produce schema` command with `-g` and you will see the magic.
+Not happy yet? Trubka also comes with a super flexible templating language (based on the amazing [gofakeit](https://github.com/brianvoe/gofakeit) library) which lets you randomize the Json representation of each message. Run the `produce schema` command with `-g` and you will see the magic.
 
 ```bash
 $> trubka produce schema contracts.EntityDefined --proto-root /protocol_buffers_dir -g > EntityDefined.json
@@ -254,45 +254,75 @@ So, to publish 100 random proto messages into your topic, all you need is to run
 $> cat EntityDefined.json | trubka produce proto TopicA contracts.EntityDefined -g -c 100 --proto-root /protocol_buffers_dir
 ```
 
-Here is a list of the template functions provided by Trubka. More methods will be added to the list in the future:
+Here is the list of template functions supported by Trubka:
 
 - **Str(????)**: Generates a random string by replacing each `?` with a random letter
 - **Int(####)**: Generates a random integer by replacing each `#` with a random digit
 - **IntS(####)**: Generates the string representation of a random integer by replacing each `#` with a random digit
-- **Int(From:To)**: Generates an integer between `From` and `To`. For example Int(10:20)
-- **IntS(From:To)**: Generates the string representation of an integer between `From` and `To`
+- **Int(from,to)**: Generates an integer between `from` and `to`. For example Int(10,20)
+- **IntS(from, to)**: Generates the string representation of an integer between `from` and `to`
 - **Float(##.##)**: Generates a random floating point number by replacing each `#` with a random digit
 - **FloatS(##.##)**: Generates the string representation of a random floating point number by replacing each `#` with a random digit
-- **Float(From:To:[Decimal Places])**: Generates an floating point number between `From` and `To`. For example Float(0.1:1.5) or Float(0.1:1.5:2)
-- **FloatS(From:To:[Decimal Places])**: Generates the string representation of an floating point number between `From` and `To`
+- **Float(from,to,[decimal places])**: Generates an floating point number between `from` and `to`. For example Float(0.1,1.5) or Float(0.1,1.5,2)
+- **FloatS(from,to,[decimal places])**: Generates the string representation of an floating point number between `from` and `to`
 - **Bool()**: true/false
 - **BoolS()**: "true"/"false"
 - **IP(v4)** and **IP(v6)**
-- **Timestamp(['Layout'],['Timezone'])**: The layout must follow the Go's [time formatting](https://golang.org/pkg/time/#Time.Format) standard (default RFC3339) and the Timezone can be either a standard IANA value or a UTC offset in `UTC±hh:mm` format. Both parameters must be enclosed by single quotes if provided.
-- **Now(['Layout'],['Timezone'])**: Generates the current time. See the Timestamp explanation above for more details
+- **MacAddress()**
+- **Timestamp(['layout'],['timezone'])**: The layout must follow the Go's [time formatting](https://golang.org/pkg/time/#Time.Format) standard (default RFC3339) and the Timezone can be either a standard IANA value or a UTC offset in `UTC±hh:mm` format. Both parameters must be enclosed by single quotes if provided.
+- **Now(['layout'],['timezone'])**: Generates the current time. See the Timestamp explanation above for more details
 - **B64(...)**: Generates the base64 encoded value of its input. For example:
   - B64(Str(???)): base64 encodes a randomly generated string of length three
   - B64(IP(v4)): Generates the base64 encoded string of a random IP v4
 - **Email()** or **EmailAddress()**
+- **Name()** 
 - **FirstName()** and **LastName()**
+- **NamePrefix()**: Example Mr.
+- **NameSuffix()**: Example Jr.
 - **Country()**
 - **CountryAbr()**: Generates a random abbreviated country string (eg. FI)
-- **State()** and **City()**
+- **State()** and **StateAbr()**
+- **Street()**: Example `364 East Rapidsborough`
+- **StreetName()**: Example `View`
+- **StreetPrefix()**: Example `Lake`
+- **StreetSuffix()**: Example `land`
+- **City()**
 - **UUID()**: Generates a random unique identifier (eg. 590c1440-9888-45b0-bd51-a817ee07c3f2)
-- **Color()**: Generates a random color name (eg. MediumOrchid)
-- **HexColor()**: Generates a color hex code (eg. #a99fb4)
-- **Currency()**
+- **Color()** or **Colour()**: Generates a random color name (eg. MediumOrchid)
+- **HexColor()** or **HexColour()**: Generates a color hex code (eg. #a99fb4)
+- **Currency()** and **CurrencyAbr()**
 - **Gender()**: "male" or "female"
 - **URL()**
+- **ProgrammingLanguage()**
+- **DomainName()**: Example `google.com`
+- **DomainSuffix()**: Example `org`
 - **UserAgent()**: Generates a random broswer user agent
 - **Username()**
-- **TimeZoneFull()**
-- **TimeZone()**
+- **TimeZone()**: Example `Kaliningrad Standard Time`
+- **TimeZoneFull()**: Example `(UTC+03:00) Kaliningrad, Minsk`
+- **TimeZoneAbr()**: Example `KST`
 - **Month()**: Full month name (eg. January)
 - **WeekDay()**: Full weekday (eg. Friday)
 - **HTTPMethod()**: "GET", "POST", etc
 - **Pick(args...)**: Randomly chooses an item from the list. For example Pick(1,2,10,100)
 - **PickS(args...)**: Randomly chooses the string representation of an item from the list. For example Pick(1,Go,true,FloatS(##.#),UUID())
+- **PetName()**, **Animal()**, **FarmAnimal()**, **AnimalType()**, **Cat()** and **Dog()**
+- **BeerName()**, **BeerStyle()**
+- **BuzzWord()**
+- **CarMaker()** and **CarModel()**
+- **Company()** (eg. `Moen, Pagac and Wuckert`) and **CompanySuffix()** (eg. Inc)
+- **CreditCardCvv()**, **CreditCardExp()**
+- **CreditCardNumber()**: Example `4136459948995369`
+- **CreditCardNumberS()**: Example `"4136459948995369"`
+- **CreditCardNumberLuhn()**: Generates a random credit card number int that passes [luhn test](https://en.wikipedia.org/wiki/Luhn_algorithm) (eg. `2720996615546177`)
+- **CreditCardNumberLuhnS()**: Generates a random credit card number string that passes [luhn test](https://en.wikipedia.org/wiki/Luhn_algorithm) (eg. `"2720996615546177"`)
+- **CreditCardType()**: Example `Visa`
+- **FuelType()**
+- **Language()**: Example `French`
+- **MimeType()**: Example `application/json`
+- **Phone()**: Example `6136459948`
+- **PhoneFormatted()**: Example `136-459-9489`
+- **Sentence(number of words)**: Example `Sentence(5)` > `Quia quae repellat consequatur quidem.`
 
 **Note**
 

@@ -135,7 +135,7 @@ func (c *schema) getGoogleType(name string, field *desc.FieldDescriptor) (value 
 	case "google.protobuf.Duration":
 		set = true
 		if c.random {
-			value = "FloatS(1:10:3)s"
+			value = "FloatS(1,10,3)s"
 		}
 	default:
 		value = ""
@@ -186,7 +186,7 @@ func (c *schema) getGeneratorFunc(field *desc.FieldDescriptor) interface{} {
 				max = num
 			}
 		}
-		return fmt.Sprintf("Int(%d:%d)", min, max)
+		return fmt.Sprintf("Int(%d,%d)", min, max)
 	case descriptor.FieldDescriptorProto_TYPE_SFIXED32:
 		return "Int(#####)"
 	case descriptor.FieldDescriptorProto_TYPE_SFIXED64:
