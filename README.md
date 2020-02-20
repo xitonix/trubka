@@ -256,11 +256,16 @@ $> cat EntityDefined.json | trubka produce proto TopicA contracts.EntityDefined 
 
 Here is the list of template functions supported by Trubka:
 
-- **Str(????)**: Generates a random string by replacing each `?` with a random letter
-- **Int(####)**: Generates a random integer by replacing each `#` with a random digit
-- **IntS(####)**: Generates the string representation of a random integer by replacing each `#` with a random digit
-- **Int(from,to)**: Generates an integer between `from` and `to`. For example Int(10,20)
-- **IntS(from, to)**: Generates the string representation of an integer between `from` and `to`
+| **Function(s)** | **Description**                                              | Example(s)                                       |
+| :-------------: | ------------------------------------------------------------ | ------------------------------------------------ |
+|    Str(????)    | Generates a random string by replacing each `?` with a random letter | Str(??): `gd`                                    |
+|    Int(####)    | Generates a random integer by replacing each `#` with a random digit | Int(##): `73`<br />Int(2#1): `281`               |
+|   IntS(####)    | Generates the string representation of an integer by replacing each `#` with a random digit | IntS(##): `"73"`                                 |
+|  Int(from,to)   | Generates an integer between `from` and `to`                 | Int(10,20): `14`                                 |
+|  IntS(from,to)  | Generates the string representation of an integer between `from` and `to` | IntS(10,20): `"14"`                              |
+|  Float(##.##)   | Generates a random floating point number by replacing each `#` with a random digit | Float(##.##): `14.32`<br />Float(0.##2): `0.182` |
+|                 |                                                              |                                                  |
+
 - **Float(##.##)**: Generates a random floating point number by replacing each `#` with a random digit
 - **FloatS(##.##)**: Generates the string representation of a random floating point number by replacing each `#` with a random digit
 - **Float(from,to,[decimal places])**: Generates an floating point number between `from` and `to`. For example Float(0.1,1.5) or Float(0.1,1.5,2)
