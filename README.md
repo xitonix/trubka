@@ -15,3 +15,5 @@
 - [Consuming from Kafka](https://github.com/xitonix/trubka/wiki/Consume-from-Kafka)
 - [Publishing to Kafka](https://github.com/xitonix/trubka/wiki/Publish-to-Kafka)
 
+Special thanks to **Joshua Humphries** and all the amazing contributors of the [protoreflect](https://github.com/jhump/protoreflect) package. Building Trubka would have been a pain without using their fantastic work. Thank you guys.   
+
