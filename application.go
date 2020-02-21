@@ -39,7 +39,7 @@ func newApplication() error {
 }
 
 func bindAppFlags(app *kingpin.Application, global *commands.GlobalParameters) {
-	colorFlag := app.Flag("color", "Enables colors in the standard output. To disable, use --no-color (Disabled by default on Windows).")
+	colorFlag := app.Flag("colour", "Enables colours in the standard output. To disable, use --no-colour (Disabled by default on Windows).")
 
 	if runtime.GOOS == "windows" {
 		colorFlag.Default("false")
