@@ -22,7 +22,6 @@ require (
 	github.com/peterbourgon/diskv v2.0.1+incompatible
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
-	github.com/xitonix/flags v0.1.1
 	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975 // indirect
 	golang.org/x/net v0.0.0-20200219183655-46282727080f // indirect
 	golang.org/x/sys v0.0.0-20190813064441-fde4db37ae7a // indirect
