@@ -28,6 +28,8 @@ I would also like to mention some of the amazing libraries and packages I used f
 
 - [kingpin](https://github.com/alecthomas/kingpin) and [chroma](https://github.com/alecthomas/chroma) by Alec Thomas
 
+- [tablewriter](https://github.com/olekukonko/tablewriter) by Oleku Konko
+
 - [diskv](https://github.com/peterbourgon/diskv) by Peter Bourgon
 
 - [gofakeit](https://github.com/brianvoe/gofakeit/) by Brian Voelker
