@@ -33,7 +33,6 @@ func addPlainSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 		Default("1").
 		Short('c').
 		Uint32Var(&cmd.count)
-
 }
 
 func (c *plain) run(_ *kingpin.ParseContext) error {
