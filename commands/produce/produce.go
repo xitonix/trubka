@@ -90,12 +90,13 @@ func produce(kafkaParams *commands.KafkaParameters,
 		internal.WaitForCancellationSignal()
 		cancel()
 	}()
+	randomPk := len(key) == 0
 	for i := uint32(1); i <= count; i++ {
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
-			if len(key) == 0 {
+			if randomPk {
 				key = fmt.Sprintf("%d%d", time.Now().UnixNano(), i)
 			}
 			vBytes, err := serialize(value)
