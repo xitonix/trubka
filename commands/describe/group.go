@@ -12,6 +12,7 @@ import (
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -123,15 +124,15 @@ func (c *group) printMemberDetailsTable(members map[string]*kafka.GroupMemberDet
 		sortedTopics := desc.TopicPartitions.SortedTopics()
 		for _, topic := range sortedTopics {
 			inner.Append([]string{
-				output.SpaceIfEmpty(topic),
-				output.SpaceIfEmpty(desc.TopicPartitions.SortedPartitionsString(topic)),
+				format.SpaceIfEmpty(topic),
+				format.SpaceIfEmpty(desc.TopicPartitions.SortedPartitionsString(topic)),
 			})
 		}
 		inner.Render()
 		row := []string{
-			output.SpaceIfEmpty(name),
-			output.SpaceIfEmpty(desc.ClientHost),
-			output.SpaceIfEmpty(buf.String()),
+			format.SpaceIfEmpty(name),
+			format.SpaceIfEmpty(desc.ClientHost),
+			format.SpaceIfEmpty(buf.String()),
 		}
 		rows = append(rows, row)
 	}

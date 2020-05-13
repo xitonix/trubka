@@ -14,6 +14,7 @@ import (
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -136,10 +137,10 @@ func (t *topic) printTableOutput(meta *kafka.TopicMetadata) {
 			totalOffsets += pm.Offset
 		}
 		row = append(row,
-			output.SpaceIfEmpty(t.brokersToList(pm.Leader)),
-			output.SpaceIfEmpty(t.brokersToList(pm.Replicas...)),
-			output.SpaceIfEmpty(t.brokersToList(pm.OfflineReplicas...)),
-			output.SpaceIfEmpty(t.brokersToList(pm.ISRs...)),
+			format.SpaceIfEmpty(t.brokersToList(pm.Leader)),
+			format.SpaceIfEmpty(t.brokersToList(pm.Replicas...)),
+			format.SpaceIfEmpty(t.brokersToList(pm.OfflineReplicas...)),
+			format.SpaceIfEmpty(t.brokersToList(pm.ISRs...)),
 		)
 		table.Append(row)
 	}

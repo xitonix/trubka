@@ -2,18 +2,18 @@ package describe
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
 	"strconv"
 
 	"github.com/dustin/go-humanize"
-	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format"
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -79,9 +79,9 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 
 func (b *broker) printHeader(isController bool) {
 	c := internal.BoolToString(isController)
-	fmt.Printf("Controller Node: %s\n",
-		internal.Bold(c, isController && b.globalParams.EnableColor))
+	fmt.Printf("Controller Node: %s\n", format.Bold(c, isController && b.globalParams.EnableColor))
 }
+
 func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) {
 	b.printHeader(meta.IsController)
 	output.UnderlineWithCount("Consumer Groups", len(meta.ConsumerGroups))
@@ -102,49 +102,49 @@ func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) {
 
 func (b *broker) printTableOutput(meta *kafka.BrokerMeta) {
 	b.printHeader(meta.IsController)
-	table := output.InitStaticTable(os.Stdout, output.H("Consumer Groups", tablewriter.ALIGN_LEFT))
+	table := tabular.NewTable(b.globalParams.EnableColor, tabular.C("Consumer Groups").Align(tabular.AlignLeft).FAlign(tabular.AlignRight))
 	for _, group := range meta.ConsumerGroups {
-		table.Append([]string{output.SpaceIfEmpty(group)})
+		if len(group) > 0 {
+			table.AddRow(group)
+		}
 	}
-	table.SetFooter([]string{fmt.Sprintf("Total: %d", len(meta.ConsumerGroups))})
-	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
+	table.AddFooter(fmt.Sprintf("Total: %d", len(meta.ConsumerGroups)))
 	table.Render()
 
 	if b.includeLogs && len(meta.Logs) != 0 {
+		internal.NewLines(2)
 		b.printLogsTable(meta.Logs)
 	}
 
 	if b.includeAPIVersions && len(meta.APIs) != 0 {
 		sort.Sort(kafka.APIByCode(meta.APIs))
+		internal.NewLines(2)
 		b.printAPITable(meta.APIs)
 	}
 }
 
 func (b *broker) printLogsTable(logs []*kafka.LogFile) {
 	for _, logFile := range logs {
-		fmt.Printf("\nLog File Path: %s\n", logFile.Path)
 		sorted := logFile.SortByPermanentSize()
 		if len(sorted) == 0 {
 			msg := internal.GetNotFoundMessage("topic log", "topic", b.topicsFilter)
 			fmt.Println(msg)
 			return
 		}
-		table := output.InitStaticTable(os.Stdout,
-			output.H("Topic", tablewriter.ALIGN_LEFT),
-			output.H("Permanent Logs", tablewriter.ALIGN_CENTER),
-			output.H("Temporary Logs", tablewriter.ALIGN_CENTER),
+		table := tabular.NewTable(b.globalParams.EnableColor,
+			tabular.C("Topic").Align(tabular.AlignLeft),
+			tabular.C("Permanent Logs"),
+			tabular.C("Temporary Logs"),
 		)
-		rows := make([][]string, 0)
-
+		table.SetTitle(fmt.Sprintf("Log File Path: %s", logFile.Path))
+		table.TitleAlignment(tabular.AlignLeft)
 		for _, tLogs := range sorted {
-			row := []string{
-				output.SpaceIfEmpty(tLogs.Topic),
-				output.SpaceIfEmpty(humanize.Bytes(tLogs.Permanent)),
-				output.SpaceIfEmpty(humanize.Bytes(tLogs.Temporary)),
-			}
-			rows = append(rows, row)
+			table.AddRow(
+				format.SpaceIfEmpty(tLogs.Topic),
+				format.SpaceIfEmpty(humanize.Bytes(tLogs.Permanent)),
+				format.SpaceIfEmpty(humanize.Bytes(tLogs.Temporary)),
+			)
 		}
-		table.AppendBulk(rows)
 		table.Render()
 	}
 }
@@ -169,25 +169,20 @@ func (b *broker) printLogsPlain(logs []*kafka.LogFile) {
 }
 
 func (b *broker) printAPITable(apis []*kafka.API) {
-	output.WithCount("Supported API Versions", len(apis))
-	table := output.InitStaticTable(os.Stdout,
-		output.H("API Key", tablewriter.ALIGN_CENTER),
-		output.H("Name", tablewriter.ALIGN_LEFT),
-		output.H("Min Version", tablewriter.ALIGN_CENTER),
-		output.H("Max Version", tablewriter.ALIGN_CENTER),
+	table := tabular.NewTable(b.globalParams.EnableColor,
+		tabular.C("API Key"),
+		tabular.C("Name").Align(tabular.AlignLeft),
+		tabular.C("Min Version"),
+		tabular.C("Max Version"),
 	)
+	table.TitleAlignment(tabular.AlignLeft)
+	table.SetTitle(format.TitleWithCount("Supported API Versions", len(apis)))
 	for _, api := range apis {
-		table.Append([]string{
-			strconv.FormatInt(int64(api.Key), 10),
-			output.SpaceIfEmpty(api.Name),
-			strconv.FormatInt(int64(api.MinVersion), 10),
-			strconv.FormatInt(int64(api.MaxVersion), 10),
-		})
+		table.AddRow(api.Key, format.SpaceIfEmpty(api.Name),
+			strconv.FormatInt(int64(api.MinVersion), 10), api.MinVersion, api.MaxVersion)
 	}
 
-	table.SetFooter([]string{fmt.Sprintf("Total: %d", len(apis)), " ", " ", " "})
-	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
-
+	table.AddFooter(" ", fmt.Sprintf("Total: %d", len(apis)), " ", " ")
 	table.Render()
 }
 

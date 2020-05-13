@@ -45,10 +45,3 @@ func InitStaticTable(writer io.Writer, headers ...TableHeader) *tablewriter.Tabl
 	table.SetRowLine(true)
 	return table
 }
-
-func SpaceIfEmpty(in string) string {
-	if len(in) > 0 {
-		return in
-	}
-	return " "
-}

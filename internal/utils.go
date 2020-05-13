@@ -21,6 +21,12 @@ func FormatTime(t time.Time) string {
 	return t.Format("02-01-2006T15:04:05.999999999")
 }
 
+func NewLines(count int) {
+	for i := 0; i < count; i++ {
+		fmt.Println()
+	}
+}
+
 func GetNotFoundMessage(entity, filterName string, ex *regexp.Regexp) string {
 	msg := fmt.Sprintf("No %s has been found.", entity)
 	if ex != nil {

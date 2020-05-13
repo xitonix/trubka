@@ -42,7 +42,7 @@ func C(header string) *Column {
 			Align:       text.Align(AlignCenter),
 			AlignHeader: text.Align(AlignCenter),
 			VAlign:      text.VAlign(VAlignTop),
-			AlignFooter: text.Align(AlignCenter),
+			AlignFooter: text.Align(AlignRight),
 		},
 	}
 }

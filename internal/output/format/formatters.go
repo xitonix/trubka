@@ -8,3 +8,10 @@ func Bold(val interface{}, enableColor bool) interface{} {
 	}
 	return text.Bold.Sprint(val)
 }
+
+func SpaceIfEmpty(in string) string {
+	if len(in) > 0 {
+		return in
+	}
+	return " "
+}

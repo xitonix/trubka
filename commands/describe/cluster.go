@@ -7,6 +7,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/list"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
@@ -69,7 +70,7 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
 	table := tabular.NewTable(c.globalParams.EnableColor,
 		tabular.C("ID").Align(tabular.AlignLeft),
-		tabular.C("Address").Align(tabular.AlignLeft).FAlign(tabular.AlignRight),
+		tabular.C("Address").Align(tabular.AlignLeft),
 	)
 	table.SetTitle(format.TitleWithCount("Brokers", len(meta.Brokers)))
 	for _, broker := range meta.Brokers {
@@ -84,7 +85,7 @@ func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
 	table.Render()
 
 	if len(meta.ConfigEntries) > 0 {
-		format.NewLines(1)
+		internal.NewLines(1)
 		commands.PrintConfigTable(meta.ConfigEntries)
 	}
 }
@@ -99,7 +100,7 @@ func (c *cluster) printPlainTextOutput(meta *kafka.ClusterMetadata) {
 	b.Render()
 
 	if len(meta.ConfigEntries) > 0 {
-		format.NewLines(2)
+		internal.NewLines(2)
 		commands.PrintConfigPlain(meta.ConfigEntries)
 	}
 }

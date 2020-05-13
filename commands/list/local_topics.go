@@ -12,6 +12,7 @@ import (
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -64,7 +65,7 @@ func (l *listLocalTopics) printTableOutput(store map[string][]string) {
 		table.SetColMinWidth(0, 50)
 		sort.Strings(topics)
 		for _, topic := range topics {
-			table.Append([]string{output.SpaceIfEmpty(topic)})
+			table.Append([]string{format.SpaceIfEmpty(topic)})
 		}
 		table.SetFooter([]string{fmt.Sprintf("Total: %d", len(topics))})
 		table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)

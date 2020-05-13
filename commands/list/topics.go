@@ -14,6 +14,7 @@ import (
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -96,9 +97,9 @@ func (c *topics) printTableOutput(topics []kafka.Topic) {
 		rf := strconv.FormatInt(int64(topic.ReplicationFactor), 10)
 		totalPartitions += int64(topic.NumberOfPartitions)
 		rows = append(rows, []string{
-			output.SpaceIfEmpty(topic.Name),
-			output.SpaceIfEmpty(np),
-			output.SpaceIfEmpty(rf),
+			format.SpaceIfEmpty(topic.Name),
+			format.SpaceIfEmpty(np),
+			format.SpaceIfEmpty(rf),
 		})
 	}
 	table.AppendBulk(rows)
