@@ -1,21 +1,21 @@
 package tabular
 
 import (
-	"io"
+	"os"
 
 	"github.com/jedib0t/go-pretty/table"
 	"github.com/jedib0t/go-pretty/text"
 )
 
 type Table struct {
-	table table.Writer
-	style *table.Style
+	writer table.Writer
+	style  *table.Style
 }
 
-func NewTable(output io.Writer, enableColor bool, columns ...*Column) *Table {
+func NewTable(enableColor bool, columns ...*Column) *Table {
 	t := table.NewWriter()
 	t.SetStyle(table.StyleRounded)
-	t.SetOutputMirror(output)
+	t.SetOutputMirror(os.Stdout)
 	headers := make(table.Row, len(columns))
 	configs := make([]table.ColumnConfig, len(columns))
 	for i, column := range columns {
@@ -30,8 +30,8 @@ func NewTable(output io.Writer, enableColor bool, columns ...*Column) *Table {
 	style.Format.Header = text.FormatDefault
 	style.Format.Footer = text.FormatDefault
 	return &Table{
-		table: t,
-		style: style,
+		writer: t,
+		style:  style,
 	}
 }
 
@@ -44,15 +44,15 @@ func (t *Table) AddRow(values ...interface{}) {
 	for i, value := range values {
 		row[i] = value
 	}
-	t.table.AppendRow(row)
+	t.writer.AppendRow(row)
 }
 
-func (t *Table) SetTitle(format string, a ...interface{}) {
-	t.table.SetTitle(format, a...)
+func (t *Table) SetTitle(title string) {
+	t.writer.SetTitle(title)
 }
 
-func (t *Table) SetCaption(format string, a ...interface{}) {
-	t.table.SetCaption(format, a...)
+func (t *Table) SetCaption(caption string) {
+	t.writer.SetCaption(caption)
 }
 
 func (t *Table) DisableRowSeparators() {
@@ -65,9 +65,9 @@ func (t *Table) AddFooter(values ...interface{}) {
 	for i, value := range values {
 		row[i] = value
 	}
-	t.table.AppendFooter(row)
+	t.writer.AppendFooter(row)
 }
 
 func (t *Table) Render() {
-	t.table.Render()
+	t.writer.Render()
 }

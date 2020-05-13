@@ -2,16 +2,19 @@ package describe
 
 import (
 	"fmt"
-	"os"
 	"sort"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
-	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
+	"github.com/xitonix/trubka/internal/output/format/list"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
+)
+
+const (
+	describeClusterCaption = " [C]: Controller Node"
 )
 
 type cluster struct {
@@ -64,10 +67,11 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
-	table := tabular.NewTable(os.Stdout, c.globalParams.EnableColor,
+	table := tabular.NewTable(c.globalParams.EnableColor,
 		tabular.C("ID").Align(tabular.AlignLeft),
-		tabular.C("Address").Align(tabular.AlignLeft).FAlign(tabular.AlignRight))
-	table.SetTitle("Brokers (%d)", len(meta.Brokers))
+		tabular.C("Address").Align(tabular.AlignLeft).FAlign(tabular.AlignRight),
+	)
+	table.SetTitle(format.TitleWithCount("Brokers", len(meta.Brokers)))
 	for _, broker := range meta.Brokers {
 		host := broker.Host
 		if broker.IsController {
@@ -76,27 +80,26 @@ func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
 		table.AddRow(broker.ID, host)
 	}
 	table.AddFooter("", fmt.Sprintf("Total: %d", len(meta.Brokers)))
-	table.SetCaption("[C]: Controller Node")
+	table.SetCaption(describeClusterCaption)
 	table.Render()
 
 	if len(meta.ConfigEntries) > 0 {
-		fmt.Println()
+		format.NewLines(1)
 		commands.PrintConfigTable(meta.ConfigEntries)
 	}
 }
 
 func (c *cluster) printPlainTextOutput(meta *kafka.ClusterMetadata) {
-	output.UnderlineWithCount("Brokers", len(meta.Brokers))
+	b := list.NewBullet()
+	b.SetTitle(format.TitleWithCount("Brokers", len(meta.Brokers)))
 	for _, broker := range meta.Brokers {
-		fmt.Printf("%s\n", broker.String())
+		b.AddItem(broker.String())
 	}
-	c.printLegend()
+	b.SetCaption(describeClusterCaption)
+	b.Render()
 
 	if len(meta.ConfigEntries) > 0 {
+		format.NewLines(2)
 		commands.PrintConfigPlain(meta.ConfigEntries)
 	}
-}
-
-func (*cluster) printLegend() {
-	fmt.Println("[C]: Controller Node")
 }

@@ -33,7 +33,7 @@ func (b *Broker) String() string {
 	if b.IsController {
 		controller = " [C]"
 	}
-	return fmt.Sprintf("%d: %s%s", b.ID, b.Host, controller)
+	return fmt.Sprintf("%d > %s%s", b.ID, b.Host, controller)
 }
 
 type BrokersById []*Broker

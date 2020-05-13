@@ -48,7 +48,6 @@ func C(header string) *Column {
 }
 
 func (c *Column) configuration(enableColor bool) table.ColumnConfig {
-
 	if c.humanize || c.warningLevel != nil {
 		transformer := func(val interface{}) string {
 			switch value := val.(type) {
@@ -94,6 +93,16 @@ func (c *Column) Align(alignment Alignment) *Column {
 
 func (c *Column) VAlign(alignment VAlignment) *Column {
 	c.config.VAlign = text.VAlign(alignment)
+	return c
+}
+
+func (c *Column) MinWidth(width int) *Column {
+	c.config.WidthMin = width
+	return c
+}
+
+func (c *Column) MaxWidth(width int) *Column {
+	c.config.WidthMax = width
 	return c
 }
 

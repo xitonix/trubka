@@ -11,7 +11,8 @@ import (
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format"
+	"github.com/xitonix/trubka/internal/output/format/list"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 )
@@ -66,22 +67,25 @@ func AddFormatFlag(c *kingpin.CmdClause, format *string) {
 }
 
 func PrintConfigTable(entries []*kafka.ConfigEntry) {
-	table := tabular.NewTable(os.Stdout, true,
-		tabular.C("Name").Align(tabular.AlignLeft),
-		tabular.C("Value").Align(tabular.AlignLeft).FAlign(tabular.AlignRight))
-	table.SetTitle("Configurations (%d)", len(entries))
+	table := tabular.NewTable(true,
+		tabular.C("Name").Align(tabular.AlignLeft).MaxWidth(100),
+		tabular.C("Value").Align(tabular.AlignLeft).FAlign(tabular.AlignRight).MaxWidth(100),
+	)
+	table.SetTitle(format.TitleWithCount("Configurations", len(entries)))
 	for _, config := range entries {
-		table.AddRow(config.Name, config.Value)
+		table.AddRow(config.Name, config.MultilineValue())
 	}
 	table.AddFooter("", fmt.Sprintf("Total: %d", len(entries)))
 	table.Render()
 }
 
 func PrintConfigPlain(entries []*kafka.ConfigEntry) {
-	output.UnderlineWithCount("Configurations", len(entries))
+	b := list.NewBullet()
+	b.SetTitle(format.TitleWithCount("Configurations", len(entries)))
 	for _, config := range entries {
-		fmt.Printf(" - %s: %s\n", config.Name, config.Value)
+		b.AddItem(config.String())
 	}
+	b.Render()
 }
 
 // AskForConfirmation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"
