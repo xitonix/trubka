@@ -9,10 +9,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -66,19 +66,14 @@ func AddFormatFlag(c *kingpin.CmdClause, format *string) {
 }
 
 func PrintConfigTable(entries []*kafka.ConfigEntry) {
-	output.WithCount("Configurations", len(entries))
-	table := output.InitStaticTable(os.Stdout,
-		output.H("Name", tablewriter.ALIGN_LEFT),
-		output.H("Value", tablewriter.ALIGN_LEFT),
-	)
+	table := tabular.NewTable(os.Stdout, true,
+		tabular.C("Name").Align(tabular.AlignLeft),
+		tabular.C("Value").Align(tabular.AlignLeft).FAlign(tabular.AlignRight))
+	table.SetTitle("Configurations (%d)", len(entries))
 	for _, config := range entries {
-		table.Append([]string{
-			config.Name,
-			config.Value,
-		})
+		table.AddRow(config.Name, config.Value)
 	}
-	table.SetFooter([]string{" ", fmt.Sprintf("Total: %d", len(entries))})
-	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
+	table.AddFooter("", fmt.Sprintf("Total: %d", len(entries)))
 	table.Render()
 }
 

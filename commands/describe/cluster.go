@@ -4,15 +4,13 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strconv"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/olekukonko/tablewriter"
-
 	"github.com/xitonix/trubka/commands"
-	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format"
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -66,26 +64,23 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
-	table := output.InitStaticTable(os.Stdout,
-		output.H("ID", tablewriter.ALIGN_LEFT),
-		output.H("Address", tablewriter.ALIGN_LEFT),
-	)
-	output.WithCount("Brokers", len(meta.Brokers))
+	table := tabular.NewTable(os.Stdout, c.globalParams.EnableColor,
+		tabular.C("ID").Align(tabular.AlignLeft),
+		tabular.C("Address").Align(tabular.AlignLeft).FAlign(tabular.AlignRight))
+	table.SetTitle("Brokers (%d)", len(meta.Brokers))
 	for _, broker := range meta.Brokers {
-		id := strconv.FormatInt(int64(broker.ID), 10)
 		host := broker.Host
 		if broker.IsController {
-			host += fmt.Sprintf(" [%s]", internal.Bold("C", c.globalParams.EnableColor))
+			host += fmt.Sprintf(" [%v]", format.Bold("C", c.globalParams.EnableColor))
 		}
-		row := []string{id, host}
-		table.Append(row)
+		table.AddRow(broker.ID, host)
 	}
-	table.SetFooter([]string{" ", fmt.Sprintf("Total: %d", len(meta.Brokers))})
-	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
+	table.AddFooter("", fmt.Sprintf("Total: %d", len(meta.Brokers)))
+	table.SetCaption("[C]: Controller Node")
 	table.Render()
-	c.printLegend()
 
 	if len(meta.ConfigEntries) > 0 {
+		fmt.Println()
 		commands.PrintConfigTable(meta.ConfigEntries)
 	}
 }

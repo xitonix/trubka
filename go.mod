@@ -10,9 +10,11 @@ require (
 	github.com/brianvoe/gofakeit/v4 v4.2.3
 	github.com/dlclark/regexp2 v1.2.0 // indirect
 	github.com/dustin/go-humanize v1.0.0
+	github.com/go-openapi/strfmt v0.19.5 // indirect
 	github.com/golang/protobuf v1.3.3
 	github.com/google/btree v1.0.0 // indirect
 	github.com/gookit/color v1.2.2
+	github.com/jedib0t/go-pretty v4.3.0+incompatible
 	github.com/jhump/protoreflect v1.6.0
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/klauspost/compress v1.10.1 // indirect
