@@ -28,6 +28,7 @@ func NewTable(output io.Writer, enableColor bool, columns ...*Column) *Table {
 	style.Title.Align = text.AlignLeft
 	style.Options.SeparateRows = true
 	style.Format.Header = text.FormatDefault
+	style.Format.Footer = text.FormatDefault
 	return &Table{
 		table: t,
 		style: style,

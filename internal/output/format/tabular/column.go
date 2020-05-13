@@ -61,19 +61,7 @@ func (c *Column) configuration(enableColor bool) table.ColumnConfig {
 			return fmt.Sprint(val)
 		}
 		c.config.Transformer = transformer
-		// NOTE: There is a bug in the package which prevents us from
-		// Rendering colors in the footer. We just Humanize if enabled.
-		if c.humanize {
-			c.config.TransformerFooter = func(val interface{}) string {
-				switch value := val.(type) {
-				case int:
-					return humanize.Comma(int64(value))
-				case int64:
-					return humanize.Comma(value)
-				}
-				return fmt.Sprint(val)
-			}
-		}
+		c.config.TransformerFooter = transformer
 	}
 	return c.config
 }
