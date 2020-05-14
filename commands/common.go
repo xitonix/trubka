@@ -11,6 +11,7 @@ import (
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/list"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
@@ -73,7 +74,8 @@ func PrintConfigTable(entries []*kafka.ConfigEntry) {
 	)
 	table.SetTitle(format.TitleWithCount("Configurations", len(entries)))
 	for _, config := range entries {
-		table.AddRow(config.Name, config.MultilineValue())
+		parts := strings.Split(config.Value, ",")
+		table.AddRow(config.Name, strings.Join(parts, "\n"))
 	}
 	table.AddFooter("", fmt.Sprintf("Total: %d", len(entries)))
 	table.Render()
@@ -83,7 +85,19 @@ func PrintConfigPlain(entries []*kafka.ConfigEntry) {
 	b := list.NewBullet()
 	b.SetTitle(format.TitleWithCount("Configurations", len(entries)))
 	for _, config := range entries {
-		b.AddItem(config.String())
+		parts := strings.Split(config.Value, ",")
+		if len(parts) == 1 {
+			b.AddItem(fmt.Sprintf("%s: %v", config.Name, config.Value))
+			continue
+		}
+		b.AddItem(config.Name)
+		b.Intend()
+		for _, val := range parts {
+			if !internal.IsEmpty(val) {
+				b.AddItem(val)
+			}
+		}
+		b.UnIntend()
 	}
 	b.Render()
 }

@@ -1,8 +1,6 @@
 package kafka
 
 import (
-	"fmt"
-
 	"github.com/Shopify/sarama"
 
 	"github.com/xitonix/trubka/internal"
@@ -26,14 +24,6 @@ func NewBroker(broker *sarama.Broker, controllerId int32) *Broker {
 		IsController: controllerId == id,
 		Broker:       broker,
 	}
-}
-
-func (b *Broker) String() string {
-	var controller string
-	if b.IsController {
-		controller = " [C]"
-	}
-	return fmt.Sprintf("%d > %s%s", b.ID, b.Host, controller)
 }
 
 type BrokersById []*Broker

@@ -72,7 +72,7 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 
 func (c *topics) printPlainTextOutput(topics []kafka.Topic) {
 	var totalPartitions int64
-	output.UnderlineWithCount("Topics", len(topics))
+	fmt.Println(format.UnderlinedTitleWithCount("Topics", len(topics)))
 	for _, topic := range topics {
 		totalPartitions += int64(topic.NumberOfPartitions)
 		fmt.Printf("%s\n", topic)
@@ -91,7 +91,7 @@ func (c *topics) printTableOutput(topics []kafka.Topic) {
 
 	rows := make([][]string, 0)
 	var totalPartitions int64
-	output.WithCount("Topics", len(topics))
+	fmt.Println(format.WithCount("Topics", len(topics)))
 	for _, topic := range topics {
 		np := strconv.FormatInt(int64(topic.NumberOfPartitions), 10)
 		rf := strconv.FormatInt(int64(topic.ReplicationFactor), 10)

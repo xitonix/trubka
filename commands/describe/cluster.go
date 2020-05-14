@@ -7,15 +7,14 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
-	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
-	"github.com/xitonix/trubka/internal/output/format/list"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 )
 
 const (
-	describeClusterCaption = " [C]: Controller Node"
+	controlNodeFlag = "CTRL"
 )
 
 type cluster struct {
@@ -55,6 +54,11 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("failed to list the brokers: %w", err)
 	}
 
+	if len(meta.Brokers) == 0 {
+		fmt.Println("No brokers found!")
+		return nil
+	}
+
 	sort.Sort(kafka.BrokersById(meta.Brokers))
 	sort.Sort(kafka.ConfigEntriesByName(meta.ConfigEntries))
 
@@ -74,33 +78,41 @@ func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
 	)
 	table.SetTitle(format.TitleWithCount("Brokers", len(meta.Brokers)))
 	for _, broker := range meta.Brokers {
-		host := broker.Host
 		if broker.IsController {
-			host += fmt.Sprintf(" [%v]", format.Bold("C", c.globalParams.EnableColor))
+			host := fmt.Sprintf("%v < %v",
+				format.BoldGreen(broker.Host, c.globalParams.EnableColor),
+				format.GreenLabel(controlNodeFlag, c.globalParams.EnableColor),
+			)
+			table.AddRow(format.BoldGreen(broker.ID, c.globalParams.EnableColor), host)
+			continue
 		}
-		table.AddRow(broker.ID, host)
+		table.AddRow(broker.ID, broker.Host)
 	}
 	table.AddFooter("", fmt.Sprintf("Total: %d", len(meta.Brokers)))
-	table.SetCaption(describeClusterCaption)
+	output.NewLines(1)
 	table.Render()
 
 	if len(meta.ConfigEntries) > 0 {
-		internal.NewLines(1)
+		output.NewLines(2)
 		commands.PrintConfigTable(meta.ConfigEntries)
 	}
 }
 
 func (c *cluster) printPlainTextOutput(meta *kafka.ClusterMetadata) {
-	b := list.NewBullet()
-	b.SetTitle(format.TitleWithCount("Brokers", len(meta.Brokers)))
+	fmt.Printf("\n%s\n\n", format.UnderlinedTitleWithCount("Brokers", len(meta.Brokers)))
 	for _, broker := range meta.Brokers {
-		b.AddItem(broker.String())
+		if broker.IsController {
+			fmt.Printf("%v. %v < %v\n",
+				format.BoldGreen(broker.ID, c.globalParams.EnableColor),
+				format.BoldGreen(broker.Host, c.globalParams.EnableColor),
+				format.GreenLabel(controlNodeFlag, c.globalParams.EnableColor))
+		} else {
+			fmt.Printf("%v. %v\n", broker.ID, broker.Host)
+		}
 	}
-	b.SetCaption(describeClusterCaption)
-	b.Render()
 
 	if len(meta.ConfigEntries) > 0 {
-		internal.NewLines(2)
+		output.NewLines(2)
 		commands.PrintConfigPlain(meta.ConfigEntries)
 	}
 }

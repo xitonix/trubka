@@ -14,11 +14,10 @@ require (
 	github.com/golang/protobuf v1.3.3
 	github.com/google/btree v1.0.0 // indirect
 	github.com/gookit/color v1.2.2
-	github.com/jedib0t/go-pretty v4.3.0+incompatible
+	github.com/jedib0t/go-pretty v1.0.1-0.20200513162803-d24d83bda5d4
 	github.com/jhump/protoreflect v1.6.0
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/klauspost/compress v1.10.1 // indirect
-	github.com/mattn/go-runewidth v0.0.8 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/peterbourgon/diskv v2.0.1+incompatible

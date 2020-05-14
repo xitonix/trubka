@@ -67,7 +67,7 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 func (c *group) printPlainTextOutput(details *kafka.ConsumerGroupDetails) {
 	fmt.Println(details.String())
 	if c.includeMembers {
-		output.UnderlineWithCount("Members", len(details.Members))
+		fmt.Println(format.UnderlinedTitleWithCount("Members", len(details.Members)))
 		for member, md := range details.Members {
 			fmt.Println("  ID: " + member)
 			fmt.Printf("HOST: %s\n\n", md.ClientHost)
@@ -76,7 +76,7 @@ func (c *group) printPlainTextOutput(details *kafka.ConsumerGroupDetails) {
 			}
 			tps := details.Members[member].TopicPartitions
 			sortedTopics := tps.SortedTopics()
-			output.UnderlineWithCount("Assignments", len(sortedTopics))
+			fmt.Println(format.UnderlinedTitleWithCount("Assignments", len(sortedTopics)))
 			for _, topic := range sortedTopics {
 				space := strings.Repeat(" ", 2)
 				fmt.Printf("%s- %s: %s\n", space, topic, tps.SortedPartitionsString(topic))
@@ -113,7 +113,7 @@ func (c *group) printMemberDetailsTable(members map[string]*kafka.GroupMemberDet
 		output.H("Assignments", tablewriter.ALIGN_CENTER),
 	)
 
-	output.WithCount("Members", len(members))
+	fmt.Println(format.WithCount("Members", len(members)))
 	rows := make([][]string, 0)
 	for name, desc := range members {
 		var buf bytes.Buffer

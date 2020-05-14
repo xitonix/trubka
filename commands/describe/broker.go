@@ -78,13 +78,14 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 }
 
 func (b *broker) printHeader(isController bool) {
+	output.NewLines(1)
 	c := internal.BoolToString(isController)
-	fmt.Printf("Controller Node: %s\n", format.Bold(c, isController && b.globalParams.EnableColor))
+	fmt.Printf(" Controller Node: %s\n", format.Bold(c, isController && b.globalParams.EnableColor))
 }
 
 func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) {
 	b.printHeader(meta.IsController)
-	output.UnderlineWithCount("Consumer Groups", len(meta.ConsumerGroups))
+	fmt.Println(format.UnderlinedTitleWithCount("Consumer Groups", len(meta.ConsumerGroups)))
 	for _, group := range meta.ConsumerGroups {
 		fmt.Printf(" - %s\n", group)
 	}
@@ -112,13 +113,13 @@ func (b *broker) printTableOutput(meta *kafka.BrokerMeta) {
 	table.Render()
 
 	if b.includeLogs && len(meta.Logs) != 0 {
-		internal.NewLines(2)
+		output.NewLines(2)
 		b.printLogsTable(meta.Logs)
 	}
 
 	if b.includeAPIVersions && len(meta.APIs) != 0 {
 		sort.Sort(kafka.APIByCode(meta.APIs))
-		internal.NewLines(2)
+		output.NewLines(2)
 		b.printAPITable(meta.APIs)
 	}
 }
@@ -152,7 +153,7 @@ func (b *broker) printLogsTable(logs []*kafka.LogFile) {
 func (b *broker) printLogsPlain(logs []*kafka.LogFile) {
 	for _, logFile := range logs {
 		title := fmt.Sprintf("\nPath: %s", logFile.Path)
-		fmt.Printf("%s\n", output.Underline(title))
+		fmt.Println(format.Underline(title))
 		sorted := logFile.SortByPermanentSize()
 		if len(sorted) == 0 {
 			msg := internal.GetNotFoundMessage("topic log", "topic", b.topicsFilter)
@@ -187,7 +188,7 @@ func (b *broker) printAPITable(apis []*kafka.API) {
 }
 
 func (b *broker) printAPIPlain(apis []*kafka.API) {
-	output.UnderlineWithCount("Supported API Versions", len(apis))
+	fmt.Println(format.UnderlinedTitleWithCount("Supported API Versions", len(apis)))
 	for _, api := range apis {
 		fmt.Printf(" %s\n", api)
 	}

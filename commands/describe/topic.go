@@ -76,7 +76,7 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 
 func (t *topic) printPlainTextOutput(meta *kafka.TopicMetadata) {
 	var totalOffsets int64
-	output.UnderlineWithCount("Partitions", len(meta.Partitions))
+	fmt.Println(format.UnderlinedTitleWithCount("Partitions", len(meta.Partitions)))
 	for _, pm := range meta.Partitions {
 		var offset string
 		if t.includeOffsets {
@@ -97,7 +97,7 @@ func (t *topic) printPlainTextOutput(meta *kafka.TopicMetadata) {
 	}
 
 	if t.includeOffsets {
-		fmt.Println(output.Underline("Total Offsets"))
+		fmt.Println(format.Underline("Total Offsets"))
 		fmt.Println(humanize.Comma(totalOffsets))
 	}
 
@@ -126,7 +126,7 @@ func (t *topic) printTableOutput(meta *kafka.TopicMetadata) {
 			output.H("ISRs", tablewriter.ALIGN_LEFT),
 		)
 	}
-	output.WithCount("Partitions", len(meta.Partitions))
+	fmt.Println(format.WithCount("Partitions", len(meta.Partitions)))
 	var totalOffsets int64
 	for _, pm := range meta.Partitions {
 		partition := strconv.FormatInt(int64(pm.Id), 10)
