@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
-	"strconv"
 
 	"github.com/dustin/go-humanize"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -13,6 +12,7 @@ import (
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
+	"github.com/xitonix/trubka/internal/output/format/list"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 )
@@ -23,6 +23,7 @@ type broker struct {
 	topicsFilter       *regexp.Regexp
 	identifier         string
 	includeLogs        bool
+	includeZeroLogs    bool
 	includeAPIVersions bool
 	format             string
 }
@@ -34,10 +35,16 @@ func addBrokerSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParam
 	}
 	c := parent.Command("broker", "Describes a Kafka broker.").Action(cmd.run)
 	c.Arg("broker", "The broker address or Id.").Required().StringVar(&cmd.identifier)
-	c.Flag("include-logs", "Fetches information about the broker log files.").
+	c.Flag("include-logs", "Fetches information about the broker log for each topic.").
 		Short('l').
 		NoEnvar().
 		BoolVar(&cmd.includeLogs)
+
+	c.Flag("include-zero-entries", "Includes the topic log entries of size zero. Works with --include-logs only.").
+		Short('z').
+		NoEnvar().
+		BoolVar(&cmd.includeZeroLogs)
+
 	c.Flag("include-api-versions", "Fetches the API versions supported by the broker.").
 		NoEnvar().
 		Short('a').
@@ -77,39 +84,45 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 	return nil
 }
 
-func (b *broker) printHeader(isController bool) {
-	output.NewLines(1)
-	c := internal.BoolToString(isController)
-	fmt.Printf(" Controller Node: %s\n", format.Bold(c, isController && b.globalParams.EnableColor))
-}
-
 func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) {
-	b.printHeader(meta.IsController)
-	fmt.Println(format.UnderlinedTitleWithCount("Consumer Groups", len(meta.ConsumerGroups)))
-	for _, group := range meta.ConsumerGroups {
-		fmt.Printf(" - %s\n", group)
+	header := format.TitleWithCount("Consumer Groups", len(meta.ConsumerGroups))
+	hLen := len(header)
+	if meta.IsController {
+		hLen += len(controlNodeFlag) + 3
+		header = fmt.Sprintf("%s %v", header, format.GreenLabel(controlNodeFlag, b.globalParams.EnableColor))
 	}
-	fmt.Println()
-
+	output.NewLines(1)
+	fmt.Println(format.UnderlineLen(header, hLen))
+	l := list.NewBullet()
+	for _, group := range meta.ConsumerGroups {
+		l.AddItem(group)
+	}
+	l.Render()
 	if b.includeLogs && len(meta.Logs) != 0 {
+		output.NewLines(2)
 		b.printLogsPlain(meta.Logs)
 	}
 
 	if b.includeAPIVersions && len(meta.APIs) != 0 {
+		output.NewLines(2)
 		sort.Sort(kafka.APIByCode(meta.APIs))
 		b.printAPIPlain(meta.APIs)
 	}
 }
 
 func (b *broker) printTableOutput(meta *kafka.BrokerMeta) {
-	b.printHeader(meta.IsController)
-	table := tabular.NewTable(b.globalParams.EnableColor, tabular.C("Consumer Groups").Align(tabular.AlignLeft).FAlign(tabular.AlignRight))
+	header := "Consumer Groups"
+	if meta.IsController {
+		header = fmt.Sprintf("Consumer Groups %v", format.GreenLabel(controlNodeFlag, b.globalParams.EnableColor))
+	}
+	table := tabular.NewTable(b.globalParams.EnableColor, tabular.C(header).Align(tabular.AlignLeft).FAlign(tabular.AlignRight))
 	for _, group := range meta.ConsumerGroups {
 		if len(group) > 0 {
 			table.AddRow(group)
 		}
 	}
 	table.AddFooter(fmt.Sprintf("Total: %d", len(meta.ConsumerGroups)))
+	output.NewLines(1)
 	table.Render()
 
 	if b.includeLogs && len(meta.Logs) != 0 {
@@ -133,40 +146,64 @@ func (b *broker) printLogsTable(logs []*kafka.LogFile) {
 			return
 		}
 		table := tabular.NewTable(b.globalParams.EnableColor,
-			tabular.C("Topic").Align(tabular.AlignLeft),
-			tabular.C("Permanent Logs"),
-			tabular.C("Temporary Logs"),
+			tabular.C("Topic").Align(tabular.AlignLeft).FAlign(tabular.AlignRight),
+			tabular.C("Permanent Logs").FAlign(tabular.AlignCenter),
+			tabular.C("Temporary Logs").FAlign(tabular.AlignCenter),
 		)
 		table.SetTitle(fmt.Sprintf("Log File Path: %s", logFile.Path))
 		table.TitleAlignment(tabular.AlignLeft)
+		var totalPerm, totalTemp uint64
 		for _, tLogs := range sorted {
+			if !b.includeZeroLogs && tLogs.Permanent == 0 && tLogs.Temporary == 0 {
+				continue
+			}
+			totalPerm += tLogs.Permanent
+			totalTemp += tLogs.Temporary
 			table.AddRow(
 				format.SpaceIfEmpty(tLogs.Topic),
 				format.SpaceIfEmpty(humanize.Bytes(tLogs.Permanent)),
 				format.SpaceIfEmpty(humanize.Bytes(tLogs.Temporary)),
 			)
 		}
+
+		table.AddFooter("Total", format.SpaceIfEmpty(humanize.Bytes(totalPerm)), format.SpaceIfEmpty(humanize.Bytes(totalTemp)))
 		table.Render()
 	}
 }
 
 func (b *broker) printLogsPlain(logs []*kafka.LogFile) {
+	l := list.NewBullet()
+	l.AsTree()
 	for _, logFile := range logs {
-		title := fmt.Sprintf("\nPath: %s", logFile.Path)
-		fmt.Println(format.Underline(title))
+		l.AddItem(logFile.Path)
 		sorted := logFile.SortByPermanentSize()
 		if len(sorted) == 0 {
 			msg := internal.GetNotFoundMessage("topic log", "topic", b.topicsFilter)
 			fmt.Println(msg)
 			return
 		}
+		l.Intend()
+		var totalPerm, totalTemp uint64
 		for _, tLogs := range sorted {
-			fmt.Printf(" - %s: PERM %s, TEMP %s\n",
-				tLogs.Topic,
-				humanize.Bytes(tLogs.Permanent),
-				humanize.Bytes(tLogs.Temporary))
+			if !b.includeZeroLogs && tLogs.Permanent == 0 && tLogs.Temporary == 0 {
+				continue
+			}
+			totalPerm += tLogs.Permanent
+			totalTemp += tLogs.Temporary
+			l.AddItem(tLogs.Topic)
+			l.Intend()
+			if b.includeZeroLogs || tLogs.Permanent > 0 {
+				l.AddItem("Permanent: " + humanize.Bytes(tLogs.Permanent))
+			}
+			if b.includeZeroLogs || tLogs.Temporary > 0 {
+				l.AddItem("Temporary: " + humanize.Bytes(tLogs.Temporary))
+			}
+			l.UnIntend()
 		}
+		l.UnIntend()
+		l.SetCaption(fmt.Sprintf("Total > Permanent: %s, Temporary: %s", humanize.Bytes(totalPerm), humanize.Bytes(totalTemp)))
 	}
+	l.Render()
 }
 
 func (b *broker) printAPITable(apis []*kafka.API) {
@@ -179,8 +216,7 @@ func (b *broker) printAPITable(apis []*kafka.API) {
 	table.TitleAlignment(tabular.AlignLeft)
 	table.SetTitle(format.TitleWithCount("Supported API Versions", len(apis)))
 	for _, api := range apis {
-		table.AddRow(api.Key, format.SpaceIfEmpty(api.Name),
-			strconv.FormatInt(int64(api.MinVersion), 10), api.MinVersion, api.MaxVersion)
+		table.AddRow(api.Key, format.SpaceIfEmpty(api.Name), api.MinVersion, api.MaxVersion)
 	}
 
 	table.AddFooter(" ", fmt.Sprintf("Total: %d", len(apis)), " ", " ")
@@ -188,8 +224,10 @@ func (b *broker) printAPITable(apis []*kafka.API) {
 }
 
 func (b *broker) printAPIPlain(apis []*kafka.API) {
+	l := list.NewBullet()
 	fmt.Println(format.UnderlinedTitleWithCount("Supported API Versions", len(apis)))
 	for _, api := range apis {
-		fmt.Printf(" %s\n", api)
+		l.AddItem(api)
 	}
+	l.Render()
 }

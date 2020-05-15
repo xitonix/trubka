@@ -27,7 +27,7 @@ func newAPI(name string, key, minVer, maxVer int16) *API {
 }
 
 func (a *API) String() string {
-	return fmt.Sprintf("ver. %d ≤ %d%s ≤ ver. %d", a.MinVersion, a.Key, a.Name, a.MaxVersion)
+	return fmt.Sprintf("v%d ≤ [%2d] %s ≤ v%d", a.MinVersion, a.Key, a.Name, a.MaxVersion)
 }
 
 type APIByCode []*API

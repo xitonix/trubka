@@ -28,8 +28,12 @@ func BoldGreen(val interface{}, enableColor bool) interface{} {
 	return text.Colors{text.Bold, text.FgHiGreen}.Sprint(val)
 }
 
+func UnderlineLen(input string, length int) string {
+	return fmt.Sprintf("%s\n%s", input, underline(length))
+}
+
 func Underline(input string) string {
-	return fmt.Sprintf("%s\n%s", input, underline(len(input)))
+	return UnderlineLen(input, len(input))
 }
 
 func UnderlinedTitleWithCount(title string, count int) string {
