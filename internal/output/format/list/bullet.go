@@ -2,6 +2,7 @@ package list
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -30,6 +31,10 @@ func (b *Bullet) SetTitle(title string) {
 
 func (b *Bullet) SetCaption(caption string) {
 	b.caption = caption
+}
+
+func (b *Bullet) SetOutput(out io.Writer) {
+	b.writer.SetOutputMirror(out)
 }
 
 func (b *Bullet) Render() {

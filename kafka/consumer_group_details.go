@@ -1,8 +1,6 @@
 package kafka
 
 import (
-	"fmt"
-
 	"github.com/Shopify/sarama"
 )
 
@@ -29,15 +27,6 @@ func (c ConsumerGroupDetailsByName) Swap(i, j int) {
 
 func (c ConsumerGroupDetailsByName) Less(i, j int) bool {
 	return c[i].Name < c[j].Name
-}
-
-func (c *ConsumerGroupDetails) String() string {
-	return fmt.Sprintf("         Name: %s\n  Coordinator: %s\n        State: %s\n     Protocol: %s\nProtocol Type: %s",
-		c.Name,
-		c.Coordinator.Host,
-		c.State,
-		c.Protocol,
-		c.ProtocolType)
 }
 
 type GroupMemberDetails struct {

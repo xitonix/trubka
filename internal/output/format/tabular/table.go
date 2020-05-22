@@ -2,6 +2,7 @@ package tabular
 
 import (
 	"os"
+	"runtime"
 
 	"github.com/jedib0t/go-pretty/table"
 	"github.com/jedib0t/go-pretty/text"
@@ -14,7 +15,11 @@ type Table struct {
 
 func NewTable(enableColor bool, columns ...*Column) *Table {
 	t := table.NewWriter()
-	t.SetStyle(table.StyleRounded)
+	if runtime.GOOS == "windows" {
+		t.SetStyle(table.StyleLight)
+	} else {
+		t.SetStyle(table.StyleRounded)
+	}
 	t.SetOutputMirror(os.Stdout)
 	headers := make(table.Row, len(columns))
 	configs := make([]table.ColumnConfig, len(columns))

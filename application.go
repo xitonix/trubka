@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"runtime"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -39,13 +38,7 @@ func newApplication() error {
 }
 
 func bindAppFlags(app *kingpin.Application, global *commands.GlobalParameters) {
-	colorFlag := app.Flag("colour", "Enables colours in the standard output. To disable, use --no-colour (Disabled by default on Windows).")
-
-	if runtime.GOOS == "windows" {
-		colorFlag.Default("false")
-	} else {
-		colorFlag.Default("true")
-	}
+	colorFlag := app.Flag("colour", "Enables colours in the standard output. To disable, use --no-colour.").Default("true")
 
 	colorFlag.BoolVar(&global.EnableColor)
 

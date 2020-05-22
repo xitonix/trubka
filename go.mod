@@ -3,7 +3,7 @@ module github.com/xitonix/trubka
 go 1.12
 
 require (
-	github.com/Shopify/sarama v1.26.1
+	github.com/Shopify/sarama v1.26.4
 	github.com/alecthomas/chroma v0.7.1
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
@@ -15,6 +15,7 @@ require (
 	github.com/google/btree v1.0.0 // indirect
 	github.com/gookit/color v1.2.2
 	github.com/jedib0t/go-pretty v1.0.1-0.20200513162803-d24d83bda5d4
+	github.com/jedib0t/go-pretty/v6 v6.0.2 // indirect
 	github.com/jhump/protoreflect v1.6.0
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/klauspost/compress v1.10.1 // indirect
