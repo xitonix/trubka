@@ -4,7 +4,7 @@
 
 <img src="_media/logo-small.jpg" alt="logo-small" align="left" width="300"/>
 
-Trubka** is a Kafka CLI tool built in [Go](https://go.dev/) which gives you everything you need to 
+**Trubka** is a Kafka CLI tool built in [Go](https://go.dev/) which gives you everything you need to 
 
 * Manage, query and troubleshoot your Kafka clusters.
 * Consume [protocol buffer](https://developers.google.com/protocol-buffers/) and plain text messages from Kafka.
