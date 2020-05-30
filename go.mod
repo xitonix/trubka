@@ -13,9 +13,7 @@ require (
 	github.com/go-openapi/strfmt v0.19.5 // indirect
 	github.com/golang/protobuf v1.3.3
 	github.com/google/btree v1.0.0 // indirect
-	github.com/gookit/color v1.2.2
 	github.com/jedib0t/go-pretty v1.0.1-0.20200513162803-d24d83bda5d4
-	github.com/jedib0t/go-pretty/v6 v6.0.2 // indirect
 	github.com/jhump/protoreflect v1.6.0
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/klauspost/compress v1.10.1 // indirect

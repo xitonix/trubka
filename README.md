@@ -39,6 +39,7 @@ I would also like to mention some of the amazing libraries and packages I used f
 - [confdir](https://github.com/kirsle/configdir) by Noah Petherbridge
 
 - [go-homedir](https://github.com/mitchellh/go-homedir) by Mitchell Hashimoto
+- [go-pretty](https://github.com/jedib0t/go-pretty) by Naveen Mahalingam
 
   
 

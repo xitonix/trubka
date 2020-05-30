@@ -68,7 +68,7 @@ func produce(kafkaParams *commands.KafkaParameters,
 		}
 		err := producer.Close()
 		if err != nil {
-			fmt.Println(internal.Err("Failed to close the publisher", globalParams.EnableColor))
+			fmt.Println(internal.Red("Failed to close the publisher", globalParams.EnableColor))
 		}
 	}()
 
