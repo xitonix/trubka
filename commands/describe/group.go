@@ -14,10 +14,6 @@ import (
 	"github.com/xitonix/trubka/kafka"
 )
 
-const (
-	stableGroupLabel = "Stable"
-)
-
 type group struct {
 	kafkaParams    *commands.KafkaParameters
 	globalParams   *commands.GlobalParameters
@@ -71,7 +67,7 @@ func (c *group) printPlainTextOutput(details *kafka.ConsumerGroupDetails) {
 	fmt.Printf("         Name: %s\n  Coordinator: %s\n        State: %s\n     Protocol: %s\nProtocol Type: %s",
 		details.Name,
 		details.Coordinator.Host,
-		c.getStateString(details.State),
+		format.GroupStateLabel(details.State, c.globalParams.EnableColor),
 		details.Protocol,
 		details.ProtocolType)
 
@@ -111,7 +107,7 @@ func (c *group) printTableOutput(details *kafka.ConsumerGroupDetails) {
 
 	table.AddRow(
 		details.Coordinator.Address,
-		c.getStateString(details.State),
+		format.GroupStateLabel(details.State, c.globalParams.EnableColor),
 		details.Protocol,
 		details.ProtocolType,
 	)
@@ -154,11 +150,4 @@ func (c *group) printMemberDetailsTable(members map[string]*kafka.GroupMemberDet
 	}
 	table.AddFooter(fmt.Sprintf("Total: %d", len(members)), " ", " ")
 	table.Render()
-}
-
-func (c *group) getStateString(state string) string {
-	if strings.EqualFold(state, stableGroupLabel) {
-		return fmt.Sprint(format.GreenLabel(stableGroupLabel, c.globalParams.EnableColor))
-	}
-	return state
 }

@@ -8,6 +8,8 @@ import (
 	"github.com/jedib0t/go-pretty/text"
 )
 
+const stableGroupLabel = "Stable"
+
 func Bold(val interface{}, enableColor bool) interface{} {
 	if !enableColor {
 		return val
@@ -34,6 +36,13 @@ func Warn(input int64, colorEnabled, greenOtherwise bool) interface{} {
 		return text.Colors{text.FgHiGreen, text.Bold}.Sprint(humanised)
 	}
 	return humanised
+}
+
+func GroupStateLabel(state string, enableColor bool) string {
+	if strings.EqualFold(state, stableGroupLabel) {
+		return fmt.Sprint(GreenLabel(stableGroupLabel, enableColor))
+	}
+	return state
 }
 
 func BoldGreen(val interface{}, enableColor bool) interface{} {
