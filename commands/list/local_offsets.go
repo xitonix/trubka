@@ -91,7 +91,6 @@ func (l *listLocalOffsets) printTableOutput(offsets kafka.PartitionOffset) {
 }
 
 func (l *listLocalOffsets) printPlainTextOutput(offsets kafka.PartitionOffset) {
-
 	partitions := offsets.SortPartitions()
 	var totalLag int64
 	fmt.Println(format.UnderlinedTitleWithCount("Partitions", len(partitions)))
@@ -101,7 +100,7 @@ func (l *listLocalOffsets) printPlainTextOutput(offsets kafka.PartitionOffset) {
 		b.AsTree()
 		offsets := offsets[int32(partition)]
 		lag := offsets.Lag()
-		totalLag += offsets.Lag()
+		totalLag += lag
 		b.AddItem(fmt.Sprintf("P%d", partition))
 		b.Intend()
 		b.AddItem(fmt.Sprintf(" Latest: %s", humanize.Comma(offsets.Latest)))
