@@ -28,7 +28,7 @@ I would also like to mention some of the amazing libraries and packages I used f
 
 - [kingpin](https://github.com/alecthomas/kingpin) and [chroma](https://github.com/alecthomas/chroma) by Alec Thomas
 
-- [tablewriter](https://github.com/olekukonko/tablewriter) by Oleku Konko
+- [go-pretty](https://github.com/jedib0t/go-pretty) by Naveen Mahalingam
 
 - [diskv](https://github.com/peterbourgon/diskv) by Peter Bourgon
 
@@ -39,7 +39,6 @@ I would also like to mention some of the amazing libraries and packages I used f
 - [confdir](https://github.com/kirsle/configdir) by Noah Petherbridge
 
 - [go-homedir](https://github.com/mitchellh/go-homedir) by Mitchell Hashimoto
-- [go-pretty](https://github.com/jedib0t/go-pretty) by Naveen Mahalingam
 
   
 

@@ -1,11 +1,9 @@
 package internal
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/dustin/go-humanize"
-	"github.com/olekukonko/tablewriter"
+
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 )
 
 type stats struct {
@@ -26,17 +24,10 @@ func (c *Counter) PrintAsTable(highlight bool) {
 	if c == nil || len(c.topicStats) == 0 {
 		return
 	}
-	table := tablewriter.NewWriter(os.Stdout)
-	headers := []string{"Topic", "Succeeded", "Failed"}
-	table.SetHeader(headers)
-	table.SetColumnAlignment([]int{
-		tablewriter.ALIGN_LEFT,
-		tablewriter.ALIGN_CENTER,
-		tablewriter.ALIGN_CENTER,
-	})
-	table.SetRowLine(true)
-
-	rows := make([][]string, 0)
+	table := tabular.NewTable(highlight,
+		tabular.C("Topic").Align(tabular.AlignLeft),
+		tabular.C("Succeeded"),
+		tabular.C("Failed"))
 
 	for topic, s := range c.topicStats {
 		failed := RedIfTrue(humanize.Comma(s.failure), func() bool {
@@ -46,10 +37,10 @@ func (c *Counter) PrintAsTable(highlight bool) {
 		succeeded := GreenIfTrue(humanize.Comma(s.success), func() bool {
 			return s.success > 0
 		}, highlight)
-		rows = append(rows, []string{topic, fmt.Sprint(succeeded), fmt.Sprint(failed)})
+		table.AddRow(topic, succeeded, failed)
 	}
-	fmt.Print("\nSUMMARY\n")
-	table.AppendBulk(rows)
+	table.SetTitle("SUMMARY")
+	table.TitleAlignment(tabular.AlignCenter)
 	table.Render()
 }
 

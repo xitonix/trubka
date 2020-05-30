@@ -18,7 +18,6 @@ require (
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/klauspost/compress v1.10.1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/olekukonko/tablewriter v0.0.4
 	github.com/peterbourgon/diskv v2.0.1+incompatible
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
