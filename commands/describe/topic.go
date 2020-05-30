@@ -85,7 +85,7 @@ func (t *topic) printPlainTextOutput(meta *kafka.TopicMetadata) {
 			b.AddItem(fmt.Sprintf("Offset: %s", humanize.Comma(pm.Offset)))
 			totalOffsets += pm.Offset
 		}
-		b.AddItem(fmt.Sprintf("Leader: %s", pm.Leader.Host))
+		b.AddItem(fmt.Sprintf("Leader: %s", format.BoldGreen(pm.Leader.Host, t.globalParams.EnableColor && pm.Leader.IsController)))
 		b.AddItem(fmt.Sprintf("ISRs: %s", t.brokersToLine(pm.ISRs...)))
 		b.AddItem(fmt.Sprintf("Replicas: %s", t.brokersToLine(pm.Replicas...)))
 		if len(pm.OfflineReplicas) > 0 {
@@ -127,7 +127,7 @@ func (t *topic) printTableOutput(meta *kafka.TopicMetadata) {
 		table.AddRow(
 			pm.Id,
 			offset,
-			format.SpaceIfEmpty(t.brokersToList(pm.Leader)),
+			format.SpaceIfEmpty(fmt.Sprintf("%s", format.BoldGreen(pm.Leader.Host, t.globalParams.EnableColor && pm.Leader.IsController))),
 			format.SpaceIfEmpty(t.brokersToList(pm.Replicas...)),
 			format.SpaceIfEmpty(t.brokersToList(pm.OfflineReplicas...)),
 			format.SpaceIfEmpty(t.brokersToList(pm.ISRs...)),
@@ -146,13 +146,13 @@ func (t *topic) printTableOutput(meta *kafka.TopicMetadata) {
 	}
 }
 
-func (*topic) brokersToList(brokers ...*kafka.Broker) string {
+func (t *topic) brokersToList(brokers ...*kafka.Broker) string {
 	if len(brokers) == 1 {
 		return brokers[0].Host
 	}
 	var buf bytes.Buffer
 	for i, b := range brokers {
-		buf.WriteString(fmt.Sprintf("%s", b.Host))
+		buf.WriteString(fmt.Sprintf("%s", format.BoldGreen(b.Host, t.globalParams.EnableColor && b.IsController)))
 		if i < len(brokers)-1 {
 			buf.WriteString("\n")
 		}
@@ -160,10 +160,10 @@ func (*topic) brokersToList(brokers ...*kafka.Broker) string {
 	return buf.String()
 }
 
-func (*topic) brokersToLine(brokers ...*kafka.Broker) string {
+func (t *topic) brokersToLine(brokers ...*kafka.Broker) string {
 	result := make([]string, len(brokers))
 	for i, b := range brokers {
-		result[i] = b.Host
+		result[i] = fmt.Sprintf("%s", format.BoldGreen(b.Host, t.globalParams.EnableColor && b.IsController))
 	}
 	return strings.Join(result, ", ")
 }
