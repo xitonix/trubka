@@ -106,7 +106,7 @@ func (c *group) printTableOutput(details *kafka.ConsumerGroupDetails) {
 	)
 
 	table.AddRow(
-		details.Coordinator.Address,
+		details.Coordinator.Host,
 		format.GroupStateLabel(details.State, c.globalParams.EnableColor),
 		details.Protocol,
 		details.ProtocolType,
