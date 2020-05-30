@@ -2,16 +2,14 @@ package list
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 
 	"github.com/dustin/go-humanize"
-	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
-	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
+	"github.com/xitonix/trubka/internal/output/format/list"
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -72,42 +70,45 @@ func (l *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 
 func (l *listLocalOffsets) printTableOutput(offsets kafka.PartitionOffset) {
 	sortedPartitions := offsets.SortPartitions()
-
-	table := output.InitStaticTable(os.Stdout,
-		output.H("Partition", tablewriter.ALIGN_CENTER),
-		output.H("Latest", tablewriter.ALIGN_CENTER),
-		output.H("Current", tablewriter.ALIGN_CENTER),
-		output.H("Lag", tablewriter.ALIGN_CENTER),
+	table := tabular.NewTable(l.globalParams.EnableColor,
+		tabular.C("Partition"),
+		tabular.C("Latest").MinWidth(10),
+		tabular.C("Current").MinWidth(10),
+		tabular.C("Lag").MinWidth(10).Humanize().Warn(0, true).FAlign(tabular.AlignCenter),
 	)
-	table.SetColMinWidth(1, 10)
-	table.SetColMinWidth(2, 10)
-	table.SetColMinWidth(3, 10)
+	table.SetTitle(format.WithCount("Partitions", len(sortedPartitions)))
 	var totalLag int64
-	fmt.Println(format.WithCount("Partitions", len(sortedPartitions)))
 	for _, partition := range sortedPartitions {
 		offsets := offsets[int32(partition)]
 		lag := offsets.Lag()
-		totalLag += offsets.Lag()
+		totalLag += lag
 		latest := humanize.Comma(offsets.Latest)
 		current := humanize.Comma(offsets.Current)
-		part := strconv.FormatInt(int64(partition), 10)
-		table.Append([]string{part, latest, current, fmt.Sprint(highlightLag(lag, l.globalParams.EnableColor))})
+		table.AddRow(partition, latest, current, lag)
 	}
-	table.SetFooter([]string{" ", " ", " ", humanize.Comma(totalLag)})
-	table.SetFooterAlignment(tablewriter.ALIGN_CENTER)
+	table.AddFooter(" ", " ", " ", totalLag)
 	table.Render()
 }
 
 func (l *listLocalOffsets) printPlainTextOutput(offsets kafka.PartitionOffset) {
+
 	partitions := offsets.SortPartitions()
 	var totalLag int64
 	fmt.Println(format.UnderlinedTitleWithCount("Partitions", len(partitions)))
+
 	for _, partition := range partitions {
+		b := list.NewBullet()
+		b.AsTree()
 		offsets := offsets[int32(partition)]
 		lag := offsets.Lag()
 		totalLag += offsets.Lag()
-		fmt.Printf("Partition %2d: %d out of %d (Lag: %s) \n", partition, offsets.Current, offsets.Latest,
-			highlightLag(lag, l.globalParams.EnableColor))
+		b.AddItem(fmt.Sprintf("P%d", partition))
+		b.Intend()
+		b.AddItem(fmt.Sprintf(" Latest: %s", humanize.Comma(offsets.Latest)))
+		b.AddItem(fmt.Sprintf("Current: %s", humanize.Comma(offsets.Current)))
+		b.AddItem(fmt.Sprintf("    Lag: %v", format.Warn(lag, l.globalParams.EnableColor, true)))
+		b.UnIntend()
+		b.Render()
 	}
-	fmt.Printf("-----------------\nTotal Lag: %s\n\n", humanize.Comma(totalLag))
+	fmt.Printf("\n%s\n%v", format.Underline("Total Lag"), format.Warn(totalLag, l.globalParams.EnableColor, true))
 }

@@ -61,7 +61,7 @@ func (l *listLocalTopics) run(_ *kingpin.ParseContext) error {
 
 func (l *listLocalTopics) printTableOutput(store map[string][]string) {
 	for env, topics := range store {
-		table := tabular.NewTable(l.globalParams.EnableColor, tabular.C(format.TitleWithCount(env, len(topics))).Align(tabular.AlignLeft).MinWidth(60))
+		table := tabular.NewTable(l.globalParams.EnableColor, tabular.C(format.WithCount(env, len(topics))).Align(tabular.AlignLeft).MinWidth(60))
 		sort.Strings(topics)
 		for _, topic := range topics {
 			table.AddRow(format.SpaceIfEmpty(topic))
@@ -76,7 +76,7 @@ func (l *listLocalTopics) printPlainTextOutput(store map[string][]string) {
 	b := list.NewBullet()
 	b.AsTree()
 	for env, topics := range store {
-		b.AddItem(format.TitleWithCount(env, len(topics)))
+		b.AddItem(format.WithCount(env, len(topics)))
 		b.Intend()
 		sort.Strings(topics)
 		for _, topic := range topics {

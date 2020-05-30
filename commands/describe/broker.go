@@ -85,7 +85,7 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 }
 
 func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) {
-	header := format.TitleWithCount("Consumer Groups", len(meta.ConsumerGroups))
+	header := format.WithCount("Consumer Groups", len(meta.ConsumerGroups))
 	hLen := len(header)
 	if meta.IsController {
 		hLen += len(controlNodeFlag) + 3
@@ -214,7 +214,7 @@ func (b *broker) printAPITable(apis []*kafka.API) {
 		tabular.C("Max Version"),
 	)
 	table.TitleAlignment(tabular.AlignLeft)
-	table.SetTitle(format.TitleWithCount("Supported API Versions", len(apis)))
+	table.SetTitle(format.WithCount("Supported API Versions", len(apis)))
 	for _, api := range apis {
 		table.AddRow(api.Key, format.SpaceIfEmpty(api.Name), api.MinVersion, api.MaxVersion)
 	}

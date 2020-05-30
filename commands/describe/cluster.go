@@ -76,7 +76,7 @@ func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
 		tabular.C("ID").Align(tabular.AlignLeft),
 		tabular.C("Address").Align(tabular.AlignLeft),
 	)
-	table.SetTitle(format.TitleWithCount("Brokers", len(meta.Brokers)))
+	table.SetTitle(format.WithCount("Brokers", len(meta.Brokers)))
 	for _, broker := range meta.Brokers {
 		if broker.IsController {
 			host := fmt.Sprintf("%v < %v",

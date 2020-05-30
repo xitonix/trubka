@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dustin/go-humanize"
 	"github.com/jedib0t/go-pretty/text"
 )
 
@@ -19,6 +20,20 @@ func GreenLabel(val interface{}, enableColor bool) interface{} {
 		return fmt.Sprintf("[%v]", val)
 	}
 	return text.Colors{text.Bold, text.BgGreen, text.FgWhite}.Sprintf(" %v ", val)
+}
+
+func Warn(input int64, colorEnabled, greenOtherwise bool) interface{} {
+	humanised := humanize.Comma(input)
+	if !colorEnabled {
+		return humanised
+	}
+	if input > 0 {
+		return text.Colors{text.FgHiYellow, text.Bold}.Sprint(humanised)
+	}
+	if greenOtherwise {
+		return text.Colors{text.FgHiGreen, text.Bold}.Sprint(humanised)
+	}
+	return humanised
 }
 
 func BoldGreen(val interface{}, enableColor bool) interface{} {
@@ -42,7 +57,7 @@ func UnderlinedTitleWithCount(title string, count int) string {
 }
 
 func WithCount(title string, count int) string {
-	return fmt.Sprintf("%s", titleWithCount(title, count))
+	return titleWithCount(title, count)
 }
 
 func titleWithCount(title string, count int) string {

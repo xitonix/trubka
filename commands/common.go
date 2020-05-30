@@ -72,7 +72,7 @@ func PrintConfigTable(entries []*kafka.ConfigEntry) {
 		tabular.C("Name").Align(tabular.AlignLeft).MaxWidth(100),
 		tabular.C("Value").Align(tabular.AlignLeft).FAlign(tabular.AlignRight).MaxWidth(100),
 	)
-	table.SetTitle(format.TitleWithCount("Configurations", len(entries)))
+	table.SetTitle(format.WithCount("Configurations", len(entries)))
 	for _, config := range entries {
 		parts := strings.Split(config.Value, ",")
 		table.AddRow(config.Name, strings.Join(parts, "\n"))
@@ -83,7 +83,7 @@ func PrintConfigTable(entries []*kafka.ConfigEntry) {
 
 func PrintConfigPlain(entries []*kafka.ConfigEntry) {
 	b := list.NewBullet()
-	b.SetTitle(format.TitleWithCount("Configurations", len(entries)))
+	b.SetTitle(format.WithCount("Configurations", len(entries)))
 	for _, config := range entries {
 		parts := strings.Split(config.Value, ",")
 		if len(parts) == 1 {
