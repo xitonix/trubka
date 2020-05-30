@@ -84,6 +84,5 @@ func (l *listLocalTopics) printPlainTextOutput(store map[string][]string) {
 		}
 		b.UnIntend()
 	}
-	output.NewLines(1)
 	b.Render()
 }
