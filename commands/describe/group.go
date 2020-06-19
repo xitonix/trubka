@@ -1,17 +1,16 @@
 package describe
 
 import (
-	"bytes"
 	"fmt"
-	"os"
 	"strings"
 
-	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
-	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format"
+	"github.com/xitonix/trubka/internal/output/format/list"
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -64,9 +63,17 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *group) printPlainTextOutput(details *kafka.ConsumerGroupDetails) {
-	fmt.Println(details.String())
-	if c.includeMembers {
-		output.UnderlineWithCount("Members", len(details.Members))
+
+	fmt.Printf("         Name: %s\n  Coordinator: %s\n        State: %s\n     Protocol: %s\nProtocol Type: %s",
+		details.Name,
+		details.Coordinator.Host,
+		format.GroupStateLabel(details.State, c.globalParams.EnableColor),
+		details.Protocol,
+		details.ProtocolType)
+
+	if c.includeMembers && len(details.Members) > 0 {
+		output.NewLines(2)
+		fmt.Println(format.UnderlinedTitleWithCount("Members", len(details.Members)))
 		for member, md := range details.Members {
 			fmt.Println("  ID: " + member)
 			fmt.Printf("HOST: %s\n\n", md.ClientHost)
@@ -75,68 +82,72 @@ func (c *group) printPlainTextOutput(details *kafka.ConsumerGroupDetails) {
 			}
 			tps := details.Members[member].TopicPartitions
 			sortedTopics := tps.SortedTopics()
-			output.UnderlineWithCount("Assignments", len(sortedTopics))
+			fmt.Println(format.UnderlinedTitleWithCount("Assignments", len(sortedTopics)))
+			b := list.NewBullet()
+			b.AsTree()
 			for _, topic := range sortedTopics {
-				space := strings.Repeat(" ", 2)
-				fmt.Printf("%s- %s: %s\n", space, topic, tps.SortedPartitionsString(topic))
+				b.AddItem(topic)
+				b.Intend()
+				b.AddItem(tps.SortedPartitionsString(topic))
+				b.UnIntend()
 			}
-			fmt.Println()
+			b.Render()
+			output.NewLines(1)
 		}
 	}
 }
 
 func (c *group) printTableOutput(details *kafka.ConsumerGroupDetails) {
-	table := output.InitStaticTable(os.Stdout,
-		output.H("Coordinator", tablewriter.ALIGN_CENTER),
-		output.H("State", tablewriter.ALIGN_CENTER),
-		output.H("Protocol", tablewriter.ALIGN_CENTER),
-		output.H("Protocol Type", tablewriter.ALIGN_CENTER),
+	table := tabular.NewTable(c.globalParams.EnableColor,
+		tabular.C("Coordinator"),
+		tabular.C("State"),
+		tabular.C("Protocol"),
+		tabular.C("Protocol Type"),
 	)
-	table.Append([]string{details.Coordinator.Address,
-		internal.HighlightGroupState(details.State, c.globalParams.EnableColor),
+
+	table.AddRow(
+		details.Coordinator.Host,
+		format.GroupStateLabel(details.State, c.globalParams.EnableColor),
 		details.Protocol,
-		details.ProtocolType},
+		details.ProtocolType,
 	)
 	table.Render()
 
-	if c.includeMembers {
+	if c.includeMembers && len(details.Members) > 0 {
 		c.printMemberDetailsTable(details.Members)
 	}
 }
 
 func (c *group) printMemberDetailsTable(members map[string]*kafka.GroupMemberDetails) {
-	table := tablewriter.NewWriter(os.Stdout)
-	table = output.InitStaticTable(os.Stdout,
-		output.H("ID", tablewriter.ALIGN_LEFT),
-		output.H("Client Host", tablewriter.ALIGN_CENTER),
-		output.H("Assignments", tablewriter.ALIGN_CENTER),
+	table := tabular.NewTable(c.globalParams.EnableColor,
+		tabular.C("ID").HAlign(tabular.AlignLeft).FAlign(tabular.AlignRight),
+		tabular.C("Client Host"),
+		tabular.C("Assignments").Align(tabular.AlignLeft),
 	)
 
-	output.WithCount("Members", len(members))
-	rows := make([][]string, 0)
+	table.SetTitle(format.WithCount("Members", len(members)))
 	for name, desc := range members {
-		var buf bytes.Buffer
-		inner := output.InitStaticTable(&buf,
-			output.H("Topic", tablewriter.ALIGN_LEFT),
-			output.H("Partition", tablewriter.ALIGN_CENTER),
-		)
 		sortedTopics := desc.TopicPartitions.SortedTopics()
-		for _, topic := range sortedTopics {
-			inner.Append([]string{
-				output.SpaceIfEmpty(topic),
-				output.SpaceIfEmpty(desc.TopicPartitions.SortedPartitionsString(topic)),
-			})
+		var buf strings.Builder
+		for i, topic := range sortedTopics {
+			buf.WriteString(format.Underline(topic))
+			partitions := desc.TopicPartitions.SortedPartitions(topic)
+			for j, p := range partitions {
+				if j%20 == 0 {
+					buf.WriteString("\n")
+				}
+				buf.WriteString(fmt.Sprintf("%d ", p))
+			}
+			if i < len(sortedTopics)-1 {
+				buf.WriteString("\n\n")
+			}
 		}
-		inner.Render()
-		row := []string{
-			output.SpaceIfEmpty(name),
-			output.SpaceIfEmpty(desc.ClientHost),
-			output.SpaceIfEmpty(buf.String()),
-		}
-		rows = append(rows, row)
+		table.AddRow(
+			format.SpaceIfEmpty(name),
+			format.SpaceIfEmpty(desc.ClientHost),
+			format.SpaceIfEmpty(buf.String()),
+		)
 	}
-	table.AppendBulk(rows)
-	table.SetFooter([]string{fmt.Sprintf("Total: %d", len(members)), " ", " "})
-	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
+	table.AddFooter(fmt.Sprintf("Total: %d", len(members)), " ", " ")
 	table.Render()
 }

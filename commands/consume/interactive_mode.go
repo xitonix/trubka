@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/olekukonko/tablewriter"
-
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 	"github.com/xitonix/trubka/protobuf"
 )
@@ -282,24 +282,21 @@ func askForStartingOffset(topic string, defaultCP *kafka.PartitionCheckpoints) (
 }
 
 func confirmConsumerStart(topics map[string]*kafka.PartitionCheckpoints, contracts map[string]string) bool {
-	table := tablewriter.NewWriter(os.Stdout)
-	headers := []string{"Topic"}
+	headers := []*tabular.Column{tabular.C("Topic")}
 	isProto := len(contracts) != 0
 	if isProto {
-		headers = append(headers, "Contract")
+		headers = append(headers, tabular.C("Contract"))
 	}
-	headers = append(headers, "Offset")
-	table.SetHeader(headers)
-	table.SetRowLine(true)
+	headers = append(headers, tabular.C("Offset"))
+	table := tabular.NewTable(false, headers...)
 	for topic, cp := range topics {
-		row := []string{topic}
 		if isProto {
-			row = append(row, contracts[topic])
+			table.AddRow(topic, contracts[topic], cp.OriginalFromValue())
+			continue
 		}
-		row = append(row, cp.OriginalFromValue())
-		table.Append(row)
+		table.AddRow(topic, cp.OriginalFromValue())
 	}
-	fmt.Println()
+	output.NewLines(1)
 	table.Render()
 	return commands.AskForConfirmation("Start consuming")
 }

@@ -3,17 +3,17 @@ package describe
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/dustin/go-humanize"
-	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format"
+	"github.com/xitonix/trubka/internal/output/format/list"
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -59,6 +59,10 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
+	if len(meta.Partitions) == 0 {
+		return fmt.Errorf("topic %s not found", t.topic)
+	}
+
 	sort.Sort(kafka.PartitionMetaById(meta.Partitions))
 	if t.loadConfigs {
 		sort.Sort(kafka.ConfigEntriesByName(meta.ConfigEntries))
@@ -75,82 +79,72 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 
 func (t *topic) printPlainTextOutput(meta *kafka.TopicMetadata) {
 	var totalOffsets int64
-	output.UnderlineWithCount("Partitions", len(meta.Partitions))
+	fmt.Println(format.UnderlinedTitleWithCount("Partitions", len(meta.Partitions)))
+	b := list.NewBullet()
+	b.AsTree()
 	for _, pm := range meta.Partitions {
-		var offset string
+		b.AddItem(fmt.Sprintf("P%d", pm.Id))
+		b.Intend()
 		if t.includeOffsets {
-			offset = fmt.Sprintf("\n - Offset: %s", humanize.Comma(pm.Offset))
+			b.AddItem(fmt.Sprintf("Offset: %s", humanize.Comma(pm.Offset)))
 			totalOffsets += pm.Offset
 		}
-		fmt.Printf("P%d: %s\n - Leader: %s\n - ISRs: %s\n - Replicas: %s",
-			pm.Id,
-			offset,
-			pm.Leader.Host,
-			t.brokersToLine(pm.ISRs...),
-			t.brokersToLine(pm.Replicas...))
-
+		b.AddItem(fmt.Sprintf("Leader: %s", pm.Leader.MarkedHostName()))
+		b.AddItem(fmt.Sprintf("ISRs: %s", t.brokersToLine(pm.ISRs...)))
+		b.AddItem(fmt.Sprintf("Replicas: %s", t.brokersToLine(pm.Replicas...)))
 		if len(pm.OfflineReplicas) > 0 {
-			fmt.Printf("\n - Offline Replicas: %s", t.brokersToLine(pm.OfflineReplicas...))
+			b.AddItem(fmt.Sprintf("Offline Replicas: %s", t.brokersToLine(pm.OfflineReplicas...)))
 		}
-		fmt.Print("\n\n")
+		b.UnIntend()
 	}
+	b.SetCaption(kafka.ControllerBrokerLabel + " CONTROLLER NODES")
+	b.Render()
 
 	if t.includeOffsets {
-		fmt.Println(output.Underline("Total Offsets"))
+		output.NewLines(1)
+		fmt.Println(format.Underline("Total Offsets"))
 		fmt.Println(humanize.Comma(totalOffsets))
 	}
 
 	if t.loadConfigs {
+		output.NewLines(2)
 		commands.PrintConfigPlain(meta.ConfigEntries)
 	}
 }
 
 func (t *topic) printTableOutput(meta *kafka.TopicMetadata) {
-	var table *tablewriter.Table
-	if t.includeOffsets {
-		table = output.InitStaticTable(os.Stdout,
-			output.H("Partition", tablewriter.ALIGN_CENTER),
-			output.H("Offset", tablewriter.ALIGN_CENTER),
-			output.H("Leader", tablewriter.ALIGN_LEFT),
-			output.H("Replicas", tablewriter.ALIGN_LEFT),
-			output.H("Offline Replicas", tablewriter.ALIGN_LEFT),
-			output.H("ISRs", tablewriter.ALIGN_LEFT),
-		)
-	} else {
-		table = output.InitStaticTable(os.Stdout,
-			output.H("Partition", tablewriter.ALIGN_CENTER),
-			output.H("Leader", tablewriter.ALIGN_LEFT),
-			output.H("Replicas", tablewriter.ALIGN_LEFT),
-			output.H("Offline Replicas", tablewriter.ALIGN_LEFT),
-			output.H("ISRs", tablewriter.ALIGN_LEFT),
-		)
-	}
-	output.WithCount("Partitions", len(meta.Partitions))
+	table := tabular.NewTable(t.globalParams.EnableColor,
+		tabular.C("Partition"),
+		tabular.C("Offset").FAlign(tabular.AlignCenter),
+		tabular.C("Leader").Align(tabular.AlignLeft),
+		tabular.C("Replicas").Align(tabular.AlignLeft),
+		tabular.C("Offline Replicas").Align(tabular.AlignLeft),
+		tabular.C("ISRs").Align(tabular.AlignLeft),
+	)
+	table.SetTitle(format.WithCount("Partitions", len(meta.Partitions)))
 	var totalOffsets int64
 	for _, pm := range meta.Partitions {
-		partition := strconv.FormatInt(int64(pm.Id), 10)
-		row := []string{partition}
-
+		offset := "-"
 		if t.includeOffsets {
-			row = append(row, humanize.Comma(pm.Offset))
+			offset = humanize.Comma(pm.Offset)
 			totalOffsets += pm.Offset
 		}
-		row = append(row,
-			output.SpaceIfEmpty(t.brokersToList(pm.Leader)),
-			output.SpaceIfEmpty(t.brokersToList(pm.Replicas...)),
-			output.SpaceIfEmpty(t.brokersToList(pm.OfflineReplicas...)),
-			output.SpaceIfEmpty(t.brokersToList(pm.ISRs...)),
+		table.AddRow(
+			pm.Id,
+			offset,
+			format.SpaceIfEmpty(pm.Leader.MarkedHostName()),
+			format.SpaceIfEmpty(t.brokersToList(pm.Replicas...)),
+			format.SpaceIfEmpty(t.brokersToList(pm.OfflineReplicas...)),
+			format.SpaceIfEmpty(t.brokersToList(pm.ISRs...)),
 		)
-		table.Append(row)
 	}
 
-	footer := []string{fmt.Sprintf("Total: %d", len(meta.Partitions))}
+	total := " "
 	if t.includeOffsets {
-		footer = append(footer, humanize.Comma(totalOffsets))
+		total = humanize.Comma(totalOffsets)
 	}
-	footer = append(footer, " ", " ", " ", " ")
-	table.SetFooter(footer)
-	table.SetFooterAlignment(tablewriter.ALIGN_CENTER)
+	table.AddFooter(fmt.Sprintf("Total: %d", len(meta.Partitions)), total, " ", " ", " ", " ")
+	table.SetCaption(kafka.ControllerBrokerLabel + " CONTROLLER NODES")
 	table.Render()
 
 	if t.loadConfigs {
@@ -158,13 +152,13 @@ func (t *topic) printTableOutput(meta *kafka.TopicMetadata) {
 	}
 }
 
-func (*topic) brokersToList(brokers ...*kafka.Broker) string {
+func (t *topic) brokersToList(brokers ...*kafka.Broker) string {
 	if len(brokers) == 1 {
 		return brokers[0].Host
 	}
 	var buf bytes.Buffer
 	for i, b := range brokers {
-		buf.WriteString(fmt.Sprintf("%s", b.Host))
+		buf.WriteString(b.MarkedHostName())
 		if i < len(brokers)-1 {
 			buf.WriteString("\n")
 		}
@@ -172,10 +166,10 @@ func (*topic) brokersToList(brokers ...*kafka.Broker) string {
 	return buf.String()
 }
 
-func (*topic) brokersToLine(brokers ...*kafka.Broker) string {
+func (t *topic) brokersToLine(brokers ...*kafka.Broker) string {
 	result := make([]string, len(brokers))
 	for i, b := range brokers {
-		result[i] = b.Host
+		result[i] = b.MarkedHostName()
 	}
 	return strings.Join(result, ", ")
 }

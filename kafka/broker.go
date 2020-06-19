@@ -1,12 +1,12 @@
 package kafka
 
 import (
-	"fmt"
-
 	"github.com/Shopify/sarama"
 
 	"github.com/xitonix/trubka/internal"
 )
+
+const ControllerBrokerLabel = "★"
 
 type Broker struct {
 	Address      string
@@ -28,12 +28,11 @@ func NewBroker(broker *sarama.Broker, controllerId int32) *Broker {
 	}
 }
 
-func (b *Broker) String() string {
-	var controller string
+func (b *Broker) MarkedHostName() string {
 	if b.IsController {
-		controller = " [C]"
+		return b.Host + ControllerBrokerLabel
 	}
-	return fmt.Sprintf("%d: %s%s", b.ID, b.Host, controller)
+	return b.Host
 }
 
 type BrokersById []*Broker

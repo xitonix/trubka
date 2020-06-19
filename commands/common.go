@@ -9,10 +9,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output/format"
+	"github.com/xitonix/trubka/internal/output/format/list"
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -66,27 +68,38 @@ func AddFormatFlag(c *kingpin.CmdClause, format *string) {
 }
 
 func PrintConfigTable(entries []*kafka.ConfigEntry) {
-	output.WithCount("Configurations", len(entries))
-	table := output.InitStaticTable(os.Stdout,
-		output.H("Name", tablewriter.ALIGN_LEFT),
-		output.H("Value", tablewriter.ALIGN_LEFT),
+	table := tabular.NewTable(true,
+		tabular.C("Name").Align(tabular.AlignLeft).MaxWidth(100),
+		tabular.C("Value").Align(tabular.AlignLeft).FAlign(tabular.AlignRight).MaxWidth(100),
 	)
+	table.SetTitle(format.WithCount("Configurations", len(entries)))
 	for _, config := range entries {
-		table.Append([]string{
-			config.Name,
-			config.Value,
-		})
+		parts := strings.Split(config.Value, ",")
+		table.AddRow(config.Name, strings.Join(parts, "\n"))
 	}
-	table.SetFooter([]string{" ", fmt.Sprintf("Total: %d", len(entries))})
-	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
+	table.AddFooter("", fmt.Sprintf("Total: %d", len(entries)))
 	table.Render()
 }
 
 func PrintConfigPlain(entries []*kafka.ConfigEntry) {
-	output.UnderlineWithCount("Configurations", len(entries))
+	b := list.NewBullet()
+	b.SetTitle(format.WithCount("Configurations", len(entries)))
 	for _, config := range entries {
-		fmt.Printf(" - %s: %s\n", config.Name, config.Value)
+		parts := strings.Split(config.Value, ",")
+		if len(parts) == 1 {
+			b.AddItem(fmt.Sprintf("%s: %v", config.Name, config.Value))
+			continue
+		}
+		b.AddItem(config.Name)
+		b.Intend()
+		for _, val := range parts {
+			if !internal.IsEmpty(val) {
+				b.AddItem(val)
+			}
+		}
+		b.UnIntend()
 	}
+	b.Render()
 }
 
 // AskForConfirmation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"

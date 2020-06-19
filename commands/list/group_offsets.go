@@ -2,17 +2,17 @@ package list
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strconv"
 
 	"github.com/dustin/go-humanize"
-	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
-	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format"
+	"github.com/xitonix/trubka/internal/output/format/list"
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -55,8 +55,7 @@ func (g *groupOffset) run(_ *kingpin.ParseContext) error {
 	}
 
 	if len(topics) == 0 {
-		fmt.Println(internal.GetNotFoundMessage("topic", "topic", g.topicFilter))
-		return nil
+		return internal.NotFoundError("topic", "topic", g.topicFilter)
 	}
 
 	switch g.format {
@@ -70,34 +69,27 @@ func (g *groupOffset) run(_ *kingpin.ParseContext) error {
 
 func (g *groupOffset) printTableOutput(topics kafka.TopicPartitionOffset) {
 	for topic, partitionOffsets := range topics {
-		fmt.Printf("%s: %s\n",
-			internal.Bold("TOPIC", g.globalParams.EnableColor),
-			internal.Bold(topic, g.globalParams.EnableColor))
+		table := tabular.NewTable(g.globalParams.EnableColor,
+			tabular.C("Partition").MinWidth(10),
+			tabular.C("Latest").MinWidth(10).Align(tabular.AlignCenter),
+			tabular.C("Current").MinWidth(10).Align(tabular.AlignCenter),
+			tabular.C("Lag").MinWidth(10).Humanize().FAlign(tabular.AlignCenter).Warn(0, true),
+		)
 
+		table.SetTitle(fmt.Sprintf("Topic: %s", topic))
 		if len(partitionOffsets) > 0 {
-			table := output.InitStaticTable(os.Stdout,
-				output.H("Partition", tablewriter.ALIGN_CENTER),
-				output.H("Latest", tablewriter.ALIGN_CENTER),
-				output.H("Current", tablewriter.ALIGN_CENTER),
-				output.H("Lag", tablewriter.ALIGN_CENTER),
-			)
-			table.SetColMinWidth(0, 10)
-			table.SetColMinWidth(1, 10)
-			table.SetColMinWidth(2, 10)
-			table.SetColMinWidth(3, 10)
 			partitions := partitionOffsets.SortPartitions()
 			var totalLag int64
 			for _, partition := range partitions {
 				offsets := partitionOffsets[int32(partition)]
 				lag := offsets.Lag()
-				totalLag += offsets.Lag()
+				totalLag += lag
 				latest := humanize.Comma(offsets.Latest)
 				current := humanize.Comma(offsets.Current)
 				part := strconv.FormatInt(int64(partition), 10)
-				table.Append([]string{part, latest, current, fmt.Sprint(highlightLag(lag, g.globalParams.EnableColor))})
+				table.AddRow(part, latest, current, lag)
 			}
-			table.SetFooter([]string{" ", " ", " ", humanize.Comma(totalLag)})
-			table.SetFooterAlignment(tablewriter.ALIGN_CENTER)
+			table.AddFooter(" ", " ", " ", totalLag)
 			table.Render()
 		}
 	}
@@ -105,19 +97,29 @@ func (g *groupOffset) printTableOutput(topics kafka.TopicPartitionOffset) {
 
 func (g *groupOffset) printPlainTextOutput(topics kafka.TopicPartitionOffset) {
 	for topic, partitionOffsets := range topics {
-		fmt.Printf("%s\n", internal.Bold(topic, g.globalParams.EnableColor))
+		b := list.NewBullet()
+		b.AsTree()
+		b.SetTitle(topic)
+		var totalLag int64
 		if len(partitionOffsets) > 0 {
-			fmt.Printf("\n")
-			var totalLag int64
 			partitions := partitionOffsets.SortPartitions()
+			b.Intend()
 			for _, partition := range partitions {
 				offsets := partitionOffsets[int32(partition)]
 				lag := offsets.Lag()
-				totalLag += offsets.Lag()
-				fmt.Printf("   Partition %2d: %d out of %d (Lag: %s) \n", partition, offsets.Current, offsets.Latest,
-					highlightLag(lag, g.globalParams.EnableColor))
+				totalLag += lag
+
+				b.AddItem(fmt.Sprintf("P%d", partition))
+				b.Intend()
+				b.AddItem(fmt.Sprintf(" Latest: %s", humanize.Comma(offsets.Latest)))
+				b.AddItem(fmt.Sprintf("Current: %s", humanize.Comma(offsets.Current)))
+				b.AddItem(fmt.Sprintf("    Lag: %v", format.Warn(lag, g.globalParams.EnableColor, true)))
+				b.UnIntend()
 			}
-			fmt.Printf("   -----------------\n   Total Lag: %s\n\n", humanize.Comma(totalLag))
+		}
+		b.Render()
+		if len(partitionOffsets) > 0 {
+			fmt.Printf("\n%s\n%v\n\n", format.Underline("Total Lag"), format.Warn(totalLag, g.globalParams.EnableColor, true))
 		}
 	}
 }

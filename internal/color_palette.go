@@ -4,15 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gookit/color"
+	"github.com/jedib0t/go-pretty/text"
 )
 
 var (
-	yellow = color.Warn.Render
-	green  = color.Info.Render
-	err    = color.Error.Render
-	bold   = color.Bold.Render
-	red    = color.Red.Render
+	yellow = text.FgHiYellow
+	green  = text.FgHiGreen
+	bold   = text.Bold
+	red    = text.FgHiRed
 )
 
 type painter func(a ...interface{}) string
@@ -37,11 +36,6 @@ func Red(input interface{}, colorEnabled bool) interface{} {
 	return colorIfEnabled(input, red, colorEnabled)
 }
 
-// Err returns the input in red background if coloring is enabled.
-func Err(input interface{}, colorEnabled bool) interface{} {
-	return colorIfEnabled(input, err, colorEnabled)
-}
-
 // RedIfTrue highlights the input in red, if coloring is enabled and the evaluation function returns true.
 func RedIfTrue(input interface{}, eval func() bool, colorEnabled bool) interface{} {
 	return colorIfEnabled(input, red, colorEnabled && eval())
@@ -60,9 +54,9 @@ func HighlightGroupState(state string, colorEnabled bool) string {
 	return fmt.Sprint(s)
 }
 
-func colorIfEnabled(input interface{}, p painter, colorEnabled bool) interface{} {
+func colorIfEnabled(input interface{}, color text.Color, colorEnabled bool) interface{} {
 	if colorEnabled {
-		return p(input)
+		return text.Colors{color}.Sprint(input)
 	}
 	return input
 }

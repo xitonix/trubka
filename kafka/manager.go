@@ -301,8 +301,8 @@ func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMember
 			return nil, fmt.Errorf("failed to fetch the group coordinator details: %w", err)
 		}
 		result.Coordinator = Broker{
-			Address: coordinator.Addr(),
-			ID:      coordinator.ID(),
+			Host: internal.RemovePort(coordinator.Addr()),
+			ID:   coordinator.ID(),
 		}
 		if includeMembers {
 			for name, description := range d.Members {

@@ -2,16 +2,17 @@ package list
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
 
-	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format"
+	"github.com/xitonix/trubka/internal/output/format/list"
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -60,27 +61,28 @@ func (l *listLocalTopics) run(_ *kingpin.ParseContext) error {
 
 func (l *listLocalTopics) printTableOutput(store map[string][]string) {
 	for env, topics := range store {
-		table := output.InitStaticTable(os.Stdout, output.H(env, tablewriter.ALIGN_LEFT))
-		table.SetColMinWidth(0, 50)
+		table := tabular.NewTable(l.globalParams.EnableColor, tabular.C(format.WithCount(env, len(topics))).Align(tabular.AlignLeft).MinWidth(60))
 		sort.Strings(topics)
 		for _, topic := range topics {
-			table.Append([]string{output.SpaceIfEmpty(topic)})
+			table.AddRow(format.SpaceIfEmpty(topic))
 		}
-		table.SetFooter([]string{fmt.Sprintf("Total: %d", len(topics))})
-		table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
+		table.AddFooter(fmt.Sprintf("Total: %d", len(topics)))
 		table.Render()
-		fmt.Println()
+		output.NewLines(1)
 	}
 }
 
 func (l *listLocalTopics) printPlainTextOutput(store map[string][]string) {
+	b := list.NewBullet()
+	b.AsTree()
 	for env, topics := range store {
-		line := fmt.Sprintf("Environment: %s (%d)", env, len(topics))
-		fmt.Println(internal.Bold(line, l.globalParams.EnableColor))
+		b.AddItem(format.WithCount(env, len(topics)))
+		b.Intend()
 		sort.Strings(topics)
 		for _, topic := range topics {
-			fmt.Printf("  - %s\n", topic)
+			b.AddItem(topic)
 		}
-		fmt.Println()
+		b.UnIntend()
 	}
+	b.Render()
 }

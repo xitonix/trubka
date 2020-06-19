@@ -2,18 +2,17 @@ package list
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
-	"strconv"
 
 	"github.com/dustin/go-humanize"
-	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
-	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format"
+	"github.com/xitonix/trubka/internal/output/format/list"
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -54,8 +53,7 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 	}
 
 	if len(topics) == 0 {
-		fmt.Println(internal.GetNotFoundMessage("topic", "topic", c.topicFilter))
-		return nil
+		return internal.NotFoundError("topic", "topic", c.topicFilter)
 	}
 
 	sort.Sort(kafka.TopicsByName(topics))
@@ -70,39 +68,33 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *topics) printPlainTextOutput(topics []kafka.Topic) {
+	b := list.NewBullet()
+	b.SetTitle(format.WithCount("Topics", len(topics)))
 	var totalPartitions int64
-	output.UnderlineWithCount("Topics", len(topics))
 	for _, topic := range topics {
 		totalPartitions += int64(topic.NumberOfPartitions)
-		fmt.Printf("%s\n", topic)
+		b.AddItem(topic.Name)
 	}
-	fmt.Println("\nTotal\n-----")
-	fmt.Printf("Number of topics: %s\n", humanize.Comma(int64(len(topics))))
-	fmt.Printf("Number of partitions: %s", humanize.Comma(totalPartitions))
+	caption := fmt.Sprintf("%s", format.Underline("Total"))
+	caption += fmt.Sprintf("\n    Topics: %s", humanize.Comma(int64(len(topics))))
+	caption += fmt.Sprintf("\nPartitions: %s", humanize.Comma(totalPartitions))
+	b.SetCaption(caption)
+	b.Render()
 }
 
 func (c *topics) printTableOutput(topics []kafka.Topic) {
-	table := output.InitStaticTable(os.Stdout,
-		output.H("Topic", tablewriter.ALIGN_LEFT),
-		output.H("Number of Partitions", tablewriter.ALIGN_CENTER),
-		output.H("Replication Factor", tablewriter.ALIGN_CENTER),
+	table := tabular.NewTable(c.globalParams.EnableColor,
+		tabular.C("Topic").Align(tabular.AlignLeft),
+		tabular.C("Number of Partitions").FAlign(tabular.AlignCenter),
+		tabular.C("Replication Factor"),
 	)
+	table.SetTitle(format.WithCount("Topics", len(topics)))
 
-	rows := make([][]string, 0)
 	var totalPartitions int64
-	output.WithCount("Topics", len(topics))
 	for _, topic := range topics {
-		np := strconv.FormatInt(int64(topic.NumberOfPartitions), 10)
-		rf := strconv.FormatInt(int64(topic.ReplicationFactor), 10)
 		totalPartitions += int64(topic.NumberOfPartitions)
-		rows = append(rows, []string{
-			output.SpaceIfEmpty(topic.Name),
-			output.SpaceIfEmpty(np),
-			output.SpaceIfEmpty(rf),
-		})
+		table.AddRow(topic.Name, topic.NumberOfPartitions, topic.ReplicationFactor)
 	}
-	table.AppendBulk(rows)
-	table.SetFooter([]string{fmt.Sprintf("Total: %s", humanize.Comma(int64(len(topics)))), humanize.Comma(totalPartitions), " "})
-	table.SetFooterAlignment(tablewriter.ALIGN_CENTER)
+	table.AddFooter(fmt.Sprintf("Total: %s", humanize.Comma(int64(len(topics)))), humanize.Comma(totalPartitions), " ")
 	table.Render()
 }

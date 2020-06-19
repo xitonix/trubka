@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -21,12 +22,12 @@ func FormatTime(t time.Time) string {
 	return t.Format("02-01-2006T15:04:05.999999999")
 }
 
-func GetNotFoundMessage(entity, filterName string, ex *regexp.Regexp) string {
+func NotFoundError(entity, filterName string, ex *regexp.Regexp) error {
 	msg := fmt.Sprintf("No %s has been found.", entity)
 	if ex != nil {
 		msg += fmt.Sprintf(" You might need to tweak the %s filter (%s).", filterName, ex.String())
 	}
-	return msg
+	return errors.New(msg)
 }
 
 func FormatTimeUTC(t time.Time) string {

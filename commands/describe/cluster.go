@@ -2,18 +2,19 @@ package describe
 
 import (
 	"fmt"
-	"os"
 	"sort"
-	"strconv"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/olekukonko/tablewriter"
-
 	"github.com/xitonix/trubka/commands"
-	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format"
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
+)
+
+const (
+	controlNodeFlag = "CTRL"
 )
 
 type cluster struct {
@@ -53,6 +54,11 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("failed to list the brokers: %w", err)
 	}
 
+	if len(meta.Brokers) == 0 {
+		fmt.Println("No brokers found!")
+		return nil
+	}
+
 	sort.Sort(kafka.BrokersById(meta.Brokers))
 	sort.Sort(kafka.ConfigEntriesByName(meta.ConfigEntries))
 
@@ -66,42 +72,47 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
-	table := output.InitStaticTable(os.Stdout,
-		output.H("ID", tablewriter.ALIGN_LEFT),
-		output.H("Address", tablewriter.ALIGN_LEFT),
+	table := tabular.NewTable(c.globalParams.EnableColor,
+		tabular.C("ID").Align(tabular.AlignLeft),
+		tabular.C("Address").Align(tabular.AlignLeft),
 	)
-	output.WithCount("Brokers", len(meta.Brokers))
+	table.SetTitle(format.WithCount("Brokers", len(meta.Brokers)))
 	for _, broker := range meta.Brokers {
-		id := strconv.FormatInt(int64(broker.ID), 10)
-		host := broker.Host
 		if broker.IsController {
-			host += fmt.Sprintf(" [%s]", internal.Bold("C", c.globalParams.EnableColor))
+			host := fmt.Sprintf("%v < %v",
+				format.BoldGreen(broker.Host, c.globalParams.EnableColor),
+				format.GreenLabel(controlNodeFlag, c.globalParams.EnableColor),
+			)
+			table.AddRow(format.BoldGreen(broker.ID, c.globalParams.EnableColor), host)
+			continue
 		}
-		row := []string{id, host}
-		table.Append(row)
+		table.AddRow(broker.ID, broker.Host)
 	}
-	table.SetFooter([]string{" ", fmt.Sprintf("Total: %d", len(meta.Brokers))})
-	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
+	table.AddFooter("", fmt.Sprintf("Total: %d", len(meta.Brokers)))
+	output.NewLines(1)
 	table.Render()
-	c.printLegend()
 
 	if len(meta.ConfigEntries) > 0 {
+		output.NewLines(2)
 		commands.PrintConfigTable(meta.ConfigEntries)
 	}
 }
 
 func (c *cluster) printPlainTextOutput(meta *kafka.ClusterMetadata) {
-	output.UnderlineWithCount("Brokers", len(meta.Brokers))
+	fmt.Printf("\n%s\n\n", format.UnderlinedTitleWithCount("Brokers", len(meta.Brokers)))
 	for _, broker := range meta.Brokers {
-		fmt.Printf("%s\n", broker.String())
+		if broker.IsController {
+			fmt.Printf("%v. %v < %v\n",
+				format.BoldGreen(broker.ID, c.globalParams.EnableColor),
+				format.BoldGreen(broker.Host, c.globalParams.EnableColor),
+				format.GreenLabel(controlNodeFlag, c.globalParams.EnableColor))
+		} else {
+			fmt.Printf("%v. %v\n", broker.ID, broker.Host)
+		}
 	}
-	c.printLegend()
 
 	if len(meta.ConfigEntries) > 0 {
+		output.NewLines(2)
 		commands.PrintConfigPlain(meta.ConfigEntries)
 	}
-}
-
-func (*cluster) printLegend() {
-	fmt.Println("[C]: Controller Node")
 }

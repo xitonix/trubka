@@ -2,17 +2,18 @@ package list
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
 
 	"github.com/dustin/go-humanize"
-	"github.com/olekukonko/tablewriter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format"
+	"github.com/xitonix/trubka/internal/output/format/list"
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -59,8 +60,7 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 	}
 
 	if len(groups) == 0 {
-		fmt.Println(internal.GetNotFoundMessage("consumer group", "group", c.groupFilter))
-		return nil
+		return internal.NotFoundError("consumer group", "group", c.groupFilter)
 	}
 
 	sort.Sort(kafka.ConsumerGroupDetailsByName(groups))
@@ -75,49 +75,60 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *groups) printPlainTextOutput(groups []*kafka.ConsumerGroupDetails) {
-	for _, group := range groups {
-		if c.includeState {
-			fmt.Printf("%s\n\n", group)
-		} else {
-			fmt.Printf("%s\n", group.Name)
+	if c.includeState {
+		for _, group := range groups {
+			b := list.NewBullet()
+			b.AsTree()
+			b.AddItem(group.Name)
+			b.Intend()
+			b.AddItem(fmt.Sprintf("        State: %s", format.GroupStateLabel(group.State, c.globalParams.EnableColor)))
+			b.AddItem(fmt.Sprintf("     Protocol: %s", group.Protocol))
+			b.AddItem(fmt.Sprintf("Protocol Type: %s", group.ProtocolType))
+			b.AddItem(fmt.Sprintf("  Coordinator: %s", group.Coordinator.Host))
+			b.UnIntend()
+			b.Render()
+			output.NewLines(1)
 		}
+	} else {
+		b := list.NewBullet()
+		for _, group := range groups {
+			b.AddItem(group.Name)
+		}
+		b.Render()
+		output.NewLines(1)
 	}
-	fmt.Printf("\nTotal: %s", humanize.Comma(int64(len(groups))))
+	fmt.Printf("%s\n %s", format.Underline("Total"), humanize.Comma(int64(len(groups))))
 }
 
 func (c *groups) printTableOutput(groups []*kafka.ConsumerGroupDetails) {
-	var table *tablewriter.Table
+	var table *tabular.Table
 	if c.includeState {
-		table = output.InitStaticTable(os.Stdout,
-			output.H("Name", tablewriter.ALIGN_LEFT),
-			output.H("State", tablewriter.ALIGN_CENTER),
-			output.H("Protocol", tablewriter.ALIGN_CENTER),
-			output.H("Protocol Type", tablewriter.ALIGN_CENTER),
-			output.H("Coordinator", tablewriter.ALIGN_CENTER),
+		table = tabular.NewTable(c.globalParams.EnableColor,
+			tabular.C("Name").Align(tabular.AlignLeft),
+			tabular.C("State"),
+			tabular.C("Protocol"),
+			tabular.C("Protocol Type"),
+			tabular.C("Coordinator"),
 		)
 	} else {
-		table = output.InitStaticTable(os.Stdout, output.H("Consumer Group", tablewriter.ALIGN_LEFT))
+		table = tabular.NewTable(c.globalParams.EnableColor, tabular.C("Consumer Group").Align(tabular.AlignLeft))
 	}
 
-	rows := make([][]string, 0)
 	for _, group := range groups {
 		if c.includeState {
-			rows = append(rows, []string{
-				group.Name,
-				internal.HighlightGroupState(group.State, c.globalParams.EnableColor),
+			table.AddRow(group.Name,
+				format.GroupStateLabel(group.State, c.globalParams.EnableColor),
 				group.Protocol,
 				group.ProtocolType,
-				group.Coordinator.Host})
+				group.Coordinator.Host)
 		} else {
-			rows = append(rows, []string{group.Name})
+			table.AddRow(group.Name)
 		}
 	}
-	table.AppendBulk(rows)
 	if c.includeState {
-		table.SetFooter([]string{fmt.Sprintf("Total: %s", humanize.Comma(int64(len(groups)))), " ", " ", " ", " "})
+		table.AddFooter(fmt.Sprintf("Total: %s", humanize.Comma(int64(len(groups)))), " ", " ", " ", " ")
 	} else {
-		table.SetFooter([]string{fmt.Sprintf("Total: %s", humanize.Comma(int64(len(groups))))})
+		table.AddFooter(fmt.Sprintf("Total: %s", humanize.Comma(int64(len(groups)))))
 	}
-	table.SetFooterAlignment(tablewriter.ALIGN_RIGHT)
 	table.Render()
 }

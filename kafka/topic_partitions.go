@@ -8,17 +8,30 @@ import (
 
 type TopicPartitions map[string][]int32
 
-func (t TopicPartitions) SortedPartitionsString(topic string) string {
+func (t TopicPartitions) SortedPartitions(topic string) []int {
 	partitions, ok := t[topic]
 	if !ok {
+		return []int{}
+	}
+
+	sorted := make([]int, len(partitions))
+	for i := 0; i < len(partitions); i++ {
+		sorted[i] = int(partitions[i])
+	}
+	sort.Ints(sorted)
+	return sorted
+}
+
+func (t TopicPartitions) SortedPartitionsString(topic string) string {
+	sorted := t.SortedPartitions(topic)
+	if len(sorted) == 0 {
 		return ""
 	}
-	partStr := make([]string, len(partitions))
-	for i := 0; i < len(partitions); i++ {
-		partStr[i] = strconv.FormatInt(int64(partitions[i]), 10)
+	partitions := make([]string, len(sorted))
+	for i, p := range sorted {
+		partitions[i] = strconv.Itoa(p)
 	}
-	sort.Strings(partStr)
-	return strings.Join(partStr, ",")
+	return strings.Join(partitions, ",")
 }
 
 func (t TopicPartitions) SortedTopics() []string {
