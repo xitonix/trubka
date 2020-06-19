@@ -20,7 +20,7 @@
 
 
 
-## Acknoledgments
+## Acknowledgments
 
 Special thanks to **Joshua Humphries** for building the fascinating [protoreflect](https://github.com/jhump/protoreflect) package. 
 
@@ -41,21 +41,6 @@ I would also like to mention some of the amazing libraries and packages I used f
 - [confdir](https://github.com/kirsle/configdir) by Noah Petherbridge
 
 - [go-homedir](https://github.com/mitchellh/go-homedir) by Mitchell Hashimoto
-
-  
-
-Last but definitely not least, thank you to all the great contributors to these repositories. Building Trubka would have been a pain without using your fantastic work. You are legends!
-
-
-
-## Contribution and Feature Request
-
-Trubka is built based on the problems I was trying to solve in my day to day work and I tried to build it as flexible as I could so that the community hopefully finds it useful too. That said, the tool by no means is compelete or issue free. I will openly accept PRs and feature requests to make sure we will have a better Trubka over time. 
-
-Please feel free to play around with Trubka, log issues, open PRs and share your thoughts with the community and myself.
-
-Thank you!
-
 
 
 
