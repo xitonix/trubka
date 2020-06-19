@@ -60,8 +60,7 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 	}
 
 	if len(groups) == 0 {
-		fmt.Println(internal.GetNotFoundMessage("consumer group", "group", c.groupFilter))
-		return nil
+		return internal.NotFoundError("consumer group", "group", c.groupFilter)
 	}
 
 	sort.Sort(kafka.ConsumerGroupDetailsByName(groups))

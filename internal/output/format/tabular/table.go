@@ -57,7 +57,7 @@ func (t *Table) SetTitle(title string) {
 }
 
 func (t *Table) SetCaption(caption string) {
-	t.writer.SetCaption(caption)
+	t.writer.SetCaption(" " + caption)
 }
 
 func (t *Table) DisableRowSeparators() {

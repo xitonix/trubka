@@ -6,6 +6,8 @@ import (
 	"github.com/xitonix/trubka/internal"
 )
 
+const ControllerBrokerLabel = "★"
+
 type Broker struct {
 	Address      string
 	ID           int32
@@ -24,6 +26,13 @@ func NewBroker(broker *sarama.Broker, controllerId int32) *Broker {
 		IsController: controllerId == id,
 		Broker:       broker,
 	}
+}
+
+func (b *Broker) MarkedHostName() string {
+	if b.IsController {
+		return b.Host + ControllerBrokerLabel
+	}
+	return b.Host
 }
 
 type BrokersById []*Broker

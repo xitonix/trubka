@@ -55,8 +55,7 @@ func (g *groupOffset) run(_ *kingpin.ParseContext) error {
 	}
 
 	if len(topics) == 0 {
-		fmt.Println(internal.GetNotFoundMessage("topic", "topic", g.topicFilter))
-		return nil
+		return internal.NotFoundError("topic", "topic", g.topicFilter)
 	}
 
 	switch g.format {

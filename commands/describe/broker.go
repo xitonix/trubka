@@ -77,14 +77,14 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 
 	switch b.format {
 	case commands.PlainTextFormat:
-		b.printPlainTextOutput(meta)
+		return b.printPlainTextOutput(meta)
 	case commands.TableFormat:
-		b.printTableOutput(meta)
+		return b.printTableOutput(meta)
 	}
 	return nil
 }
 
-func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) {
+func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) error {
 	header := format.WithCount("Consumer Groups", len(meta.ConsumerGroups))
 	hLen := len(header)
 	if meta.IsController {
@@ -100,7 +100,9 @@ func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) {
 	l.Render()
 	if b.includeLogs && len(meta.Logs) != 0 {
 		output.NewLines(2)
-		b.printLogsPlain(meta.Logs)
+		if err := b.printLogsPlain(meta.Logs); err != nil {
+			return err
+		}
 	}
 
 	if b.includeAPIVersions && len(meta.APIs) != 0 {
@@ -108,9 +110,10 @@ func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) {
 		sort.Sort(kafka.APIByCode(meta.APIs))
 		b.printAPIPlain(meta.APIs)
 	}
+	return nil
 }
 
-func (b *broker) printTableOutput(meta *kafka.BrokerMeta) {
+func (b *broker) printTableOutput(meta *kafka.BrokerMeta) error {
 	header := "Consumer Groups"
 	if meta.IsController {
 		header = fmt.Sprintf("Consumer Groups %v", format.GreenLabel(controlNodeFlag, b.globalParams.EnableColor))
@@ -127,7 +130,9 @@ func (b *broker) printTableOutput(meta *kafka.BrokerMeta) {
 
 	if b.includeLogs && len(meta.Logs) != 0 {
 		output.NewLines(2)
-		b.printLogsTable(meta.Logs)
+		if err := b.printLogsTable(meta.Logs); err != nil {
+			return err
+		}
 	}
 
 	if b.includeAPIVersions && len(meta.APIs) != 0 {
@@ -135,15 +140,14 @@ func (b *broker) printTableOutput(meta *kafka.BrokerMeta) {
 		output.NewLines(2)
 		b.printAPITable(meta.APIs)
 	}
+	return nil
 }
 
-func (b *broker) printLogsTable(logs []*kafka.LogFile) {
+func (b *broker) printLogsTable(logs []*kafka.LogFile) error {
 	for _, logFile := range logs {
 		sorted := logFile.SortByPermanentSize()
 		if len(sorted) == 0 {
-			msg := internal.GetNotFoundMessage("topic log", "topic", b.topicsFilter)
-			fmt.Println(msg)
-			return
+			return internal.NotFoundError("topic log", "topic", b.topicsFilter)
 		}
 		table := tabular.NewTable(b.globalParams.EnableColor,
 			tabular.C("Topic").Align(tabular.AlignLeft).FAlign(tabular.AlignRight),
@@ -169,18 +173,17 @@ func (b *broker) printLogsTable(logs []*kafka.LogFile) {
 		table.AddFooter("Total", format.SpaceIfEmpty(humanize.Bytes(totalPerm)), format.SpaceIfEmpty(humanize.Bytes(totalTemp)))
 		table.Render()
 	}
+	return nil
 }
 
-func (b *broker) printLogsPlain(logs []*kafka.LogFile) {
+func (b *broker) printLogsPlain(logs []*kafka.LogFile) error {
 	l := list.NewBullet()
 	l.AsTree()
 	for _, logFile := range logs {
 		l.AddItem(logFile.Path)
 		sorted := logFile.SortByPermanentSize()
 		if len(sorted) == 0 {
-			msg := internal.GetNotFoundMessage("topic log", "topic", b.topicsFilter)
-			fmt.Println(msg)
-			return
+			return internal.NotFoundError("topic log", "topic", b.topicsFilter)
 		}
 		l.Intend()
 		var totalPerm, totalTemp uint64
@@ -204,6 +207,7 @@ func (b *broker) printLogsPlain(logs []*kafka.LogFile) {
 		l.SetCaption(fmt.Sprintf("Total > Permanent: %s, Temporary: %s", humanize.Bytes(totalPerm), humanize.Bytes(totalTemp)))
 	}
 	l.Render()
+	return nil
 }
 
 func (b *broker) printAPITable(apis []*kafka.API) {

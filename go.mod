@@ -22,6 +22,7 @@ require (
 	github.com/mitchellh/mapstructure v1.3.1 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible
 	github.com/pierrec/lz4 v2.5.2+incompatible // indirect
+	github.com/pkg/errors v0.9.1
 	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
 	go.mongodb.org/mongo-driver v1.3.3 // indirect

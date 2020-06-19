@@ -59,6 +59,10 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
+	if len(meta.Partitions) == 0 {
+		return fmt.Errorf("topic %s not found", t.topic)
+	}
+
 	sort.Sort(kafka.PartitionMetaById(meta.Partitions))
 	if t.loadConfigs {
 		sort.Sort(kafka.ConfigEntriesByName(meta.ConfigEntries))
@@ -85,7 +89,7 @@ func (t *topic) printPlainTextOutput(meta *kafka.TopicMetadata) {
 			b.AddItem(fmt.Sprintf("Offset: %s", humanize.Comma(pm.Offset)))
 			totalOffsets += pm.Offset
 		}
-		b.AddItem(fmt.Sprintf("Leader: %s", format.BoldGreen(pm.Leader.Host, t.globalParams.EnableColor && pm.Leader.IsController)))
+		b.AddItem(fmt.Sprintf("Leader: %s", pm.Leader.MarkedHostName()))
 		b.AddItem(fmt.Sprintf("ISRs: %s", t.brokersToLine(pm.ISRs...)))
 		b.AddItem(fmt.Sprintf("Replicas: %s", t.brokersToLine(pm.Replicas...)))
 		if len(pm.OfflineReplicas) > 0 {
@@ -93,6 +97,7 @@ func (t *topic) printPlainTextOutput(meta *kafka.TopicMetadata) {
 		}
 		b.UnIntend()
 	}
+	b.SetCaption(kafka.ControllerBrokerLabel + " CONTROLLER NODES")
 	b.Render()
 
 	if t.includeOffsets {
@@ -127,7 +132,7 @@ func (t *topic) printTableOutput(meta *kafka.TopicMetadata) {
 		table.AddRow(
 			pm.Id,
 			offset,
-			format.SpaceIfEmpty(fmt.Sprintf("%s", format.BoldGreen(pm.Leader.Host, t.globalParams.EnableColor && pm.Leader.IsController))),
+			format.SpaceIfEmpty(pm.Leader.MarkedHostName()),
 			format.SpaceIfEmpty(t.brokersToList(pm.Replicas...)),
 			format.SpaceIfEmpty(t.brokersToList(pm.OfflineReplicas...)),
 			format.SpaceIfEmpty(t.brokersToList(pm.ISRs...)),
@@ -139,6 +144,7 @@ func (t *topic) printTableOutput(meta *kafka.TopicMetadata) {
 		total = humanize.Comma(totalOffsets)
 	}
 	table.AddFooter(fmt.Sprintf("Total: %d", len(meta.Partitions)), total, " ", " ", " ", " ")
+	table.SetCaption(kafka.ControllerBrokerLabel + " CONTROLLER NODES")
 	table.Render()
 
 	if t.loadConfigs {
@@ -152,7 +158,7 @@ func (t *topic) brokersToList(brokers ...*kafka.Broker) string {
 	}
 	var buf bytes.Buffer
 	for i, b := range brokers {
-		buf.WriteString(fmt.Sprintf("%s", format.BoldGreen(b.Host, t.globalParams.EnableColor && b.IsController)))
+		buf.WriteString(b.MarkedHostName())
 		if i < len(brokers)-1 {
 			buf.WriteString("\n")
 		}
@@ -163,7 +169,7 @@ func (t *topic) brokersToList(brokers ...*kafka.Broker) string {
 func (t *topic) brokersToLine(brokers ...*kafka.Broker) string {
 	result := make([]string, len(brokers))
 	for i, b := range brokers {
-		result[i] = fmt.Sprintf("%s", format.BoldGreen(b.Host, t.globalParams.EnableColor && b.IsController))
+		result[i] = b.MarkedHostName()
 	}
 	return strings.Join(result, ", ")
 }

@@ -53,8 +53,7 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 	}
 
 	if len(topics) == 0 {
-		fmt.Println(internal.GetNotFoundMessage("topic", "topic", c.topicFilter))
-		return nil
+		return internal.NotFoundError("topic", "topic", c.topicFilter)
 	}
 
 	sort.Sort(kafka.TopicsByName(topics))
