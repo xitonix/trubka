@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -10,8 +11,6 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
-
-	"github.com/pkg/errors"
 )
 
 // IsEmpty returns true of the trimmed input is empty.
