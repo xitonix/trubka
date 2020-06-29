@@ -38,6 +38,14 @@ func Warn(input int64, colorEnabled, greenOtherwise bool) interface{} {
 	return humanised
 }
 
+func Indent(count int, input interface{}) string {
+	return fmt.Sprintf("%s%v", strings.Repeat("  ", count), input)
+}
+
+func IndentF(count int, format string, input ...interface{}) string {
+	return fmt.Sprintf("%s%v", strings.Repeat("  ", count), fmt.Sprintf(format, input...))
+}
+
 func GroupStateLabel(state string, enableColor bool) string {
 	if strings.EqualFold(state, stableGroupLabel) {
 		return fmt.Sprint(GreenLabel(stableGroupLabel, enableColor))
