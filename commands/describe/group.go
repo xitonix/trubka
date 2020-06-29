@@ -55,43 +55,16 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 
 	switch c.format {
 	case commands.ListFormat:
-		c.printListOutput(cgd)
+		c.printListOutput(cgd, false)
 	case commands.TableFormat:
 		c.printTableOutput(cgd)
 	case commands.PlainTextFormat:
-		c.printPlainTextOutput(cgd)
+		c.printListOutput(cgd, true)
 	}
 	return nil
 }
 
-func (c *group) printListOutput(details *kafka.ConsumerGroupDetails) {
-	c.printGroupDetails(details)
-	if c.includeMembers && len(details.Members) > 0 {
-		output.NewLines(2)
-		fmt.Println(format.UnderlinedTitleWithCount("Members", len(details.Members)))
-		for member, md := range details.Members {
-			output.NewLines(1)
-			fmt.Printf("%s (%s)\n", member, md.ClientHost)
-			if len(details.Members[member].TopicPartitions) == 0 {
-				continue
-			}
-			tps := details.Members[member].TopicPartitions
-			sortedTopics := tps.SortedTopics()
-			fmt.Println(format.UnderlinedTitleWithCount("Assignments", len(sortedTopics)))
-			b := list.NewBullet()
-			b.AsTree()
-			for _, topic := range sortedTopics {
-				b.AddItem(topic)
-				b.Intend()
-				b.AddItem(tps.SortedPartitionsString(topic))
-				b.UnIntend()
-			}
-			b.Render()
-		}
-	}
-}
-
-func (c *group) printPlainTextOutput(details *kafka.ConsumerGroupDetails) {
+func (c *group) printListOutput(details *kafka.ConsumerGroupDetails, plain bool) {
 	c.printGroupDetails(details)
 	if c.includeMembers && len(details.Members) > 0 {
 		output.NewLines(2)
@@ -104,10 +77,12 @@ func (c *group) printPlainTextOutput(details *kafka.ConsumerGroupDetails) {
 			}
 			tps := details.Members[member].TopicPartitions
 			sortedTopics := tps.SortedTopics()
-			fmt.Println("Assignments:")
+			b := list.New(plain)
+			b.SetTitle(format.WithCount("Assignments", len(sortedTopics)))
 			for _, topic := range sortedTopics {
-				fmt.Println(format.IndentF(1, "%s: %s", topic, tps.SortedPartitionsString(topic)))
+				b.AddItemF("%s: %s", topic, tps.SortedPartitionsString(topic))
 			}
+			b.Render()
 		}
 	}
 }

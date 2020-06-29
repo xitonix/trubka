@@ -77,63 +77,37 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 
 	switch b.format {
 	case commands.ListFormat:
-		return b.printListOutput(meta)
+		return b.printListOutput(meta, false)
 	case commands.TableFormat:
 		return b.printTableOutput(meta)
 	case commands.PlainTextFormat:
-		return b.printPlainTextOutput(meta)
+		return b.printListOutput(meta, true)
 	}
 	return nil
 }
 
-func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) error {
+func (b *broker) printListOutput(meta *kafka.BrokerMeta, plain bool) error {
 	header := format.WithCount("Consumer Groups", len(meta.ConsumerGroups))
 	if meta.IsController {
 		header = fmt.Sprintf("%s %v", header, format.GreenLabel(controlNodeFlag, b.globalParams.EnableColor))
 	}
-	fmt.Println(header)
-	for _, group := range meta.ConsumerGroups {
-		fmt.Println(format.Indent(1, group))
-	}
-	if b.includeLogs && len(meta.Logs) != 0 {
-		output.NewLines(1)
-		if err := b.printLogsPlain(meta.Logs); err != nil {
-			return err
-		}
-	}
-
-	if b.includeAPIVersions && len(meta.APIs) != 0 {
-		output.NewLines(1)
-		sort.Sort(kafka.APIByCode(meta.APIs))
-		b.printAPIPlain(meta.APIs)
-	}
-	return nil
-}
-
-func (b *broker) printListOutput(meta *kafka.BrokerMeta) error {
-	header := format.WithCount("Consumer Groups", len(meta.ConsumerGroups))
-	hLen := len(header)
-	if meta.IsController {
-		hLen += len(controlNodeFlag) + 3
-		header = fmt.Sprintf("%s %v", header, format.GreenLabel(controlNodeFlag, b.globalParams.EnableColor))
-	}
-	fmt.Println(format.UnderlineLen(header, hLen))
-	l := list.NewBullet()
+	l := list.New(plain)
+	l.SetTitle(header)
 	for _, group := range meta.ConsumerGroups {
 		l.AddItem(group)
 	}
 	l.Render()
 	if b.includeLogs && len(meta.Logs) != 0 {
-		output.NewLines(2)
-		if err := b.printLogsList(meta.Logs); err != nil {
+		output.NewLines(1)
+		if err := b.printLogsList(meta.Logs, plain); err != nil {
 			return err
 		}
 	}
 
 	if b.includeAPIVersions && len(meta.APIs) != 0 {
-		output.NewLines(2)
+		output.NewLines(1)
 		sort.Sort(kafka.APIByCode(meta.APIs))
-		b.printAPIList(meta.APIs)
+		b.printAPIList(meta.APIs, plain)
 	}
 	return nil
 }
@@ -201,8 +175,8 @@ func (b *broker) printLogsTable(logs []*kafka.LogFile) error {
 	return nil
 }
 
-func (b *broker) printLogsList(logs []*kafka.LogFile) error {
-	l := list.NewBullet()
+func (b *broker) printLogsList(logs []*kafka.LogFile, plain bool) error {
+	l := list.New(plain)
 	l.AsTree()
 	for _, logFile := range logs {
 		l.AddItem(logFile.Path)
@@ -235,33 +209,6 @@ func (b *broker) printLogsList(logs []*kafka.LogFile) error {
 	return nil
 }
 
-func (b *broker) printLogsPlain(logs []*kafka.LogFile) error {
-	for _, logFile := range logs {
-		fmt.Println(logFile.Path)
-		sorted := logFile.SortByPermanentSize()
-		if len(sorted) == 0 {
-			return internal.NotFoundError("topic log", "topic", b.topicsFilter)
-		}
-		var totalPerm, totalTemp uint64
-		for _, tLogs := range sorted {
-			if !b.includeZeroLogs && tLogs.Permanent == 0 && tLogs.Temporary == 0 {
-				continue
-			}
-			totalPerm += tLogs.Permanent
-			totalTemp += tLogs.Temporary
-			fmt.Println(format.Indent(1, tLogs.Topic))
-			if b.includeZeroLogs || tLogs.Permanent > 0 {
-				fmt.Println(format.IndentF(2, "Permanent: %s", humanize.Bytes(tLogs.Permanent)))
-			}
-			if b.includeZeroLogs || tLogs.Temporary > 0 {
-				fmt.Println(format.IndentF(2, "Temporary: %s", humanize.Bytes(tLogs.Temporary)))
-			}
-		}
-		fmt.Printf("Total > Permanent: %s, Temporary: %s", humanize.Bytes(totalPerm), humanize.Bytes(totalTemp))
-	}
-	return nil
-}
-
 func (b *broker) printAPITable(apis []*kafka.API) {
 	table := tabular.NewTable(b.globalParams.EnableColor,
 		tabular.C("API Key"),
@@ -279,18 +226,11 @@ func (b *broker) printAPITable(apis []*kafka.API) {
 	table.Render()
 }
 
-func (b *broker) printAPIList(apis []*kafka.API) {
-	l := list.NewBullet()
-	fmt.Println(format.UnderlinedTitleWithCount("Supported API Versions", len(apis)))
+func (b *broker) printAPIList(apis []*kafka.API, plain bool) {
+	l := list.New(plain)
+	l.SetTitle(format.WithCount("Supported API Versions", len(apis)))
 	for _, api := range apis {
 		l.AddItem(api)
 	}
 	l.Render()
-}
-
-func (b *broker) printAPIPlain(apis []*kafka.API) {
-	fmt.Println(format.WithCount("Supported API Versions", len(apis)))
-	for _, api := range apis {
-		fmt.Println(format.Indent(1, api))
-	}
 }

@@ -64,11 +64,11 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 
 	switch c.format {
 	case commands.ListFormat:
-		c.printListOutput(meta)
+		c.printListOutput(meta, false)
 	case commands.TableFormat:
 		c.printTableOutput(meta)
 	case commands.PlainTextFormat:
-		c.printPlainTextOutput(meta)
+		c.printListOutput(meta, true)
 	}
 	return nil
 }
@@ -100,40 +100,25 @@ func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
 	}
 }
 
-func (c *cluster) printListOutput(meta *kafka.ClusterMetadata) {
-	fmt.Printf("%s\n", format.UnderlinedTitleWithCount("Brokers", len(meta.Brokers)))
+func (c *cluster) printListOutput(meta *kafka.ClusterMetadata, plain bool) {
+	if plain {
+		fmt.Printf("%s\n", format.WithCount("Brokers", len(meta.Brokers)))
+	} else {
+		fmt.Printf("%s\n", format.UnderlinedTitleWithCount("Brokers", len(meta.Brokers)))
+	}
 	for _, broker := range meta.Brokers {
 		if broker.IsController {
-			fmt.Printf("%v. %v < %v\n",
+			fmt.Printf(" %v. %v < %v\n",
 				format.BoldGreen(broker.ID, c.globalParams.EnableColor),
 				format.BoldGreen(broker.Host, c.globalParams.EnableColor),
 				format.GreenLabel(controlNodeFlag, c.globalParams.EnableColor))
 		} else {
-			fmt.Printf("%v. %v\n", broker.ID, broker.Host)
+			fmt.Printf(" %v. %v\n", broker.ID, broker.Host)
 		}
 	}
 
 	if len(meta.ConfigEntries) > 0 {
 		output.NewLines(1)
-		commands.PrintConfigList(meta.ConfigEntries)
-	}
-}
-
-func (c *cluster) printPlainTextOutput(meta *kafka.ClusterMetadata) {
-	fmt.Println(format.WithCount("Brokers", len(meta.Brokers)))
-	for _, broker := range meta.Brokers {
-		if broker.IsController {
-			fmt.Println(format.IndentF(1, "%v. %v < %v",
-				format.BoldGreen(broker.ID, c.globalParams.EnableColor),
-				format.BoldGreen(broker.Host, c.globalParams.EnableColor),
-				format.GreenLabel(controlNodeFlag, c.globalParams.EnableColor)))
-		} else {
-			fmt.Println(format.IndentF(1, "%v. %v", broker.ID, broker.Host))
-		}
-	}
-
-	if len(meta.ConfigEntries) > 0 {
-		output.NewLines(1)
-		commands.PrintConfigPlain(meta.ConfigEntries)
+		commands.PrintConfigList(meta.ConfigEntries, plain)
 	}
 }

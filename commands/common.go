@@ -82,13 +82,17 @@ func PrintConfigTable(entries []*kafka.ConfigEntry) {
 	table.Render()
 }
 
-func PrintConfigList(entries []*kafka.ConfigEntry) {
-	b := list.NewBullet()
+func PrintConfigList(entries []*kafka.ConfigEntry, plain bool) {
+	b := list.New(plain)
 	b.SetTitle(format.WithCount("Configurations", len(entries)))
 	for _, config := range entries {
+		if plain {
+			b.AddItemF("%s: %v", config.Name, config.Value)
+			continue
+		}
 		parts := strings.Split(config.Value, ",")
 		if len(parts) == 1 {
-			b.AddItem(fmt.Sprintf("%s: %v", config.Name, config.Value))
+			b.AddItemF("%s: %v", config.Name, config.Value)
 			continue
 		}
 		b.AddItem(config.Name)
@@ -101,13 +105,6 @@ func PrintConfigList(entries []*kafka.ConfigEntry) {
 		b.UnIntend()
 	}
 	b.Render()
-}
-
-func PrintConfigPlain(entries []*kafka.ConfigEntry) {
-	fmt.Println(format.WithCount("Configurations", len(entries)))
-	for _, config := range entries {
-		fmt.Println(format.IndentF(1, "%s: %v", config.Name, config.Value))
-	}
 }
 
 // AskForConfirmation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"

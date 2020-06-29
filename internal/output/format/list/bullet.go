@@ -2,7 +2,6 @@ package list
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
@@ -33,10 +32,6 @@ func (b *Bullet) SetCaption(caption string) {
 	b.caption = " " + caption
 }
 
-func (b *Bullet) SetOutput(out io.Writer) {
-	b.writer.SetOutputMirror(out)
-}
-
 func (b *Bullet) Render() {
 	if len(b.title) > 0 {
 		underline := strings.Repeat("─", len(b.title))
@@ -54,6 +49,10 @@ func (b *Bullet) AsTree() {
 
 func (b *Bullet) AddItem(item interface{}) {
 	b.writer.AppendItem(item)
+}
+
+func (b *Bullet) AddItemF(format string, a ...interface{}) {
+	b.writer.AppendItem(fmt.Sprintf(format, a...))
 }
 
 func (b *Bullet) Intend() {
