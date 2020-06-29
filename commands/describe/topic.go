@@ -108,7 +108,7 @@ func (t *topic) printListOutput(meta *kafka.TopicMetadata) {
 
 	if t.loadConfigs {
 		output.NewLines(2)
-		commands.PrintConfigPlain(meta.ConfigEntries)
+		commands.PrintConfigList(meta.ConfigEntries)
 	}
 }
 

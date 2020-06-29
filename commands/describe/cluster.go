@@ -67,6 +67,8 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 		c.printListOutput(meta)
 	case commands.TableFormat:
 		c.printTableOutput(meta)
+	case commands.PlainTextFormat:
+		c.printPlainTextOutput(meta)
 	}
 	return nil
 }
@@ -99,7 +101,7 @@ func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
 }
 
 func (c *cluster) printListOutput(meta *kafka.ClusterMetadata) {
-	fmt.Printf("\n%s\n\n", format.UnderlinedTitleWithCount("Brokers", len(meta.Brokers)))
+	fmt.Printf("%s\n", format.UnderlinedTitleWithCount("Brokers", len(meta.Brokers)))
 	for _, broker := range meta.Brokers {
 		if broker.IsController {
 			fmt.Printf("%v. %v < %v\n",
@@ -112,7 +114,26 @@ func (c *cluster) printListOutput(meta *kafka.ClusterMetadata) {
 	}
 
 	if len(meta.ConfigEntries) > 0 {
-		output.NewLines(2)
+		output.NewLines(1)
+		commands.PrintConfigList(meta.ConfigEntries)
+	}
+}
+
+func (c *cluster) printPlainTextOutput(meta *kafka.ClusterMetadata) {
+	fmt.Println(format.WithCount("Brokers", len(meta.Brokers)))
+	for _, broker := range meta.Brokers {
+		if broker.IsController {
+			fmt.Println(format.IndentF(1, "%v. %v < %v",
+				format.BoldGreen(broker.ID, c.globalParams.EnableColor),
+				format.BoldGreen(broker.Host, c.globalParams.EnableColor),
+				format.GreenLabel(controlNodeFlag, c.globalParams.EnableColor)))
+		} else {
+			fmt.Println(format.IndentF(1, "%v. %v", broker.ID, broker.Host))
+		}
+	}
+
+	if len(meta.ConfigEntries) > 0 {
+		output.NewLines(1)
 		commands.PrintConfigPlain(meta.ConfigEntries)
 	}
 }

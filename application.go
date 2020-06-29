@@ -38,9 +38,14 @@ func newApplication() error {
 }
 
 func bindAppFlags(app *kingpin.Application, global *commands.GlobalParameters) {
-	colorFlag := app.Flag("colour", "Enables colours in the standard output. To disable, use --no-colour.").Default("true")
+	app.Flag("colour", "Enables colours in the standard output. To disable, use --no-colour.").
+		Default("true").
+		BoolVar(&global.EnableColor)
 
-	colorFlag.BoolVar(&global.EnableColor)
+	app.Flag("color", "Enables colours in the standard output. To disable, use --no-color.").
+		Default("true").
+		Hidden().
+		BoolVar(&global.EnableColor)
 
 	app.PreAction(func(context *kingpin.ParseContext) error {
 		enabledColor = global.EnableColor
