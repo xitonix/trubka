@@ -65,13 +65,7 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *group) printListOutput(details *kafka.ConsumerGroupDetails) {
-	fmt.Printf("         Name: %s\n  Coordinator: %s\n        State: %s\n     Protocol: %s\nProtocol Type: %s",
-		details.Name,
-		details.Coordinator.Host,
-		format.GroupStateLabel(details.State, c.globalParams.EnableColor),
-		details.Protocol,
-		details.ProtocolType)
-
+	c.printGroupDetails(details)
 	if c.includeMembers && len(details.Members) > 0 {
 		output.NewLines(2)
 		fmt.Println(format.UnderlinedTitleWithCount("Members", len(details.Members)))
@@ -98,13 +92,7 @@ func (c *group) printListOutput(details *kafka.ConsumerGroupDetails) {
 }
 
 func (c *group) printPlainTextOutput(details *kafka.ConsumerGroupDetails) {
-	fmt.Printf("         Name: %s\n  Coordinator: %s\n        State: %s\n     Protocol: %s\nProtocol Type: %s",
-		details.Name,
-		details.Coordinator.Host,
-		format.GroupStateLabel(details.State, c.globalParams.EnableColor),
-		details.Protocol,
-		details.ProtocolType)
-
+	c.printGroupDetails(details)
 	if c.includeMembers && len(details.Members) > 0 {
 		output.NewLines(2)
 		fmt.Println(format.WithCount("Members", len(details.Members)))
@@ -143,6 +131,15 @@ func (c *group) printTableOutput(details *kafka.ConsumerGroupDetails) {
 	if c.includeMembers && len(details.Members) > 0 {
 		c.printMemberDetailsTable(details.Members)
 	}
+}
+
+func (c *group) printGroupDetails(details *kafka.ConsumerGroupDetails) {
+	fmt.Printf("         Name: %s\n  Coordinator: %s\n        State: %s\n     Protocol: %s\nProtocol Type: %s",
+		details.Name,
+		details.Coordinator.Host,
+		format.GroupStateLabel(details.State, c.globalParams.EnableColor),
+		details.Protocol,
+		details.ProtocolType)
 }
 
 func (c *group) printMemberDetailsTable(members map[string]*kafka.GroupMemberDetails) {
