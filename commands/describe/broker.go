@@ -76,15 +76,15 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 	sort.Strings(meta.ConsumerGroups)
 
 	switch b.format {
-	case commands.PlainTextFormat:
-		return b.printPlainTextOutput(meta)
+	case commands.ListFormat:
+		return b.printListOutput(meta)
 	case commands.TableFormat:
 		return b.printTableOutput(meta)
 	}
 	return nil
 }
 
-func (b *broker) printPlainTextOutput(meta *kafka.BrokerMeta) error {
+func (b *broker) printListOutput(meta *kafka.BrokerMeta) error {
 	header := format.WithCount("Consumer Groups", len(meta.ConsumerGroups))
 	hLen := len(header)
 	if meta.IsController {

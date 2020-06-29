@@ -59,8 +59,8 @@ func (g *groupOffset) run(_ *kingpin.ParseContext) error {
 	}
 
 	switch g.format {
-	case commands.PlainTextFormat:
-		g.printPlainTextOutput(topics)
+	case commands.ListFormat:
+		g.printListOutput(topics)
 	case commands.TableFormat:
 		g.printTableOutput(topics)
 	}
@@ -95,7 +95,7 @@ func (g *groupOffset) printTableOutput(topics kafka.TopicPartitionOffset) {
 	}
 }
 
-func (g *groupOffset) printPlainTextOutput(topics kafka.TopicPartitionOffset) {
+func (g *groupOffset) printListOutput(topics kafka.TopicPartitionOffset) {
 	for topic, partitionOffsets := range topics {
 		b := list.NewBullet()
 		b.AsTree()

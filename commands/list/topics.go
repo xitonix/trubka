@@ -59,15 +59,15 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 	sort.Sort(kafka.TopicsByName(topics))
 
 	switch c.format {
-	case commands.PlainTextFormat:
-		c.printPlainTextOutput(topics)
+	case commands.ListFormat:
+		c.printListOutput(topics)
 	case commands.TableFormat:
 		c.printTableOutput(topics)
 	}
 	return nil
 }
 
-func (c *topics) printPlainTextOutput(topics []kafka.Topic) {
+func (c *topics) printListOutput(topics []kafka.Topic) {
 	b := list.NewBullet()
 	b.SetTitle(format.WithCount("Topics", len(topics)))
 	var totalPartitions int64

@@ -63,8 +63,8 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 	sort.Sort(kafka.ConfigEntriesByName(meta.ConfigEntries))
 
 	switch c.format {
-	case commands.PlainTextFormat:
-		c.printPlainTextOutput(meta)
+	case commands.ListFormat:
+		c.printListOutput(meta)
 	case commands.TableFormat:
 		c.printTableOutput(meta)
 	}
@@ -98,7 +98,7 @@ func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
 	}
 }
 
-func (c *cluster) printPlainTextOutput(meta *kafka.ClusterMetadata) {
+func (c *cluster) printListOutput(meta *kafka.ClusterMetadata) {
 	fmt.Printf("\n%s\n\n", format.UnderlinedTitleWithCount("Brokers", len(meta.Brokers)))
 	for _, broker := range meta.Brokers {
 		if broker.IsController {
