@@ -54,15 +54,15 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 	}
 
 	switch c.format {
-	case commands.PlainTextFormat:
-		c.printPlainTextOutput(cgd)
+	case commands.ListFormat:
+		c.printListOutput(cgd)
 	case commands.TableFormat:
 		c.printTableOutput(cgd)
 	}
 	return nil
 }
 
-func (c *group) printPlainTextOutput(details *kafka.ConsumerGroupDetails) {
+func (c *group) printListOutput(details *kafka.ConsumerGroupDetails) {
 
 	fmt.Printf("         Name: %s\n  Coordinator: %s\n        State: %s\n     Protocol: %s\nProtocol Type: %s",
 		details.Name,

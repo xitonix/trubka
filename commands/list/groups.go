@@ -66,15 +66,15 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 	sort.Sort(kafka.ConsumerGroupDetailsByName(groups))
 
 	switch c.format {
-	case commands.PlainTextFormat:
-		c.printPlainTextOutput(groups)
+	case commands.ListFormat:
+		c.printListOutput(groups)
 	case commands.TableFormat:
 		c.printTableOutput(groups)
 	}
 	return nil
 }
 
-func (c *groups) printPlainTextOutput(groups []*kafka.ConsumerGroupDetails) {
+func (c *groups) printListOutput(groups []*kafka.ConsumerGroupDetails) {
 	if c.includeState {
 		for _, group := range groups {
 			b := list.NewBullet()

@@ -21,6 +21,7 @@ import (
 const (
 	PlainTextFormat = "plain"
 	TableFormat     = "table"
+	ListFormat      = "list"
 )
 
 func InitKafkaManager(globalParams *GlobalParameters, kafkaParams *KafkaParameters) (*kafka.Manager, context.Context, context.CancelFunc, error) {
@@ -64,7 +65,7 @@ func AddFormatFlag(c *kingpin.CmdClause, format *string) {
 		Default(TableFormat).
 		NoEnvar().
 		Short('f').
-		EnumVar(format, PlainTextFormat, TableFormat)
+		EnumVar(format, PlainTextFormat, TableFormat, ListFormat)
 }
 
 func PrintConfigTable(entries []*kafka.ConfigEntry) {

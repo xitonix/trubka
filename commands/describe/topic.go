@@ -69,15 +69,15 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 	}
 
 	switch t.format {
-	case commands.PlainTextFormat:
-		t.printPlainTextOutput(meta)
+	case commands.ListFormat:
+		t.printListOutput(meta)
 	case commands.TableFormat:
 		t.printTableOutput(meta)
 	}
 	return nil
 }
 
-func (t *topic) printPlainTextOutput(meta *kafka.TopicMetadata) {
+func (t *topic) printListOutput(meta *kafka.TopicMetadata) {
 	var totalOffsets int64
 	fmt.Println(format.UnderlinedTitleWithCount("Partitions", len(meta.Partitions)))
 	b := list.NewBullet()

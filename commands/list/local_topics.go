@@ -51,8 +51,8 @@ func (l *listLocalTopics) run(_ *kingpin.ParseContext) error {
 	}
 
 	switch l.format {
-	case commands.PlainTextFormat:
-		l.printPlainTextOutput(localStore)
+	case commands.ListFormat:
+		l.printListOutput(localStore)
 	case commands.TableFormat:
 		l.printTableOutput(localStore)
 	}
@@ -72,7 +72,7 @@ func (l *listLocalTopics) printTableOutput(store map[string][]string) {
 	}
 }
 
-func (l *listLocalTopics) printPlainTextOutput(store map[string][]string) {
+func (l *listLocalTopics) printListOutput(store map[string][]string) {
 	b := list.NewBullet()
 	b.AsTree()
 	for env, topics := range store {

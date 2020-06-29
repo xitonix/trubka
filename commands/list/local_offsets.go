@@ -60,8 +60,8 @@ func (l *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 	}
 
 	switch l.format {
-	case commands.PlainTextFormat:
-		l.printPlainTextOutput(offsets)
+	case commands.ListFormat:
+		l.printListOutput(offsets)
 	case commands.TableFormat:
 		l.printTableOutput(offsets)
 	}
@@ -90,7 +90,7 @@ func (l *listLocalOffsets) printTableOutput(offsets kafka.PartitionOffset) {
 	table.Render()
 }
 
-func (l *listLocalOffsets) printPlainTextOutput(offsets kafka.PartitionOffset) {
+func (l *listLocalOffsets) printListOutput(offsets kafka.PartitionOffset) {
 	partitions := offsets.SortPartitions()
 	var totalLag int64
 	fmt.Println(format.UnderlinedTitleWithCount("Partitions", len(partitions)))
