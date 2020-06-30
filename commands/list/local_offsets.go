@@ -39,8 +39,7 @@ func (l *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 	if len(localOffsets) == 0 {
-		fmt.Printf("no offset has been stored locally for %s topic in %s", l.topic, l.environment)
-		return nil
+		return fmt.Errorf("no offset has been stored locally for %s topic in %s", l.topic, l.environment)
 	}
 
 	manager, ctx, cancel, err := commands.InitKafkaManager(l.globalParams, l.kafkaParams)
@@ -61,9 +60,11 @@ func (l *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 
 	switch l.format {
 	case commands.ListFormat:
-		l.printListOutput(offsets)
+		l.printListOutput(offsets, false)
 	case commands.TableFormat:
 		l.printTableOutput(offsets)
+	case commands.PlainTextFormat:
+		l.printListOutput(offsets, true)
 	}
 	return nil
 }
@@ -90,24 +91,23 @@ func (l *listLocalOffsets) printTableOutput(offsets kafka.PartitionOffset) {
 	table.Render()
 }
 
-func (l *listLocalOffsets) printListOutput(offsets kafka.PartitionOffset) {
+func (l *listLocalOffsets) printListOutput(offsets kafka.PartitionOffset, plain bool) {
 	partitions := offsets.SortPartitions()
 	var totalLag int64
-	fmt.Println(format.UnderlinedTitleWithCount("Partitions", len(partitions)))
-
+	b := list.New(plain)
+	b.AsTree()
+	b.SetTitle(format.WithCount("Partitions", len(partitions)))
 	for _, partition := range partitions {
-		b := list.NewBullet()
-		b.AsTree()
 		offsets := offsets[int32(partition)]
 		lag := offsets.Lag()
 		totalLag += lag
-		b.AddItem(fmt.Sprintf("P%d", partition))
+		b.AddItemF("P%d", partition)
 		b.Intend()
-		b.AddItem(fmt.Sprintf(" Latest: %s", humanize.Comma(offsets.Latest)))
-		b.AddItem(fmt.Sprintf("Current: %s", humanize.Comma(offsets.Current)))
-		b.AddItem(fmt.Sprintf("    Lag: %v", format.Warn(lag, l.globalParams.EnableColor, true)))
+		b.AddItemF(" Latest: %s", humanize.Comma(offsets.Latest))
+		b.AddItemF("Current: %s", humanize.Comma(offsets.Current))
+		b.AddItemF("    Lag: %v", format.Warn(lag, l.globalParams.EnableColor, true))
 		b.UnIntend()
-		b.Render()
 	}
-	fmt.Printf("\n%s\n%v", format.Underline("Total Lag"), format.Warn(totalLag, l.globalParams.EnableColor, true))
+	b.Render()
+	fmt.Printf("\nTotal Lag: %v", format.Warn(totalLag, l.globalParams.EnableColor, true))
 }
