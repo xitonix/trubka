@@ -52,9 +52,11 @@ func (l *listLocalTopics) run(_ *kingpin.ParseContext) error {
 
 	switch l.format {
 	case commands.ListFormat:
-		l.printListOutput(localStore)
+		l.printListOutput(localStore, false)
 	case commands.TableFormat:
 		l.printTableOutput(localStore)
+	case commands.PlainTextFormat:
+		l.printListOutput(localStore, true)
 	}
 	return nil
 }
@@ -72,8 +74,8 @@ func (l *listLocalTopics) printTableOutput(store map[string][]string) {
 	}
 }
 
-func (l *listLocalTopics) printListOutput(store map[string][]string) {
-	b := list.NewBullet()
+func (l *listLocalTopics) printListOutput(store map[string][]string, plain bool) {
+	b := list.New(plain)
 	b.AsTree()
 	for env, topics := range store {
 		b.AddItem(format.WithCount(env, len(topics)))
