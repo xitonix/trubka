@@ -22,6 +22,7 @@ type groupOffset struct {
 	group        string
 	topicFilter  *regexp.Regexp
 	format       string
+	style        string
 }
 
 func addGroupOffsetsSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -34,7 +35,7 @@ func addGroupOffsetsSubCommand(parent *kingpin.CmdClause, global *commands.Globa
 	c.Flag("topic-filter", "An optional regular expression to filter the topics by.").
 		Short('t').
 		RegexpVar(&cmd.topicFilter)
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (g *groupOffset) run(_ *kingpin.ParseContext) error {
@@ -60,16 +61,16 @@ func (g *groupOffset) run(_ *kingpin.ParseContext) error {
 
 	switch g.format {
 	case commands.ListFormat:
-		g.printListOutput(topics, false)
+		g.printAsList(topics, false)
 	case commands.TableFormat:
-		g.printTableOutput(topics)
+		g.printAsTable(topics)
 	case commands.PlainTextFormat:
-		g.printListOutput(topics, true)
+		g.printAsList(topics, true)
 	}
 	return nil
 }
 
-func (g *groupOffset) printTableOutput(topics kafka.TopicPartitionOffset) {
+func (g *groupOffset) printAsTable(topics kafka.TopicPartitionOffset) {
 	for topic, partitionOffsets := range topics {
 		table := tabular.NewTable(g.globalParams.EnableColor,
 			tabular.C("Partition").MinWidth(10),
@@ -97,7 +98,7 @@ func (g *groupOffset) printTableOutput(topics kafka.TopicPartitionOffset) {
 	}
 }
 
-func (g *groupOffset) printListOutput(topics kafka.TopicPartitionOffset, plain bool) {
+func (g *groupOffset) printAsList(topics kafka.TopicPartitionOffset, plain bool) {
 	for topic, partitionOffsets := range topics {
 		b := list.New(plain)
 		b.AsTree()

@@ -21,6 +21,7 @@ type topics struct {
 	globalParams *commands.GlobalParameters
 	topicFilter  *regexp.Regexp
 	format       string
+	style        string
 }
 
 func addTopicsSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -32,7 +33,7 @@ func addTopicsSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParam
 	c.Flag("topic-filter", "An optional regular expression to filter the topics by.").
 		Short('t').
 		RegexpVar(&cmd.topicFilter)
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (c *topics) run(_ *kingpin.ParseContext) error {
@@ -60,16 +61,16 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 
 	switch c.format {
 	case commands.ListFormat:
-		c.printListOutput(topics, false)
+		c.printAsList(topics, false)
 	case commands.TableFormat:
-		c.printTableOutput(topics)
+		c.printAsTable(topics)
 	case commands.PlainTextFormat:
-		c.printListOutput(topics, true)
+		c.printAsList(topics, true)
 	}
 	return nil
 }
 
-func (c *topics) printListOutput(topics []kafka.Topic, plain bool) {
+func (c *topics) printAsList(topics []kafka.Topic, plain bool) {
 	b := list.New(plain)
 	b.SetTitle(format.WithCount("Topics", len(topics)))
 	var totalPartitions int64
@@ -82,7 +83,7 @@ func (c *topics) printListOutput(topics []kafka.Topic, plain bool) {
 	b.Render()
 }
 
-func (c *topics) printTableOutput(topics []kafka.Topic) {
+func (c *topics) printAsTable(topics []kafka.Topic) {
 	table := tabular.NewTable(c.globalParams.EnableColor,
 		tabular.C("Topic").Align(tabular.AlignLeft),
 		tabular.C("Number of Partitions").FAlign(tabular.AlignCenter),

@@ -21,6 +21,7 @@ type cluster struct {
 	globalParams *commands.GlobalParameters
 	kafkaParams  *commands.KafkaParameters
 	format       string
+	style        string
 	loadConfigs  bool
 }
 
@@ -34,7 +35,7 @@ func addClusterSubCommand(parent *kingpin.CmdClause, global *commands.GlobalPara
 		NoEnvar().
 		Short('C').
 		BoolVar(&cmd.loadConfigs)
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (c *cluster) run(_ *kingpin.ParseContext) error {
@@ -64,16 +65,16 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 
 	switch c.format {
 	case commands.ListFormat:
-		c.printListOutput(meta, false)
+		c.printAsList(meta, false)
 	case commands.TableFormat:
-		c.printTableOutput(meta)
+		c.printAsTable(meta)
 	case commands.PlainTextFormat:
-		c.printListOutput(meta, true)
+		c.printAsList(meta, true)
 	}
 	return nil
 }
 
-func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
+func (c *cluster) printAsTable(meta *kafka.ClusterMetadata) {
 	table := tabular.NewTable(c.globalParams.EnableColor,
 		tabular.C("ID").Align(tabular.AlignLeft),
 		tabular.C("Address").Align(tabular.AlignLeft),
@@ -100,7 +101,7 @@ func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
 	}
 }
 
-func (c *cluster) printListOutput(meta *kafka.ClusterMetadata, plain bool) {
+func (c *cluster) printAsList(meta *kafka.ClusterMetadata, plain bool) {
 	if plain {
 		fmt.Printf("%s\n", format.WithCount("Brokers", len(meta.Brokers)))
 	} else {

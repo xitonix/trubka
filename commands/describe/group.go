@@ -20,6 +20,7 @@ type group struct {
 	includeMembers bool
 	group          string
 	format         string
+	style          string
 }
 
 func addGroupSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -33,7 +34,7 @@ func addGroupSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 		NoEnvar().
 		Short('m').
 		BoolVar(&cmd.includeMembers)
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (c *group) run(_ *kingpin.ParseContext) error {
@@ -55,16 +56,16 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 
 	switch c.format {
 	case commands.ListFormat:
-		c.printListOutput(cgd, false)
+		c.printAsList(cgd, false)
 	case commands.TableFormat:
-		c.printTableOutput(cgd)
+		c.printAsTable(cgd)
 	case commands.PlainTextFormat:
-		c.printListOutput(cgd, true)
+		c.printAsList(cgd, true)
 	}
 	return nil
 }
 
-func (c *group) printListOutput(details *kafka.ConsumerGroupDetails, plain bool) {
+func (c *group) printAsList(details *kafka.ConsumerGroupDetails, plain bool) {
 	c.printGroupDetails(details)
 	if c.includeMembers && len(details.Members) > 0 {
 		output.NewLines(2)
@@ -87,7 +88,7 @@ func (c *group) printListOutput(details *kafka.ConsumerGroupDetails, plain bool)
 	}
 }
 
-func (c *group) printTableOutput(details *kafka.ConsumerGroupDetails) {
+func (c *group) printAsTable(details *kafka.ConsumerGroupDetails) {
 	table := tabular.NewTable(c.globalParams.EnableColor,
 		tabular.C("Coordinator"),
 		tabular.C("State"),

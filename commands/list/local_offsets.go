@@ -19,6 +19,7 @@ type listLocalOffsets struct {
 	topic        string
 	environment  string
 	format       string
+	style        string
 }
 
 func addLocalOffsetsSubCommand(parent *kingpin.CmdClause, params *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -29,7 +30,7 @@ func addLocalOffsetsSubCommand(parent *kingpin.CmdClause, params *commands.Globa
 	c := parent.Command("local-offsets", "Lists the locally stored offsets of the given topic and environment.").Action(cmd.run)
 	c.Arg("topic", "The topic to loads the local offsets of.").Required().StringVar(&cmd.topic)
 	c.Arg("environment", "The environment to load the topic offset from.").Required().StringVar(&cmd.environment)
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (l *listLocalOffsets) run(_ *kingpin.ParseContext) error {
@@ -60,16 +61,16 @@ func (l *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 
 	switch l.format {
 	case commands.ListFormat:
-		l.printListOutput(offsets, false)
+		l.printAsList(offsets, false)
 	case commands.TableFormat:
-		l.printTableOutput(offsets)
+		l.printAsTable(offsets)
 	case commands.PlainTextFormat:
-		l.printListOutput(offsets, true)
+		l.printAsList(offsets, true)
 	}
 	return nil
 }
 
-func (l *listLocalOffsets) printTableOutput(offsets kafka.PartitionOffset) {
+func (l *listLocalOffsets) printAsTable(offsets kafka.PartitionOffset) {
 	sortedPartitions := offsets.SortPartitions()
 	table := tabular.NewTable(l.globalParams.EnableColor,
 		tabular.C("Partition"),
@@ -91,7 +92,7 @@ func (l *listLocalOffsets) printTableOutput(offsets kafka.PartitionOffset) {
 	table.Render()
 }
 
-func (l *listLocalOffsets) printListOutput(offsets kafka.PartitionOffset, plain bool) {
+func (l *listLocalOffsets) printAsList(offsets kafka.PartitionOffset, plain bool) {
 	partitions := offsets.SortPartitions()
 	var totalLag int64
 	b := list.New(plain)

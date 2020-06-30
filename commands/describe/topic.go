@@ -24,6 +24,7 @@ type topic struct {
 	loadConfigs    bool
 	includeOffsets bool
 	format         string
+	style          string
 }
 
 func addTopicSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -39,7 +40,7 @@ func addTopicSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	c.Flag("include-offsets", "Queries the server to read the latest available offset of each partition.").
 		NoEnvar().
 		Short('o').BoolVar(&cmd.includeOffsets)
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (t *topic) run(_ *kingpin.ParseContext) error {
@@ -70,16 +71,16 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 
 	switch t.format {
 	case commands.ListFormat:
-		t.printListOutput(meta, false)
+		t.printAsList(meta, false)
 	case commands.TableFormat:
-		t.printTableOutput(meta)
+		t.printAsTable(meta)
 	case commands.PlainTextFormat:
-		t.printListOutput(meta, true)
+		t.printAsList(meta, true)
 	}
 	return nil
 }
 
-func (t *topic) printListOutput(meta *kafka.TopicMetadata, plain bool) {
+func (t *topic) printAsList(meta *kafka.TopicMetadata, plain bool) {
 	var totalOffsets int64
 	b := list.New(plain)
 	b.AsTree()
@@ -112,7 +113,7 @@ func (t *topic) printListOutput(meta *kafka.TopicMetadata, plain bool) {
 	}
 }
 
-func (t *topic) printTableOutput(meta *kafka.TopicMetadata) {
+func (t *topic) printAsTable(meta *kafka.TopicMetadata) {
 	table := tabular.NewTable(t.globalParams.EnableColor,
 		tabular.C("Partition"),
 		tabular.C("Offset").FAlign(tabular.AlignCenter),

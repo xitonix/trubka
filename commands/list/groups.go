@@ -23,6 +23,7 @@ type groups struct {
 	groupFilter  *regexp.Regexp
 	includeState bool
 	format       string
+	style        string
 }
 
 func addGroupsSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -39,7 +40,7 @@ func addGroupsSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParam
 		Short('s').
 		BoolVar(&cmd.includeState)
 
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (c *groups) run(_ *kingpin.ParseContext) error {
@@ -67,16 +68,16 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 
 	switch c.format {
 	case commands.ListFormat:
-		c.printListOutput(groups, false)
+		c.printAsList(groups, false)
 	case commands.TableFormat:
-		c.printTableOutput(groups)
+		c.printAsTable(groups)
 	case commands.PlainTextFormat:
-		c.printListOutput(groups, true)
+		c.printAsList(groups, true)
 	}
 	return nil
 }
 
-func (c *groups) printListOutput(groups []*kafka.ConsumerGroupDetails, plain bool) {
+func (c *groups) printAsList(groups []*kafka.ConsumerGroupDetails, plain bool) {
 	if c.includeState {
 		for _, group := range groups {
 			b := list.New(plain)
@@ -102,7 +103,7 @@ func (c *groups) printListOutput(groups []*kafka.ConsumerGroupDetails, plain boo
 	fmt.Printf("Total: %s", humanize.Comma(int64(len(groups))))
 }
 
-func (c *groups) printTableOutput(groups []*kafka.ConsumerGroupDetails) {
+func (c *groups) printAsTable(groups []*kafka.ConsumerGroupDetails) {
 	var table *tabular.Table
 	if c.includeState {
 		table = tabular.NewTable(c.globalParams.EnableColor,
