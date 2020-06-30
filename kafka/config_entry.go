@@ -1,8 +1,8 @@
 package kafka
 
 type ConfigEntry struct {
-	Name  string
-	Value string
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 type ConfigEntriesByName []*ConfigEntry

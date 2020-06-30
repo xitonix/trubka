@@ -86,8 +86,9 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 		return b.printAsList(meta, false)
 	case commands.PlainTextFormat:
 		return b.printAsList(meta, true)
+	default:
+		return nil
 	}
-	return nil
 }
 
 func (b *broker) printAsList(meta *kafka.BrokerMeta, plain bool) error {

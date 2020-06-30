@@ -1,12 +1,15 @@
 package describe
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
@@ -56,25 +59,27 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 	}
 
 	if len(meta.Brokers) == 0 {
-		fmt.Println("No brokers found!")
-		return nil
+		return errors.New("no brokers found")
 	}
 
 	sort.Sort(kafka.BrokersById(meta.Brokers))
 	sort.Sort(kafka.ConfigEntriesByName(meta.ConfigEntries))
 
 	switch c.format {
-	case commands.ListFormat:
-		c.printAsList(meta, false)
+	case commands.JsonFormat:
+		return c.printAsJson(meta)
 	case commands.TableFormat:
-		c.printAsTable(meta)
+		return c.printAsTable(meta)
+	case commands.ListFormat:
+		return c.printAsList(meta, false)
 	case commands.PlainTextFormat:
-		c.printAsList(meta, true)
+		return c.printAsList(meta, true)
+	default:
+		return nil
 	}
-	return nil
 }
 
-func (c *cluster) printAsTable(meta *kafka.ClusterMetadata) {
+func (c *cluster) printAsTable(meta *kafka.ClusterMetadata) error {
 	table := tabular.NewTable(c.globalParams.EnableColor,
 		tabular.C("ID").Align(tabular.AlignLeft),
 		tabular.C("Address").Align(tabular.AlignLeft),
@@ -99,9 +104,11 @@ func (c *cluster) printAsTable(meta *kafka.ClusterMetadata) {
 		output.NewLines(2)
 		commands.PrintConfigTable(meta.ConfigEntries)
 	}
+
+	return nil
 }
 
-func (c *cluster) printAsList(meta *kafka.ClusterMetadata, plain bool) {
+func (c *cluster) printAsList(meta *kafka.ClusterMetadata, plain bool) error {
 	if plain {
 		fmt.Printf("%s\n", format.WithCount("Brokers", len(meta.Brokers)))
 	} else {
@@ -122,4 +129,16 @@ func (c *cluster) printAsList(meta *kafka.ClusterMetadata, plain bool) {
 		output.NewLines(1)
 		commands.PrintConfigList(meta.ConfigEntries, plain)
 	}
+
+	return nil
+}
+
+func (c *cluster) printAsJson(meta *kafka.ClusterMetadata) error {
+	result, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return err
+	}
+	h := internal.NewJsonHighlighter(c.style, c.globalParams.EnableColor)
+	fmt.Println(string(h.Highlight(result)))
+	return nil
 }
