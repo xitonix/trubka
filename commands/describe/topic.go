@@ -2,6 +2,7 @@ package describe
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/list"
@@ -70,17 +72,20 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 	}
 
 	switch t.format {
-	case commands.ListFormat:
-		t.printAsList(meta, false)
+	case commands.JsonFormat:
+		return t.printAsJson(meta)
 	case commands.TableFormat:
-		t.printAsTable(meta)
+		return t.printAsTable(meta)
+	case commands.ListFormat:
+		return t.printAsList(meta, false)
 	case commands.PlainTextFormat:
-		t.printAsList(meta, true)
+		return t.printAsList(meta, true)
+	default:
+		return nil
 	}
-	return nil
 }
 
-func (t *topic) printAsList(meta *kafka.TopicMetadata, plain bool) {
+func (t *topic) printAsList(meta *kafka.TopicMetadata, plain bool) error {
 	var totalOffsets int64
 	b := list.New(plain)
 	b.AsTree()
@@ -111,9 +116,11 @@ func (t *topic) printAsList(meta *kafka.TopicMetadata, plain bool) {
 		output.NewLines(2)
 		commands.PrintConfigList(meta.ConfigEntries, plain)
 	}
+
+	return nil
 }
 
-func (t *topic) printAsTable(meta *kafka.TopicMetadata) {
+func (t *topic) printAsTable(meta *kafka.TopicMetadata) error {
 	table := tabular.NewTable(t.globalParams.EnableColor,
 		tabular.C("Partition"),
 		tabular.C("Offset").FAlign(tabular.AlignCenter),
@@ -151,6 +158,18 @@ func (t *topic) printAsTable(meta *kafka.TopicMetadata) {
 	if t.loadConfigs {
 		commands.PrintConfigTable(meta.ConfigEntries)
 	}
+
+	return nil
+}
+
+func (t *topic) printAsJson(meta *kafka.TopicMetadata) error {
+	result, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return err
+	}
+	h := internal.NewJsonHighlighter(t.style, t.globalParams.EnableColor)
+	fmt.Println(string(h.Highlight(result)))
+	return nil
 }
 
 func (t *topic) brokersToList(brokers ...*kafka.Broker) string {
