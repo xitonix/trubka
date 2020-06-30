@@ -1,12 +1,14 @@
 package describe
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/list"
@@ -55,17 +57,19 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 	}
 
 	switch c.format {
-	case commands.ListFormat:
-		c.printAsList(cgd, false)
+	case commands.JsonFormat:
+		return c.printAsJson(cgd)
 	case commands.TableFormat:
-		c.printAsTable(cgd)
+		return c.printAsTable(cgd)
+	case commands.ListFormat:
+		return c.printAsList(cgd, false)
 	case commands.PlainTextFormat:
-		c.printAsList(cgd, true)
+		return c.printAsList(cgd, true)
 	}
 	return nil
 }
 
-func (c *group) printAsList(details *kafka.ConsumerGroupDetails, plain bool) {
+func (c *group) printAsList(details *kafka.ConsumerGroupDetails, plain bool) error {
 	c.printGroupDetails(details)
 	if c.includeMembers && len(details.Members) > 0 {
 		output.NewLines(2)
@@ -86,9 +90,10 @@ func (c *group) printAsList(details *kafka.ConsumerGroupDetails, plain bool) {
 			b.Render()
 		}
 	}
+	return nil
 }
 
-func (c *group) printAsTable(details *kafka.ConsumerGroupDetails) {
+func (c *group) printAsTable(details *kafka.ConsumerGroupDetails) error {
 	table := tabular.NewTable(c.globalParams.EnableColor,
 		tabular.C("Coordinator"),
 		tabular.C("State"),
@@ -107,6 +112,17 @@ func (c *group) printAsTable(details *kafka.ConsumerGroupDetails) {
 	if c.includeMembers && len(details.Members) > 0 {
 		c.printMemberDetailsTable(details.Members)
 	}
+	return nil
+}
+
+func (c *group) printAsJson(details *kafka.ConsumerGroupDetails) error {
+	result, err := json.MarshalIndent(details.ToJson(c.includeMembers), "", "  ")
+	if err != nil {
+		return err
+	}
+	h := internal.NewJsonHighlighter(c.style, c.globalParams.EnableColor)
+	fmt.Println(string(h.Highlight(result)))
+	return nil
 }
 
 func (c *group) printGroupDetails(details *kafka.ConsumerGroupDetails) {
