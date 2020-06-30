@@ -2,7 +2,6 @@ package list
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
@@ -30,11 +29,7 @@ func (b *Bullet) SetTitle(title string) {
 }
 
 func (b *Bullet) SetCaption(caption string) {
-	b.caption = " " + caption
-}
-
-func (b *Bullet) SetOutput(out io.Writer) {
-	b.writer.SetOutputMirror(out)
+	b.caption = caption
 }
 
 func (b *Bullet) Render() {
@@ -54,6 +49,10 @@ func (b *Bullet) AsTree() {
 
 func (b *Bullet) AddItem(item interface{}) {
 	b.writer.AppendItem(item)
+}
+
+func (b *Bullet) AddItemF(format string, a ...interface{}) {
+	b.writer.AppendItem(fmt.Sprintf(format, a...))
 }
 
 func (b *Bullet) Intend() {

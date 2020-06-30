@@ -55,44 +55,34 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 
 	switch c.format {
 	case commands.ListFormat:
-		c.printListOutput(cgd)
+		c.printListOutput(cgd, false)
 	case commands.TableFormat:
 		c.printTableOutput(cgd)
+	case commands.PlainTextFormat:
+		c.printListOutput(cgd, true)
 	}
 	return nil
 }
 
-func (c *group) printListOutput(details *kafka.ConsumerGroupDetails) {
-
-	fmt.Printf("         Name: %s\n  Coordinator: %s\n        State: %s\n     Protocol: %s\nProtocol Type: %s",
-		details.Name,
-		details.Coordinator.Host,
-		format.GroupStateLabel(details.State, c.globalParams.EnableColor),
-		details.Protocol,
-		details.ProtocolType)
-
+func (c *group) printListOutput(details *kafka.ConsumerGroupDetails, plain bool) {
+	c.printGroupDetails(details)
 	if c.includeMembers && len(details.Members) > 0 {
 		output.NewLines(2)
-		fmt.Println(format.UnderlinedTitleWithCount("Members", len(details.Members)))
+		fmt.Println(format.WithCount("Members", len(details.Members)))
 		for member, md := range details.Members {
-			fmt.Println("  ID: " + member)
-			fmt.Printf("HOST: %s\n\n", md.ClientHost)
+			output.NewLines(1)
+			fmt.Printf("%s (%s)\n", member, md.ClientHost)
 			if len(details.Members[member].TopicPartitions) == 0 {
 				continue
 			}
 			tps := details.Members[member].TopicPartitions
 			sortedTopics := tps.SortedTopics()
-			fmt.Println(format.UnderlinedTitleWithCount("Assignments", len(sortedTopics)))
-			b := list.NewBullet()
-			b.AsTree()
+			b := list.New(plain)
+			b.SetTitle(format.WithCount("Assignments", len(sortedTopics)))
 			for _, topic := range sortedTopics {
-				b.AddItem(topic)
-				b.Intend()
-				b.AddItem(tps.SortedPartitionsString(topic))
-				b.UnIntend()
+				b.AddItemF("%s: %s", topic, tps.SortedPartitionsString(topic))
 			}
 			b.Render()
-			output.NewLines(1)
 		}
 	}
 }
@@ -116,6 +106,15 @@ func (c *group) printTableOutput(details *kafka.ConsumerGroupDetails) {
 	if c.includeMembers && len(details.Members) > 0 {
 		c.printMemberDetailsTable(details.Members)
 	}
+}
+
+func (c *group) printGroupDetails(details *kafka.ConsumerGroupDetails) {
+	fmt.Printf("         Name: %s\n  Coordinator: %s\n        State: %s\n     Protocol: %s\nProtocol Type: %s",
+		details.Name,
+		details.Coordinator.Host,
+		format.GroupStateLabel(details.State, c.globalParams.EnableColor),
+		details.Protocol,
+		details.ProtocolType)
 }
 
 func (c *group) printMemberDetailsTable(members map[string]*kafka.GroupMemberDetails) {
