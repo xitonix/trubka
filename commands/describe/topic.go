@@ -88,8 +88,10 @@ func (t *topic) printListOutput(meta *kafka.TopicMetadata, plain bool) {
 		b.AddItemF("P%d", pm.Id)
 		b.Intend()
 		if t.includeOffsets {
+			b.Intend()
 			b.AddItemF("Offset: %s", humanize.Comma(pm.Offset))
 			totalOffsets += pm.Offset
+			b.UnIntend()
 		}
 		b.Intend()
 		b.AddItemF("Leader: %s", pm.Leader.MarkedHostName())
@@ -101,14 +103,12 @@ func (t *topic) printListOutput(meta *kafka.TopicMetadata, plain bool) {
 		b.UnIntend()
 		b.UnIntend()
 	}
-	b.SetCaption(kafka.ControllerBrokerLabel + " CONTROLLER NODES")
-	b.Render()
-
+	caption := "CONTROLLER NODES" + kafka.ControllerBrokerLabel
 	if t.includeOffsets {
-		output.NewLines(1)
-		fmt.Println(format.Underline("Total Offsets"))
-		fmt.Println(humanize.Comma(totalOffsets))
+		caption = fmt.Sprintf("Total Offsets: %s (%s)", humanize.Comma(totalOffsets), caption)
 	}
+	b.SetCaption(caption)
+	b.Render()
 
 	if t.loadConfigs {
 		output.NewLines(2)

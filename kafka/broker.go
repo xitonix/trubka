@@ -6,7 +6,7 @@ import (
 	"github.com/xitonix/trubka/internal"
 )
 
-const ControllerBrokerLabel = "★"
+const ControllerBrokerLabel = "*"
 
 type Broker struct {
 	Address      string

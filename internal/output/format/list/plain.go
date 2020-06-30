@@ -24,7 +24,7 @@ func (p *Plain) SetTitle(title string) {
 }
 
 func (p *Plain) SetCaption(caption string) {
-	p.caption = " " + caption
+	p.caption = caption
 }
 
 func (p *Plain) Render() {

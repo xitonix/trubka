@@ -29,7 +29,7 @@ func (b *Bullet) SetTitle(title string) {
 }
 
 func (b *Bullet) SetCaption(caption string) {
-	b.caption = " " + caption
+	b.caption = caption
 }
 
 func (b *Bullet) Render() {
