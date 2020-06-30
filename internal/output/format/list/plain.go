@@ -10,10 +10,11 @@ const (
 )
 
 type Plain struct {
-	items   []string
-	title   string
-	caption string
-	indent  int
+	items            []string
+	title            string
+	caption          string
+	indent           int
+	indentFirstLevel bool
 }
 
 func NewPlain() *Plain {
@@ -25,13 +26,7 @@ func NewPlain() *Plain {
 
 func (p *Plain) SetTitle(title string) {
 	p.title = title
-	if p.indent == 0 && len(title) > 0 {
-		// Make sure we always indent if the title is set to achieve:
-		// Title
-		//   item 1
-		//   item 2
-		p.indent = 1
-	}
+	p.indentFirstLevel = len(title) > 0
 }
 
 func (p *Plain) SetCaption(caption string) {
@@ -77,5 +72,9 @@ func (p *Plain) UnIntend() {
 }
 
 func (p *Plain) indentF(format string, a ...interface{}) {
-	p.items = append(p.items, strings.Repeat(indentation, p.indent)+fmt.Sprintf(format, a...))
+	indent := p.indent
+	if p.indentFirstLevel {
+		indent++
+	}
+	p.items = append(p.items, strings.Repeat(indentation, indent)+fmt.Sprintf(format, a...))
 }
