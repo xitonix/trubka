@@ -60,24 +60,24 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 
 	switch c.format {
 	case commands.ListFormat:
-		c.printListOutput(topics)
+		c.printListOutput(topics, false)
 	case commands.TableFormat:
 		c.printTableOutput(topics)
+	case commands.PlainTextFormat:
+		c.printListOutput(topics, true)
 	}
 	return nil
 }
 
-func (c *topics) printListOutput(topics []kafka.Topic) {
-	b := list.NewBullet()
+func (c *topics) printListOutput(topics []kafka.Topic, plain bool) {
+	b := list.New(plain)
 	b.SetTitle(format.WithCount("Topics", len(topics)))
 	var totalPartitions int64
 	for _, topic := range topics {
 		totalPartitions += int64(topic.NumberOfPartitions)
 		b.AddItem(topic.Name)
 	}
-	caption := fmt.Sprintf("%s", format.Underline("Total"))
-	caption += fmt.Sprintf("\n    Topics: %s", humanize.Comma(int64(len(topics))))
-	caption += fmt.Sprintf("\nPartitions: %s", humanize.Comma(totalPartitions))
+	caption := fmt.Sprintf("SUMMARY: %s partitions in %s topics", humanize.Comma(totalPartitions), humanize.Comma(int64(len(topics))))
 	b.SetCaption(caption)
 	b.Render()
 }

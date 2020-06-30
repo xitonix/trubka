@@ -5,6 +5,10 @@ import (
 	"strings"
 )
 
+const (
+	indentation = "  "
+)
+
 type Plain struct {
 	items   []string
 	title   string
@@ -21,6 +25,13 @@ func NewPlain() *Plain {
 
 func (p *Plain) SetTitle(title string) {
 	p.title = title
+	if p.indent == 0 && len(title) > 0 {
+		// Make sure we always indent if the title is set to achieve:
+		// Title
+		//   item 1
+		//   item 2
+		p.indent = 1
+	}
 }
 
 func (p *Plain) SetCaption(caption string) {
@@ -66,9 +77,5 @@ func (p *Plain) UnIntend() {
 }
 
 func (p *Plain) indentF(format string, a ...interface{}) {
-	value := fmt.Sprintf(format, a...)
-	if p.indent == 0 && len(p.title) > 0 {
-		value = "  " + value
-	}
-	p.items = append(p.items, strings.Repeat("  ", p.indent)+value)
+	p.items = append(p.items, strings.Repeat(indentation, p.indent)+fmt.Sprintf(format, a...))
 }
