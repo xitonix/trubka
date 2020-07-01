@@ -31,11 +31,11 @@ func (c *version) run(*kingpin.ParseContext) error {
 		c.version = "[built from source]"
 	}
 	b := strings.Builder{}
-	b.WriteString("\nTrubka - A CLI Tool for Kafka\n")
+	b.WriteString("Trubka - A CLI Tool for Kafka\n")
 	b.WriteString(fmt.Sprintf("  Version: %s\n", c.version))
 	b.WriteString(fmt.Sprintf("  Runtime: %s\n", c.runtimeVer))
 	b.WriteString(fmt.Sprintf("    Built: %s\n", c.built))
-	b.WriteString(fmt.Sprintf("   Commit: %s\n", c.commit))
+	b.WriteString(fmt.Sprintf("   Commit: %s", c.commit))
 	fmt.Println(b.String())
 	return nil
 }

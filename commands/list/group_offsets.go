@@ -10,6 +10,7 @@ import (
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/list"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
@@ -22,6 +23,7 @@ type groupOffset struct {
 	group        string
 	topicFilter  *regexp.Regexp
 	format       string
+	style        string
 }
 
 func addGroupOffsetsSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -34,7 +36,7 @@ func addGroupOffsetsSubCommand(parent *kingpin.CmdClause, global *commands.Globa
 	c.Flag("topic-filter", "An optional regular expression to filter the topics by.").
 		Short('t').
 		RegexpVar(&cmd.topicFilter)
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (g *groupOffset) run(_ *kingpin.ParseContext) error {
@@ -59,17 +61,20 @@ func (g *groupOffset) run(_ *kingpin.ParseContext) error {
 	}
 
 	switch g.format {
-	case commands.ListFormat:
-		g.printListOutput(topics, false)
+	case commands.JsonFormat:
+		return output.PrintAsJson(topics.ToJson(), g.style, g.globalParams.EnableColor)
 	case commands.TableFormat:
-		g.printTableOutput(topics)
+		return g.printAsTable(topics)
+	case commands.ListFormat:
+		return g.printAsList(topics, false)
 	case commands.PlainTextFormat:
-		g.printListOutput(topics, true)
+		return g.printAsList(topics, true)
+	default:
+		return nil
 	}
-	return nil
 }
 
-func (g *groupOffset) printTableOutput(topics kafka.TopicPartitionOffset) {
+func (g *groupOffset) printAsTable(topics kafka.TopicPartitionOffset) error {
 	for topic, partitionOffsets := range topics {
 		table := tabular.NewTable(g.globalParams.EnableColor,
 			tabular.C("Partition").MinWidth(10),
@@ -95,9 +100,10 @@ func (g *groupOffset) printTableOutput(topics kafka.TopicPartitionOffset) {
 			table.Render()
 		}
 	}
+	return nil
 }
 
-func (g *groupOffset) printListOutput(topics kafka.TopicPartitionOffset, plain bool) {
+func (g *groupOffset) printAsList(topics kafka.TopicPartitionOffset, plain bool) error {
 	for topic, partitionOffsets := range topics {
 		b := list.New(plain)
 		b.AsTree()
@@ -124,4 +130,5 @@ func (g *groupOffset) printListOutput(topics kafka.TopicPartitionOffset, plain b
 			fmt.Printf("\nTotal Lag: %v\n\n", format.Warn(totalLag, g.globalParams.EnableColor, true))
 		}
 	}
+	return nil
 }

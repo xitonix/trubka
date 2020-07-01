@@ -1,18 +1,79 @@
 package kafka
 
 import (
+	"strings"
+
 	"github.com/Shopify/sarama"
 )
 
 type GroupMembers map[string]*GroupMemberDetails
 
 type ConsumerGroupDetails struct {
-	Name         string
-	State        string
-	Members      GroupMembers
-	Protocol     string
-	Coordinator  Broker
-	ProtocolType string
+	Name         string       `json:"name"`
+	State        string       `json:"state"`
+	Protocol     string       `json:"protocol"`
+	ProtocolType string       `json:"protocol_type"`
+	Coordinator  Broker       `json:"coordinator"`
+	Members      GroupMembers `json:"members,omitempty"`
+}
+
+func (c *ConsumerGroupDetails) ToJson(includeMembers bool) interface{} {
+	if c == nil {
+		return nil
+	}
+	type assignment struct {
+		Topic      string  `json:"topic"`
+		Partitions []int32 `json:"partitions"`
+	}
+	type member struct {
+		Id          string        `json:"id"`
+		Host        string        `json:"host"`
+		Assignments []*assignment `json:"assignments"`
+	}
+	type protocol struct {
+		Name string `json:"name,omitempty"`
+		Type string `json:"type,omitempty"`
+	}
+	output := struct {
+		Name        string    `json:"name"`
+		State       string    `json:"state,omitempty"`
+		Protocol    *protocol `json:"protocol,omitempty"`
+		Coordinator *Broker   `json:"coordinator,omitempty"`
+		Members     []*member `json:"members,omitempty"`
+	}{
+		Name:    c.Name,
+		State:   c.State,
+		Members: []*member{},
+	}
+
+	if len(c.Coordinator.Host) > 0 {
+		output.Coordinator = &c.Coordinator
+	}
+
+	if len(c.Protocol) > 0 {
+		output.Protocol = &protocol{
+			Name: c.Protocol,
+			Type: c.ProtocolType,
+		}
+	}
+
+	if includeMembers {
+		for id, gMember := range c.Members {
+			m := &member{
+				Id:          id,
+				Host:        gMember.ClientHost,
+				Assignments: []*assignment{},
+			}
+			for topic, partitions := range gMember.TopicPartitions {
+				m.Assignments = append(m.Assignments, &assignment{
+					Topic:      topic,
+					Partitions: partitions,
+				})
+			}
+			output.Members = append(output.Members, m)
+		}
+	}
+	return output
 }
 
 type ConsumerGroupDetailsByName []*ConsumerGroupDetails
@@ -30,8 +91,8 @@ func (c ConsumerGroupDetailsByName) Less(i, j int) bool {
 }
 
 type GroupMemberDetails struct {
-	ClientHost      string
-	TopicPartitions TopicPartitions
+	ClientHost      string          `json:"client_host"`
+	TopicPartitions TopicPartitions `json:"topic_partitions"`
 }
 
 func fromGroupMemberDescription(md *sarama.GroupMemberDescription) (*GroupMemberDetails, error) {
@@ -40,7 +101,7 @@ func fromGroupMemberDescription(md *sarama.GroupMemberDescription) (*GroupMember
 		return nil, err
 	}
 	return &GroupMemberDetails{
-		ClientHost:      md.ClientHost,
+		ClientHost:      strings.Trim(md.ClientHost, "/"),
 		TopicPartitions: assignments.Topics,
 	}, nil
 }

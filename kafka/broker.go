@@ -9,11 +9,11 @@ import (
 const ControllerBrokerLabel = "*"
 
 type Broker struct {
-	Address      string
-	ID           int32
-	Host         string
-	IsController bool
-	*sarama.Broker
+	Address        string `json:"-"`
+	ID             int32  `json:"id"`
+	Host           string `json:"host"`
+	IsController   bool   `json:"controller"`
+	*sarama.Broker `json:"-"`
 }
 
 func NewBroker(broker *sarama.Broker, controllerId int32) *Broker {

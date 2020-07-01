@@ -8,10 +8,10 @@ import (
 )
 
 type API struct {
-	Name       string
-	Key        int16
-	MinVersion int16
-	MaxVersion int16
+	Name       string `json:"name"`
+	Key        int16  `json:"key"`
+	MinVersion int16  `json:"min_version"`
+	MaxVersion int16  `json:"max_version"`
 }
 
 func newAPI(name string, key, minVer, maxVer int16) *API {
@@ -51,30 +51,73 @@ type BrokerMeta struct {
 	APIs           []*API
 }
 
+func (b *BrokerMeta) ToJson(withLogs, withAPIs, includeZeros bool) interface{} {
+	if b == nil {
+		return nil
+	}
+	type log struct {
+		Path    string     `json:"path"`
+		Entries []*LogSize `json:"entries"`
+	}
+	output := struct {
+		IsController   bool     `json:"controller"`
+		ConsumerGroups []string `json:"consumer_groups"`
+		Logs           []*log   `json:"logs,omitempty"`
+		APIs           []*API   `json:"api,omitempty"`
+	}{
+		IsController:   b.IsController,
+		ConsumerGroups: b.ConsumerGroups,
+	}
+
+	if withLogs {
+		for _, logs := range b.Logs {
+			sorted := logs.SortByPermanentSize()
+			log := &log{
+				Path:    logs.Path,
+				Entries: []*LogSize{},
+			}
+			for _, entry := range sorted {
+				if !includeZeros && entry.Permanent == 0 {
+					continue
+				}
+				log.Entries = append(log.Entries, entry)
+			}
+			output.Logs = append(output.Logs, log)
+		}
+	}
+
+	if withAPIs {
+		sort.Sort(APIByCode(b.APIs))
+		output.APIs = b.APIs
+	}
+
+	return output
+}
+
 type aggregatedTopicSize map[string]*LogSize
 
 type LogFile struct {
-	Path       string
-	aggregated aggregatedTopicSize
+	Path    string              `json:"path"`
+	Entries aggregatedTopicSize `json:"entries"`
 }
 
 func newLogFile(path string) *LogFile {
 	return &LogFile{
-		Path:       path,
-		aggregated: make(aggregatedTopicSize),
+		Path:    path,
+		Entries: make(aggregatedTopicSize),
 	}
 }
 
 func (l *LogFile) set(topic string, size int64, isTemp bool) {
-	if _, ok := l.aggregated[topic]; !ok {
-		l.aggregated[topic] = &LogSize{
+	if _, ok := l.Entries[topic]; !ok {
+		l.Entries[topic] = &LogSize{
 			Topic: topic,
 		}
 	}
 	if isTemp {
-		l.aggregated[topic].Temporary += uint64(size)
+		l.Entries[topic].Temporary += uint64(size)
 	} else {
-		l.aggregated[topic].Permanent += uint64(size)
+		l.Entries[topic].Permanent += uint64(size)
 	}
 }
 
@@ -85,9 +128,9 @@ func (l *LogFile) SortByPermanentSize() []*LogSize {
 }
 
 func (l *LogFile) toSlice() []*LogSize {
-	result := make([]*LogSize, len(l.aggregated))
+	result := make([]*LogSize, len(l.Entries))
 	var i int
-	for _, l := range l.aggregated {
+	for _, l := range l.Entries {
 		result[i] = l
 		i++
 	}
@@ -109,7 +152,7 @@ func (l logsByPermanentSize) Less(i, j int) bool {
 }
 
 type LogSize struct {
-	Topic     string
-	Permanent uint64
-	Temporary uint64
+	Topic     string `json:"topic"`
+	Permanent uint64 `json:"permanent"`
+	Temporary uint64 `json:"temporary"`
 }

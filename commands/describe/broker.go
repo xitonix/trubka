@@ -26,6 +26,7 @@ type broker struct {
 	includeZeroLogs    bool
 	includeAPIVersions bool
 	format             string
+	style              string
 }
 
 func addBrokerSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -53,7 +54,7 @@ func addBrokerSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParam
 		Short('t').
 		NoEnvar().
 		RegexpVar(&cmd.topicsFilter)
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (b *broker) run(_ *kingpin.ParseContext) error {
@@ -76,17 +77,21 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 	sort.Strings(meta.ConsumerGroups)
 
 	switch b.format {
-	case commands.ListFormat:
-		return b.printListOutput(meta, false)
+	case commands.JsonFormat:
+		data := meta.ToJson(b.includeLogs, b.includeAPIVersions, b.includeZeroLogs)
+		return output.PrintAsJson(data, b.style, b.globalParams.EnableColor)
 	case commands.TableFormat:
-		return b.printTableOutput(meta)
+		return b.printAsTable(meta)
+	case commands.ListFormat:
+		return b.printAsList(meta, false)
 	case commands.PlainTextFormat:
-		return b.printListOutput(meta, true)
+		return b.printAsList(meta, true)
+	default:
+		return nil
 	}
-	return nil
 }
 
-func (b *broker) printListOutput(meta *kafka.BrokerMeta, plain bool) error {
+func (b *broker) printAsList(meta *kafka.BrokerMeta, plain bool) error {
 	header := format.WithCount("Consumer Groups", len(meta.ConsumerGroups))
 	if meta.IsController {
 		header = fmt.Sprintf("%s %v", header, format.GreenLabel(controlNodeFlag, b.globalParams.EnableColor))
@@ -112,7 +117,7 @@ func (b *broker) printListOutput(meta *kafka.BrokerMeta, plain bool) error {
 	return nil
 }
 
-func (b *broker) printTableOutput(meta *kafka.BrokerMeta) error {
+func (b *broker) printAsTable(meta *kafka.BrokerMeta) error {
 	header := "Consumer Groups"
 	if meta.IsController {
 		header = fmt.Sprintf("Consumer Groups %v", format.GreenLabel(controlNodeFlag, b.globalParams.EnableColor))

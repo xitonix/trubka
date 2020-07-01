@@ -22,6 +22,7 @@ const (
 	PlainTextFormat = "plain"
 	TableFormat     = "table"
 	ListFormat      = "list"
+	JsonFormat      = "json"
 )
 
 func InitKafkaManager(globalParams *GlobalParameters, kafkaParams *KafkaParameters) (*kafka.Manager, context.Context, context.CancelFunc, error) {
@@ -60,12 +61,16 @@ func GetBrokers(commaSeparated string) []string {
 	return brokers
 }
 
-func AddFormatFlag(c *kingpin.CmdClause, format *string) {
+func AddFormatFlag(c *kingpin.CmdClause, format *string, style *string) {
 	c.Flag("format", "Sets the output format.").
 		Default(TableFormat).
 		NoEnvar().
 		Short('f').
-		EnumVar(format, PlainTextFormat, TableFormat, ListFormat)
+		EnumVar(format, PlainTextFormat, TableFormat, ListFormat, JsonFormat)
+
+	c.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --format=%s only. Set to 'none' to disable.", JsonFormat)).
+		Default(internal.DefaultHighlightStyle).
+		EnumVar(style, internal.HighlightStyles...)
 }
 
 func PrintConfigTable(entries []*kafka.ConfigEntry) {

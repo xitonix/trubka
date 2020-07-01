@@ -23,6 +23,7 @@ type groups struct {
 	groupFilter  *regexp.Regexp
 	includeState bool
 	format       string
+	style        string
 }
 
 func addGroupsSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -39,7 +40,7 @@ func addGroupsSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParam
 		Short('s').
 		BoolVar(&cmd.includeState)
 
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (c *groups) run(_ *kingpin.ParseContext) error {
@@ -66,17 +67,24 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 	sort.Sort(kafka.ConsumerGroupDetailsByName(groups))
 
 	switch c.format {
-	case commands.ListFormat:
-		c.printListOutput(groups, false)
+	case commands.JsonFormat:
+		data := make([]interface{}, len(groups))
+		for i, g := range groups {
+			data[i] = g.ToJson(false)
+		}
+		return output.PrintAsJson(data, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
-		c.printTableOutput(groups)
+		return c.printAsTable(groups)
+	case commands.ListFormat:
+		return c.printAsList(groups, false)
 	case commands.PlainTextFormat:
-		c.printListOutput(groups, true)
+		return c.printAsList(groups, true)
+	default:
+		return nil
 	}
-	return nil
 }
 
-func (c *groups) printListOutput(groups []*kafka.ConsumerGroupDetails, plain bool) {
+func (c *groups) printAsList(groups []*kafka.ConsumerGroupDetails, plain bool) error {
 	if c.includeState {
 		for _, group := range groups {
 			b := list.New(plain)
@@ -100,9 +108,10 @@ func (c *groups) printListOutput(groups []*kafka.ConsumerGroupDetails, plain boo
 		output.NewLines(1)
 	}
 	fmt.Printf("Total: %s", humanize.Comma(int64(len(groups))))
+	return nil
 }
 
-func (c *groups) printTableOutput(groups []*kafka.ConsumerGroupDetails) {
+func (c *groups) printAsTable(groups []*kafka.ConsumerGroupDetails) error {
 	var table *tabular.Table
 	if c.includeState {
 		table = tabular.NewTable(c.globalParams.EnableColor,
@@ -133,4 +142,5 @@ func (c *groups) printTableOutput(groups []*kafka.ConsumerGroupDetails) {
 		table.AddFooter(fmt.Sprintf("Total: %s", humanize.Comma(int64(len(groups)))))
 	}
 	table.Render()
+	return nil
 }

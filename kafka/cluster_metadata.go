@@ -1,6 +1,6 @@
 package kafka
 
 type ClusterMetadata struct {
-	ConfigEntries []*ConfigEntry
-	Brokers       []*Broker
+	Brokers       []*Broker      `json:"brokers,omitempty"`
+	ConfigEntries []*ConfigEntry `json:"configurations,omitempty"`
 }

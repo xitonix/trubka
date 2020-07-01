@@ -1,6 +1,7 @@
 package describe
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
@@ -21,6 +22,7 @@ type cluster struct {
 	globalParams *commands.GlobalParameters
 	kafkaParams  *commands.KafkaParameters
 	format       string
+	style        string
 	loadConfigs  bool
 }
 
@@ -34,7 +36,7 @@ func addClusterSubCommand(parent *kingpin.CmdClause, global *commands.GlobalPara
 		NoEnvar().
 		Short('C').
 		BoolVar(&cmd.loadConfigs)
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (c *cluster) run(_ *kingpin.ParseContext) error {
@@ -55,25 +57,27 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 	}
 
 	if len(meta.Brokers) == 0 {
-		fmt.Println("No brokers found!")
-		return nil
+		return errors.New("no brokers found")
 	}
 
 	sort.Sort(kafka.BrokersById(meta.Brokers))
 	sort.Sort(kafka.ConfigEntriesByName(meta.ConfigEntries))
 
 	switch c.format {
-	case commands.ListFormat:
-		c.printListOutput(meta, false)
+	case commands.JsonFormat:
+		return output.PrintAsJson(meta, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
-		c.printTableOutput(meta)
+		return c.printAsTable(meta)
+	case commands.ListFormat:
+		return c.printAsList(meta, false)
 	case commands.PlainTextFormat:
-		c.printListOutput(meta, true)
+		return c.printAsList(meta, true)
+	default:
+		return nil
 	}
-	return nil
 }
 
-func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
+func (c *cluster) printAsTable(meta *kafka.ClusterMetadata) error {
 	table := tabular.NewTable(c.globalParams.EnableColor,
 		tabular.C("ID").Align(tabular.AlignLeft),
 		tabular.C("Address").Align(tabular.AlignLeft),
@@ -98,9 +102,11 @@ func (c *cluster) printTableOutput(meta *kafka.ClusterMetadata) {
 		output.NewLines(2)
 		commands.PrintConfigTable(meta.ConfigEntries)
 	}
+
+	return nil
 }
 
-func (c *cluster) printListOutput(meta *kafka.ClusterMetadata, plain bool) {
+func (c *cluster) printAsList(meta *kafka.ClusterMetadata, plain bool) error {
 	if plain {
 		fmt.Printf("%s\n", format.WithCount("Brokers", len(meta.Brokers)))
 	} else {
@@ -121,4 +127,6 @@ func (c *cluster) printListOutput(meta *kafka.ClusterMetadata, plain bool) {
 		output.NewLines(1)
 		commands.PrintConfigList(meta.ConfigEntries, plain)
 	}
+
+	return nil
 }

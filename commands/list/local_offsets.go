@@ -7,6 +7,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/list"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
@@ -19,6 +20,7 @@ type listLocalOffsets struct {
 	topic        string
 	environment  string
 	format       string
+	style        string
 }
 
 func addLocalOffsetsSubCommand(parent *kingpin.CmdClause, params *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -29,7 +31,7 @@ func addLocalOffsetsSubCommand(parent *kingpin.CmdClause, params *commands.Globa
 	c := parent.Command("local-offsets", "Lists the locally stored offsets of the given topic and environment.").Action(cmd.run)
 	c.Arg("topic", "The topic to loads the local offsets of.").Required().StringVar(&cmd.topic)
 	c.Arg("environment", "The environment to load the topic offset from.").Required().StringVar(&cmd.environment)
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (l *listLocalOffsets) run(_ *kingpin.ParseContext) error {
@@ -59,17 +61,20 @@ func (l *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 	}
 
 	switch l.format {
-	case commands.ListFormat:
-		l.printListOutput(offsets, false)
+	case commands.JsonFormat:
+		return output.PrintAsJson(offsets.ToJson(), l.style, l.globalParams.EnableColor)
 	case commands.TableFormat:
-		l.printTableOutput(offsets)
+		return l.printAsTable(offsets)
+	case commands.ListFormat:
+		return l.printAsList(offsets, false)
 	case commands.PlainTextFormat:
-		l.printListOutput(offsets, true)
+		return l.printAsList(offsets, true)
+	default:
+		return nil
 	}
-	return nil
 }
 
-func (l *listLocalOffsets) printTableOutput(offsets kafka.PartitionOffset) {
+func (l *listLocalOffsets) printAsTable(offsets kafka.PartitionOffset) error {
 	sortedPartitions := offsets.SortPartitions()
 	table := tabular.NewTable(l.globalParams.EnableColor,
 		tabular.C("Partition"),
@@ -89,9 +94,10 @@ func (l *listLocalOffsets) printTableOutput(offsets kafka.PartitionOffset) {
 	}
 	table.AddFooter(" ", " ", " ", totalLag)
 	table.Render()
+	return nil
 }
 
-func (l *listLocalOffsets) printListOutput(offsets kafka.PartitionOffset, plain bool) {
+func (l *listLocalOffsets) printAsList(offsets kafka.PartitionOffset, plain bool) error {
 	partitions := offsets.SortPartitions()
 	var totalLag int64
 	b := list.New(plain)
@@ -110,4 +116,5 @@ func (l *listLocalOffsets) printListOutput(offsets kafka.PartitionOffset, plain 
 	}
 	b.Render()
 	fmt.Printf("\nTotal Lag: %v", format.Warn(totalLag, l.globalParams.EnableColor, true))
+	return nil
 }

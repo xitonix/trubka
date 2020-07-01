@@ -21,6 +21,7 @@ type listLocalTopics struct {
 	topicsFilter *regexp.Regexp
 	envFilter    *regexp.Regexp
 	format       string
+	style        string
 }
 
 func addLocalTopicsSubCommand(parent *kingpin.CmdClause, params *commands.GlobalParameters) {
@@ -30,7 +31,7 @@ func addLocalTopicsSubCommand(parent *kingpin.CmdClause, params *commands.Global
 	c := parent.Command("local-topics", "Lists the locally stored topics and the environments.").Action(cmd.run)
 	c.Flag("topic-filter", "An optional regular expression to filter the topics by.").Short('t').RegexpVar(&cmd.topicsFilter)
 	c.Flag("environment-filter", "An optional case-insensitive regular expression to filter the environments by.").Short('e').RegexpVar(&cmd.envFilter)
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (l *listLocalTopics) run(_ *kingpin.ParseContext) error {
@@ -51,17 +52,19 @@ func (l *listLocalTopics) run(_ *kingpin.ParseContext) error {
 	}
 
 	switch l.format {
-	case commands.ListFormat:
-		l.printListOutput(localStore, false)
+	case commands.JsonFormat:
+		return output.PrintAsJson(localStore, l.style, l.globalParams.EnableColor)
 	case commands.TableFormat:
-		l.printTableOutput(localStore)
+		return l.printAsTable(localStore)
+	case commands.ListFormat:
+		return l.printAsList(localStore, false)
 	case commands.PlainTextFormat:
-		l.printListOutput(localStore, true)
+		return l.printAsList(localStore, true)
 	}
 	return nil
 }
 
-func (l *listLocalTopics) printTableOutput(store map[string][]string) {
+func (l *listLocalTopics) printAsTable(store map[string][]string) error {
 	for env, topics := range store {
 		table := tabular.NewTable(l.globalParams.EnableColor, tabular.C(format.WithCount(env, len(topics))).Align(tabular.AlignLeft).MinWidth(60))
 		sort.Strings(topics)
@@ -72,9 +75,10 @@ func (l *listLocalTopics) printTableOutput(store map[string][]string) {
 		table.Render()
 		output.NewLines(1)
 	}
+	return nil
 }
 
-func (l *listLocalTopics) printListOutput(store map[string][]string, plain bool) {
+func (l *listLocalTopics) printAsList(store map[string][]string, plain bool) error {
 	b := list.New(plain)
 	b.AsTree()
 	for env, topics := range store {
@@ -87,4 +91,5 @@ func (l *listLocalTopics) printListOutput(store map[string][]string, plain bool)
 		b.UnIntend()
 	}
 	b.Render()
+	return nil
 }

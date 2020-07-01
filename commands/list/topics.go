@@ -10,6 +10,7 @@ import (
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/list"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
@@ -21,6 +22,7 @@ type topics struct {
 	globalParams *commands.GlobalParameters
 	topicFilter  *regexp.Regexp
 	format       string
+	style        string
 }
 
 func addTopicsSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -32,7 +34,7 @@ func addTopicsSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParam
 	c.Flag("topic-filter", "An optional regular expression to filter the topics by.").
 		Short('t').
 		RegexpVar(&cmd.topicFilter)
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (c *topics) run(_ *kingpin.ParseContext) error {
@@ -59,17 +61,20 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 	sort.Sort(kafka.TopicsByName(topics))
 
 	switch c.format {
-	case commands.ListFormat:
-		c.printListOutput(topics, false)
+	case commands.JsonFormat:
+		return output.PrintAsJson(topics, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
-		c.printTableOutput(topics)
+		return c.printAsTable(topics)
+	case commands.ListFormat:
+		return c.printAsList(topics, false)
 	case commands.PlainTextFormat:
-		c.printListOutput(topics, true)
+		return c.printAsList(topics, true)
+	default:
+		return nil
 	}
-	return nil
 }
 
-func (c *topics) printListOutput(topics []kafka.Topic, plain bool) {
+func (c *topics) printAsList(topics []kafka.Topic, plain bool) error {
 	b := list.New(plain)
 	b.SetTitle(format.WithCount("Topics", len(topics)))
 	var totalPartitions int64
@@ -80,9 +85,10 @@ func (c *topics) printListOutput(topics []kafka.Topic, plain bool) {
 	caption := fmt.Sprintf("SUMMARY: %s partitions in %s topics", humanize.Comma(totalPartitions), humanize.Comma(int64(len(topics))))
 	b.SetCaption(caption)
 	b.Render()
+	return nil
 }
 
-func (c *topics) printTableOutput(topics []kafka.Topic) {
+func (c *topics) printAsTable(topics []kafka.Topic) error {
 	table := tabular.NewTable(c.globalParams.EnableColor,
 		tabular.C("Topic").Align(tabular.AlignLeft),
 		tabular.C("Number of Partitions").FAlign(tabular.AlignCenter),
@@ -97,4 +103,5 @@ func (c *topics) printTableOutput(topics []kafka.Topic) {
 	}
 	table.AddFooter(fmt.Sprintf("Total: %s", humanize.Comma(int64(len(topics)))), humanize.Comma(totalPartitions), " ")
 	table.Render()
+	return nil
 }

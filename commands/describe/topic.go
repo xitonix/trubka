@@ -24,6 +24,7 @@ type topic struct {
 	loadConfigs    bool
 	includeOffsets bool
 	format         string
+	style          string
 }
 
 func addTopicSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -39,7 +40,7 @@ func addTopicSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	c.Flag("include-offsets", "Queries the server to read the latest available offset of each partition.").
 		NoEnvar().
 		Short('o').BoolVar(&cmd.includeOffsets)
-	commands.AddFormatFlag(c, &cmd.format)
+	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
 func (t *topic) run(_ *kingpin.ParseContext) error {
@@ -69,17 +70,20 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 	}
 
 	switch t.format {
-	case commands.ListFormat:
-		t.printListOutput(meta, false)
+	case commands.JsonFormat:
+		return output.PrintAsJson(meta, t.style, t.globalParams.EnableColor)
 	case commands.TableFormat:
-		t.printTableOutput(meta)
+		return t.printAsTable(meta)
+	case commands.ListFormat:
+		return t.printAsList(meta, false)
 	case commands.PlainTextFormat:
-		t.printListOutput(meta, true)
+		return t.printAsList(meta, true)
+	default:
+		return nil
 	}
-	return nil
 }
 
-func (t *topic) printListOutput(meta *kafka.TopicMetadata, plain bool) {
+func (t *topic) printAsList(meta *kafka.TopicMetadata, plain bool) error {
 	var totalOffsets int64
 	b := list.New(plain)
 	b.AsTree()
@@ -110,9 +114,11 @@ func (t *topic) printListOutput(meta *kafka.TopicMetadata, plain bool) {
 		output.NewLines(2)
 		commands.PrintConfigList(meta.ConfigEntries, plain)
 	}
+
+	return nil
 }
 
-func (t *topic) printTableOutput(meta *kafka.TopicMetadata) {
+func (t *topic) printAsTable(meta *kafka.TopicMetadata) error {
 	table := tabular.NewTable(t.globalParams.EnableColor,
 		tabular.C("Partition"),
 		tabular.C("Offset").FAlign(tabular.AlignCenter),
@@ -150,6 +156,8 @@ func (t *topic) printTableOutput(meta *kafka.TopicMetadata) {
 	if t.loadConfigs {
 		commands.PrintConfigTable(meta.ConfigEntries)
 	}
+
+	return nil
 }
 
 func (t *topic) brokersToList(brokers ...*kafka.Broker) string {
