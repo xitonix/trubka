@@ -11,6 +11,26 @@ import (
 // PartitionOffset represents a map of partition offset pairs.
 type PartitionOffset map[int32]Offset
 
+func (p PartitionOffset) ToJson() interface{} {
+	if p == nil {
+		return nil
+	}
+	type offset struct {
+		Current int64 `json:"current_offset"`
+		Latest  int64 `json:"latest_offset"`
+		Lag     int64 `json:"lag"`
+	}
+	output := make(map[int32]offset, len(p))
+	for partition, off := range p {
+		output[partition] = offset{
+			Current: off.Current,
+			Latest:  off.Latest,
+			Lag:     off.Lag(),
+		}
+	}
+	return output
+}
+
 // SortPartitions returns a list of sorted partitions.
 func (p PartitionOffset) SortPartitions() []int {
 	sorted := make([]int, 0)

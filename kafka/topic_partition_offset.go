@@ -9,30 +9,18 @@ func (t TopicPartitionOffset) ToJson() interface{} {
 	if t == nil {
 		return nil
 	}
-	type offset struct {
-		Current int64 `json:"current_offset"`
-		Latest  int64 `json:"latest_offset"`
-		Lag     int64 `json:"lag"`
-	}
+
 	type tpo struct {
-		Topic      string           `json:"topic"`
-		Partitions map[int32]offset `json:"partitions"`
+		Topic      string      `json:"topic"`
+		Partitions interface{} `json:"partitions"`
 	}
 	output := make([]tpo, len(t))
 	i := 0
 	for topic, po := range t {
-		topicOffsets := tpo{
+		output[i] = tpo{
 			Topic:      topic,
-			Partitions: make(map[int32]offset, len(po)),
+			Partitions: po.ToJson(),
 		}
-		for partition, off := range po {
-			topicOffsets.Partitions[partition] = offset{
-				Current: off.Current,
-				Latest:  off.Latest,
-				Lag:     off.Lag(),
-			}
-		}
-		output[i] = topicOffsets
 		i++
 	}
 	return output

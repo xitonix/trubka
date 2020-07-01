@@ -1,12 +1,14 @@
 package list
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/dustin/go-humanize"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/list"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
@@ -60,17 +62,20 @@ func (l *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 	}
 
 	switch l.format {
-	case commands.ListFormat:
-		l.printAsList(offsets, false)
+	case commands.JsonFormat:
+		return l.printAsJson(offsets)
 	case commands.TableFormat:
-		l.printAsTable(offsets)
+		return l.printAsTable(offsets)
+	case commands.ListFormat:
+		return l.printAsList(offsets, false)
 	case commands.PlainTextFormat:
-		l.printAsList(offsets, true)
+		return l.printAsList(offsets, true)
+	default:
+		return nil
 	}
-	return nil
 }
 
-func (l *listLocalOffsets) printAsTable(offsets kafka.PartitionOffset) {
+func (l *listLocalOffsets) printAsTable(offsets kafka.PartitionOffset) error {
 	sortedPartitions := offsets.SortPartitions()
 	table := tabular.NewTable(l.globalParams.EnableColor,
 		tabular.C("Partition"),
@@ -90,9 +95,10 @@ func (l *listLocalOffsets) printAsTable(offsets kafka.PartitionOffset) {
 	}
 	table.AddFooter(" ", " ", " ", totalLag)
 	table.Render()
+	return nil
 }
 
-func (l *listLocalOffsets) printAsList(offsets kafka.PartitionOffset, plain bool) {
+func (l *listLocalOffsets) printAsList(offsets kafka.PartitionOffset, plain bool) error {
 	partitions := offsets.SortPartitions()
 	var totalLag int64
 	b := list.New(plain)
@@ -111,4 +117,15 @@ func (l *listLocalOffsets) printAsList(offsets kafka.PartitionOffset, plain bool
 	}
 	b.Render()
 	fmt.Printf("\nTotal Lag: %v", format.Warn(totalLag, l.globalParams.EnableColor, true))
+	return nil
+}
+
+func (l *listLocalOffsets) printAsJson(offsets kafka.PartitionOffset) error {
+	result, err := json.MarshalIndent(offsets.ToJson(), "", "  ")
+	if err != nil {
+		return err
+	}
+	h := internal.NewJsonHighlighter(l.style, l.globalParams.EnableColor)
+	fmt.Println(string(h.Highlight(result)))
+	return nil
 }
