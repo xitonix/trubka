@@ -70,7 +70,7 @@ func WithCount(title string, count int) string {
 }
 
 func titleWithCount(title string, count int) string {
-	return fmt.Sprintf("%s (%d)", title, count)
+	return fmt.Sprintf("%s [%d]", title, count)
 }
 
 func underline(length int) string {

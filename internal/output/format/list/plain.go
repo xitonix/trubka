@@ -10,11 +10,8 @@ const (
 )
 
 type Plain struct {
-	items            []string
-	title            string
-	caption          string
-	indent           int
-	indentFirstLevel bool
+	items  []string
+	indent int
 }
 
 func NewPlain() *Plain {
@@ -24,28 +21,21 @@ func NewPlain() *Plain {
 	}
 }
 
-func (p *Plain) SetTitle(title string) {
-	p.title = title
-	p.indentFirstLevel = len(title) > 0
+func (p *Plain) SetTitle(string) {
+	// no ops for plain lists
 }
 
-func (p *Plain) SetCaption(caption string) {
-	p.caption = caption
+func (p *Plain) SetCaption(string) {
+	// no ops for plain lists
 }
 
 func (p *Plain) Render() {
-	if len(p.title) > 0 {
-		fmt.Println(p.title)
-	}
 	for i, item := range p.items {
 		if i < len(p.items) {
 			fmt.Println(item)
 			continue
 		}
 		fmt.Print(item)
-	}
-	if len(p.caption) > 0 {
-		fmt.Printf("\n%s", p.caption)
 	}
 }
 
@@ -72,9 +62,5 @@ func (p *Plain) UnIntend() {
 }
 
 func (p *Plain) indentF(format string, a ...interface{}) {
-	indent := p.indent
-	if p.indentFirstLevel {
-		indent++
-	}
-	p.items = append(p.items, strings.Repeat(indentation, indent)+fmt.Sprintf(format, a...))
+	p.items = append(p.items, strings.Repeat(indentation, p.indent)+fmt.Sprintf(format, a...))
 }

@@ -69,25 +69,27 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *group) printAsList(details *kafka.ConsumerGroupDetails, plain bool) error {
-	c.printGroupDetails(details)
+	c.printGroupDetails(details, plain)
+
 	if c.includeMembers && len(details.Members) > 0 {
 		output.NewLines(2)
-		fmt.Println(format.WithCount("Members", len(details.Members)))
+		b := list.New(plain)
+		b.AsTree()
+		b.SetTitle(format.WithCount("Members", len(details.Members)))
 		for member, md := range details.Members {
-			output.NewLines(1)
-			fmt.Printf("%s (%s)\n", member, md.ClientHost)
+			b.AddItemF("%s (%s)", member, md.ClientHost)
 			if len(details.Members[member].TopicPartitions) == 0 {
 				continue
 			}
 			tps := details.Members[member].TopicPartitions
 			sortedTopics := tps.SortedTopics()
-			b := list.New(plain)
-			b.SetTitle(format.WithCount("Assignments", len(sortedTopics)))
+			b.Intend()
 			for _, topic := range sortedTopics {
 				b.AddItemF("%s: %s", topic, tps.SortedPartitionsString(topic))
 			}
-			b.Render()
+			b.UnIntend()
 		}
+		b.Render()
 	}
 	return nil
 }
@@ -114,11 +116,11 @@ func (c *group) printAsTable(details *kafka.ConsumerGroupDetails) error {
 	return nil
 }
 
-func (c *group) printGroupDetails(details *kafka.ConsumerGroupDetails) {
-	fmt.Printf("         Name: %s\n  Coordinator: %s\n        State: %s\n     Protocol: %s\nProtocol Type: %s",
+func (c *group) printGroupDetails(details *kafka.ConsumerGroupDetails, plain bool) {
+	fmt.Printf("       Name: %s\nCoordinator: %s\n      State: %s\n   Protocol: %s-%s",
 		details.Name,
 		details.Coordinator.Host,
-		format.GroupStateLabel(details.State, c.globalParams.EnableColor),
+		format.GroupStateLabel(details.State, c.globalParams.EnableColor && !plain),
 		details.Protocol,
 		details.ProtocolType)
 }

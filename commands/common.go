@@ -68,7 +68,7 @@ func AddFormatFlag(c *kingpin.CmdClause, format *string, style *string) {
 		Short('f').
 		EnumVar(format, PlainTextFormat, TableFormat, ListFormat, JsonFormat)
 
-	c.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --format=%s only. Disabled (none) by defalt.", JsonFormat)).
+	c.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --format=%s only. Disabled (none) by default.", JsonFormat)).
 		Default("none").
 		EnumVar(style, internal.HighlightStyles...)
 }
