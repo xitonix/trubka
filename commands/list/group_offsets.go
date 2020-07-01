@@ -1,6 +1,7 @@
 package list
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -60,17 +61,19 @@ func (g *groupOffset) run(_ *kingpin.ParseContext) error {
 	}
 
 	switch g.format {
-	case commands.ListFormat:
-		g.printAsList(topics, false)
+	case commands.JsonFormat:
+		return g.printAsJson(topics)
 	case commands.TableFormat:
-		g.printAsTable(topics)
+		return g.printAsTable(topics)
+	case commands.ListFormat:
+		return g.printAsList(topics, false)
 	case commands.PlainTextFormat:
-		g.printAsList(topics, true)
+		return g.printAsList(topics, true)
 	}
 	return nil
 }
 
-func (g *groupOffset) printAsTable(topics kafka.TopicPartitionOffset) {
+func (g *groupOffset) printAsTable(topics kafka.TopicPartitionOffset) error {
 	for topic, partitionOffsets := range topics {
 		table := tabular.NewTable(g.globalParams.EnableColor,
 			tabular.C("Partition").MinWidth(10),
@@ -96,9 +99,10 @@ func (g *groupOffset) printAsTable(topics kafka.TopicPartitionOffset) {
 			table.Render()
 		}
 	}
+	return nil
 }
 
-func (g *groupOffset) printAsList(topics kafka.TopicPartitionOffset, plain bool) {
+func (g *groupOffset) printAsList(topics kafka.TopicPartitionOffset, plain bool) error {
 	for topic, partitionOffsets := range topics {
 		b := list.New(plain)
 		b.AsTree()
@@ -125,4 +129,15 @@ func (g *groupOffset) printAsList(topics kafka.TopicPartitionOffset, plain bool)
 			fmt.Printf("\nTotal Lag: %v\n\n", format.Warn(totalLag, g.globalParams.EnableColor, true))
 		}
 	}
+	return nil
+}
+
+func (g *groupOffset) printAsJson(topics kafka.TopicPartitionOffset) error {
+	result, err := json.MarshalIndent(topics.ToJson(), "", "  ")
+	if err != nil {
+		return err
+	}
+	h := internal.NewJsonHighlighter(g.style, g.globalParams.EnableColor)
+	fmt.Println(string(h.Highlight(result)))
+	return nil
 }
