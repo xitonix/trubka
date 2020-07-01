@@ -1,14 +1,12 @@
 package describe
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
-	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/list"
@@ -58,7 +56,8 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 
 	switch c.format {
 	case commands.JsonFormat:
-		return c.printAsJson(cgd)
+		data := cgd.ToJson(c.includeMembers)
+		return output.PrintAsJson(data, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(cgd)
 	case commands.ListFormat:
@@ -112,16 +111,6 @@ func (c *group) printAsTable(details *kafka.ConsumerGroupDetails) error {
 	if c.includeMembers && len(details.Members) > 0 {
 		c.printMemberDetailsTable(details.Members)
 	}
-	return nil
-}
-
-func (c *group) printAsJson(details *kafka.ConsumerGroupDetails) error {
-	result, err := json.MarshalIndent(details.ToJson(c.includeMembers), "", "  ")
-	if err != nil {
-		return err
-	}
-	h := internal.NewJsonHighlighter(c.style, c.globalParams.EnableColor)
-	fmt.Println(string(h.Highlight(result)))
 	return nil
 }
 

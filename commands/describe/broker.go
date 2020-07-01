@@ -1,7 +1,6 @@
 package describe
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -79,7 +78,8 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 
 	switch b.format {
 	case commands.JsonFormat:
-		return b.printAsJson(meta)
+		data := meta.ToJson(b.includeLogs, b.includeAPIVersions, b.includeZeroLogs)
+		return output.PrintAsJson(data, b.style, b.globalParams.EnableColor)
 	case commands.TableFormat:
 		return b.printAsTable(meta)
 	case commands.ListFormat:
@@ -144,16 +144,6 @@ func (b *broker) printAsTable(meta *kafka.BrokerMeta) error {
 		output.NewLines(2)
 		b.printAPITable(meta.APIs)
 	}
-	return nil
-}
-
-func (b *broker) printAsJson(meta *kafka.BrokerMeta) error {
-	result, err := json.MarshalIndent(meta.ToJson(b.includeLogs, b.includeAPIVersions, b.includeZeroLogs), "", "  ")
-	if err != nil {
-		return err
-	}
-	h := internal.NewJsonHighlighter(b.style, b.globalParams.EnableColor)
-	fmt.Println(string(h.Highlight(result)))
 	return nil
 }
 

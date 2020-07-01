@@ -3,9 +3,9 @@ package kafka
 import "fmt"
 
 type Topic struct {
-	Name               string
-	NumberOfPartitions int32
-	ReplicationFactor  int16
+	Name               string `json:"name"`
+	NumberOfPartitions int32  `json:"number_of_partitions"`
+	ReplicationFactor  int16  `json:"replication_factor"`
 }
 
 type TopicsByName []Topic

@@ -1,7 +1,6 @@
 package list
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/list"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
@@ -62,7 +62,7 @@ func (g *groupOffset) run(_ *kingpin.ParseContext) error {
 
 	switch g.format {
 	case commands.JsonFormat:
-		return g.printAsJson(topics)
+		return output.PrintAsJson(topics.ToJson(), g.style, g.globalParams.EnableColor)
 	case commands.TableFormat:
 		return g.printAsTable(topics)
 	case commands.ListFormat:
@@ -130,15 +130,5 @@ func (g *groupOffset) printAsList(topics kafka.TopicPartitionOffset, plain bool)
 			fmt.Printf("\nTotal Lag: %v\n\n", format.Warn(totalLag, g.globalParams.EnableColor, true))
 		}
 	}
-	return nil
-}
-
-func (g *groupOffset) printAsJson(topics kafka.TopicPartitionOffset) error {
-	result, err := json.MarshalIndent(topics.ToJson(), "", "  ")
-	if err != nil {
-		return err
-	}
-	h := internal.NewJsonHighlighter(g.style, g.globalParams.EnableColor)
-	fmt.Println(string(h.Highlight(result)))
 	return nil
 }

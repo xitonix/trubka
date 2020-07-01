@@ -1,7 +1,6 @@
 package describe
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -9,7 +8,6 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
-	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
@@ -67,7 +65,7 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 
 	switch c.format {
 	case commands.JsonFormat:
-		return c.printAsJson(meta)
+		return output.PrintAsJson(meta, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(meta)
 	case commands.ListFormat:
@@ -130,15 +128,5 @@ func (c *cluster) printAsList(meta *kafka.ClusterMetadata, plain bool) error {
 		commands.PrintConfigList(meta.ConfigEntries, plain)
 	}
 
-	return nil
-}
-
-func (c *cluster) printAsJson(meta *kafka.ClusterMetadata) error {
-	result, err := json.MarshalIndent(meta, "", "  ")
-	if err != nil {
-		return err
-	}
-	h := internal.NewJsonHighlighter(c.style, c.globalParams.EnableColor)
-	fmt.Println(string(h.Highlight(result)))
 	return nil
 }

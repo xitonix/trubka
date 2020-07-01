@@ -1,14 +1,13 @@
 package list
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/dustin/go-humanize"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
-	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/list"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
@@ -63,7 +62,7 @@ func (l *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 
 	switch l.format {
 	case commands.JsonFormat:
-		return l.printAsJson(offsets)
+		return output.PrintAsJson(offsets.ToJson(), l.style, l.globalParams.EnableColor)
 	case commands.TableFormat:
 		return l.printAsTable(offsets)
 	case commands.ListFormat:
@@ -117,15 +116,5 @@ func (l *listLocalOffsets) printAsList(offsets kafka.PartitionOffset, plain bool
 	}
 	b.Render()
 	fmt.Printf("\nTotal Lag: %v", format.Warn(totalLag, l.globalParams.EnableColor, true))
-	return nil
-}
-
-func (l *listLocalOffsets) printAsJson(offsets kafka.PartitionOffset) error {
-	result, err := json.MarshalIndent(offsets.ToJson(), "", "  ")
-	if err != nil {
-		return err
-	}
-	h := internal.NewJsonHighlighter(l.style, l.globalParams.EnableColor)
-	fmt.Println(string(h.Highlight(result)))
 	return nil
 }

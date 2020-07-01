@@ -1,7 +1,6 @@
 package list
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -69,7 +68,11 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 
 	switch c.format {
 	case commands.JsonFormat:
-		return c.printAsJson(groups)
+		data := make([]interface{}, len(groups))
+		for i, g := range groups {
+			data[i] = g.ToJson(false)
+		}
+		return output.PrintAsJson(data, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(groups)
 	case commands.ListFormat:
@@ -139,19 +142,5 @@ func (c *groups) printAsTable(groups []*kafka.ConsumerGroupDetails) error {
 		table.AddFooter(fmt.Sprintf("Total: %s", humanize.Comma(int64(len(groups)))))
 	}
 	table.Render()
-	return nil
-}
-
-func (c *groups) printAsJson(groups []*kafka.ConsumerGroupDetails) error {
-	data := make([]interface{}, len(groups))
-	for i, g := range groups {
-		data[i] = g.ToJson(false)
-	}
-	result, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		return err
-	}
-	h := internal.NewJsonHighlighter(c.style, c.globalParams.EnableColor)
-	fmt.Println(string(h.Highlight(result)))
 	return nil
 }

@@ -1,7 +1,6 @@
 package list
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -54,7 +53,7 @@ func (l *listLocalTopics) run(_ *kingpin.ParseContext) error {
 
 	switch l.format {
 	case commands.JsonFormat:
-		return l.printAsJson(localStore)
+		return output.PrintAsJson(localStore, l.style, l.globalParams.EnableColor)
 	case commands.TableFormat:
 		return l.printAsTable(localStore)
 	case commands.ListFormat:
@@ -92,15 +91,5 @@ func (l *listLocalTopics) printAsList(store map[string][]string, plain bool) err
 		b.UnIntend()
 	}
 	b.Render()
-	return nil
-}
-
-func (l *listLocalTopics) printAsJson(store map[string][]string) error {
-	result, err := json.MarshalIndent(store, "", "  ")
-	if err != nil {
-		return err
-	}
-	h := internal.NewJsonHighlighter(l.style, l.globalParams.EnableColor)
-	fmt.Println(string(h.Highlight(result)))
 	return nil
 }
