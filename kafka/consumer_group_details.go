@@ -31,24 +31,30 @@ func (c *ConsumerGroupDetails) ToJson(includeMembers bool) interface{} {
 		Assignments []*assignment `json:"assignments"`
 	}
 	type protocol struct {
-		Name string `json:"name"`
-		Type string `json:"type"`
+		Name string `json:"name,omitempty"`
+		Type string `json:"type,omitempty"`
 	}
 	output := struct {
 		Name        string    `json:"name"`
-		State       string    `json:"state"`
-		Protocol    protocol  `json:"protocol"`
-		Coordinator Broker    `json:"coordinator"`
+		State       string    `json:"state,omitempty"`
+		Protocol    *protocol `json:"protocol,omitempty"`
+		Coordinator *Broker   `json:"coordinator,omitempty"`
 		Members     []*member `json:"members,omitempty"`
 	}{
 		Name:    c.Name,
 		State:   c.State,
 		Members: []*member{},
-		Protocol: protocol{
+	}
+
+	if len(c.Coordinator.Host) > 0 {
+		output.Coordinator = &c.Coordinator
+	}
+
+	if len(c.Protocol) > 0 {
+		output.Protocol = &protocol{
 			Name: c.Protocol,
 			Type: c.ProtocolType,
-		},
-		Coordinator: c.Coordinator,
+		}
 	}
 
 	if includeMembers {

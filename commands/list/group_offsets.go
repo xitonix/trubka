@@ -69,8 +69,9 @@ func (g *groupOffset) run(_ *kingpin.ParseContext) error {
 		return g.printAsList(topics, false)
 	case commands.PlainTextFormat:
 		return g.printAsList(topics, true)
+	default:
+		return nil
 	}
-	return nil
 }
 
 func (g *groupOffset) printAsTable(topics kafka.TopicPartitionOffset) error {

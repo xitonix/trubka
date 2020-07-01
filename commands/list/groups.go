@@ -1,6 +1,7 @@
 package list
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -67,17 +68,20 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 	sort.Sort(kafka.ConsumerGroupDetailsByName(groups))
 
 	switch c.format {
-	case commands.ListFormat:
-		c.printAsList(groups, false)
+	case commands.JsonFormat:
+		return c.printAsJson(groups)
 	case commands.TableFormat:
-		c.printAsTable(groups)
+		return c.printAsTable(groups)
+	case commands.ListFormat:
+		return c.printAsList(groups, false)
 	case commands.PlainTextFormat:
-		c.printAsList(groups, true)
+		return c.printAsList(groups, true)
+	default:
+		return nil
 	}
-	return nil
 }
 
-func (c *groups) printAsList(groups []*kafka.ConsumerGroupDetails, plain bool) {
+func (c *groups) printAsList(groups []*kafka.ConsumerGroupDetails, plain bool) error {
 	if c.includeState {
 		for _, group := range groups {
 			b := list.New(plain)
@@ -101,9 +105,10 @@ func (c *groups) printAsList(groups []*kafka.ConsumerGroupDetails, plain bool) {
 		output.NewLines(1)
 	}
 	fmt.Printf("Total: %s", humanize.Comma(int64(len(groups))))
+	return nil
 }
 
-func (c *groups) printAsTable(groups []*kafka.ConsumerGroupDetails) {
+func (c *groups) printAsTable(groups []*kafka.ConsumerGroupDetails) error {
 	var table *tabular.Table
 	if c.includeState {
 		table = tabular.NewTable(c.globalParams.EnableColor,
@@ -134,4 +139,19 @@ func (c *groups) printAsTable(groups []*kafka.ConsumerGroupDetails) {
 		table.AddFooter(fmt.Sprintf("Total: %s", humanize.Comma(int64(len(groups)))))
 	}
 	table.Render()
+	return nil
+}
+
+func (c *groups) printAsJson(groups []*kafka.ConsumerGroupDetails) error {
+	data := make([]interface{}, len(groups))
+	for i, g := range groups {
+		data[i] = g.ToJson(false)
+	}
+	result, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return err
+	}
+	h := internal.NewJsonHighlighter(c.style, c.globalParams.EnableColor)
+	fmt.Println(string(h.Highlight(result)))
+	return nil
 }
