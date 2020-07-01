@@ -115,9 +115,9 @@ func (c *cluster) printAsList(meta *kafka.ClusterMetadata, plain bool) error {
 	for _, broker := range meta.Brokers {
 		if broker.IsController {
 			fmt.Printf(" %v. %v < %v\n",
-				format.BoldGreen(broker.ID, c.globalParams.EnableColor),
-				format.BoldGreen(broker.Host, c.globalParams.EnableColor),
-				format.GreenLabel(controlNodeFlag, c.globalParams.EnableColor))
+				format.BoldGreen(broker.ID, c.globalParams.EnableColor && !plain),
+				format.BoldGreen(broker.Host, c.globalParams.EnableColor && !plain),
+				format.GreenLabel(controlNodeFlag, c.globalParams.EnableColor && !plain))
 		} else {
 			fmt.Printf(" %v. %v\n", broker.ID, broker.Host)
 		}
