@@ -102,7 +102,6 @@ func (l *listLocalOffsets) printAsList(offsets kafka.PartitionOffset, plain bool
 	var totalLag int64
 	b := list.New(plain)
 	b.AsTree()
-	b.SetTitle(format.WithCount("Partitions", len(partitions)))
 	for _, partition := range partitions {
 		offsets := offsets[int32(partition)]
 		lag := offsets.Lag()
@@ -111,10 +110,9 @@ func (l *listLocalOffsets) printAsList(offsets kafka.PartitionOffset, plain bool
 		b.Intend()
 		b.AddItemF(" Latest: %s", humanize.Comma(offsets.Latest))
 		b.AddItemF("Current: %s", humanize.Comma(offsets.Current))
-		b.AddItemF("    Lag: %v", format.Warn(lag, l.globalParams.EnableColor, true))
+		b.AddItemF("    Lag: %v", format.Warn(lag, l.globalParams.EnableColor && !plain, true))
 		b.UnIntend()
 	}
 	b.Render()
-	fmt.Printf("\nTotal Lag: %v", format.Warn(totalLag, l.globalParams.EnableColor, true))
 	return nil
 }
