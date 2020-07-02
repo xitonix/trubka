@@ -76,7 +76,6 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 
 func (c *topics) printAsList(topics []kafka.Topic, plain bool) error {
 	b := list.New(plain)
-	b.SetTitle(format.WithCount("Topics", len(topics)))
 	var totalPartitions int64
 	for _, topic := range topics {
 		totalPartitions += int64(topic.NumberOfPartitions)
