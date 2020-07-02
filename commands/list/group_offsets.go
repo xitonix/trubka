@@ -116,19 +116,17 @@ func (g *groupOffset) printAsList(topics kafka.TopicPartitionOffset, plain bool)
 				offsets := partitionOffsets[int32(partition)]
 				lag := offsets.Lag()
 				totalLag += lag
-
 				b.AddItemF("P%d", partition)
 				b.Intend()
 				b.AddItemF(" Latest: %s", humanize.Comma(offsets.Latest))
 				b.AddItemF("Current: %s", humanize.Comma(offsets.Current))
-				b.AddItemF("    Lag: %v", format.Warn(lag, g.globalParams.EnableColor, true))
+				b.AddItemF("    Lag: %v", format.Warn(lag, g.globalParams.EnableColor && !plain, true))
 				b.UnIntend()
 			}
+			b.UnIntend()
 		}
 		b.Render()
-		if len(partitionOffsets) > 0 {
-			fmt.Printf("\nTotal Lag: %v\n\n", format.Warn(totalLag, g.globalParams.EnableColor, true))
-		}
 	}
+
 	return nil
 }
