@@ -36,7 +36,7 @@ func addTopicSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	c.Arg("topic", "The topic to describe.").Required().StringVar(&cmd.topic)
 	c.Flag("load-config", "Loads the topic's configurations from the server.").
 		NoEnvar().
-		Short('C').BoolVar(&cmd.loadConfigs)
+		Short('c').BoolVar(&cmd.loadConfigs)
 	c.Flag("include-offsets", "Queries the server to read the latest available offset of each partition.").
 		NoEnvar().
 		Short('o').BoolVar(&cmd.includeOffsets)
@@ -111,7 +111,11 @@ func (t *topic) printAsList(meta *kafka.TopicMetadata, plain bool) error {
 	b.Render()
 
 	if t.loadConfigs {
-		output.NewLines(2)
+		nl := 2
+		if plain {
+			nl = 1
+		}
+		output.NewLines(nl)
 		commands.PrintConfigList(meta.ConfigEntries, plain)
 	}
 
