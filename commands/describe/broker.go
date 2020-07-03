@@ -189,7 +189,7 @@ func (b *broker) printLogsList(logs []*kafka.LogFile, plain bool) error {
 		if len(sorted) == 0 {
 			return internal.NotFoundError("topic log", "topic", b.topicsFilter)
 		}
-		l.Intend()
+		l.Indent()
 		var totalPerm, totalTemp uint64
 		for _, tLogs := range sorted {
 			if !b.includeZeroLogs && tLogs.Permanent == 0 && tLogs.Temporary == 0 {
@@ -198,16 +198,16 @@ func (b *broker) printLogsList(logs []*kafka.LogFile, plain bool) error {
 			totalPerm += tLogs.Permanent
 			totalTemp += tLogs.Temporary
 			l.AddItem(tLogs.Topic)
-			l.Intend()
+			l.Indent()
 			if b.includeZeroLogs || tLogs.Permanent > 0 {
 				l.AddItem("Permanent: " + humanize.Bytes(tLogs.Permanent))
 			}
 			if b.includeZeroLogs || tLogs.Temporary > 0 {
 				l.AddItem("Temporary: " + humanize.Bytes(tLogs.Temporary))
 			}
-			l.UnIntend()
+			l.UnIndent()
 		}
-		l.UnIntend()
+		l.UnIndent()
 		l.SetCaption(fmt.Sprintf("Total > Permanent: %s, Temporary: %s", humanize.Bytes(totalPerm), humanize.Bytes(totalTemp)))
 	}
 	l.Render()

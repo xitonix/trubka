@@ -296,7 +296,6 @@ func replaceExtraGenerators(value string) string {
 		{
 			ex: regexp.MustCompile(`"\s*Bool\(\)\s*|BoolS\(\)`),
 			replacer: func(match string) string {
-				match = strings.Trim(match, getCutSet(match, "Bool"))
 				return gofakeit.RandString([]string{"true", "false"})
 			},
 		},

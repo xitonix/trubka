@@ -3,6 +3,7 @@ package internal
 import (
 	"github.com/dustin/go-humanize"
 
+	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/tabular"
 )
 
@@ -30,11 +31,11 @@ func (c *Counter) PrintAsTable(highlight bool) {
 		tabular.C("Failed"))
 
 	for topic, s := range c.topicStats {
-		failed := RedIfTrue(humanize.Comma(s.failure), func() bool {
+		failed := format.RedIfTrue(humanize.Comma(s.failure), func() bool {
 			return s.failure > 0
 		}, highlight)
 
-		succeeded := GreenIfTrue(humanize.Comma(s.success), func() bool {
+		succeeded := format.GreenIfTrue(humanize.Comma(s.success), func() bool {
 			return s.success > 0
 		}, highlight)
 		table.AddRow(topic, succeeded, failed)

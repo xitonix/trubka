@@ -90,7 +90,7 @@ func (t *topic) printAsList(meta *kafka.TopicMetadata, plain bool) error {
 	b.SetTitle(format.WithCount("Partitions", len(meta.Partitions)))
 	for _, pm := range meta.Partitions {
 		b.AddItemF("P%d", pm.Id)
-		b.Intend()
+		b.Indent()
 		if t.includeOffsets {
 			b.AddItemF("Offset: %s", humanize.Comma(pm.Offset))
 			totalOffsets += pm.Offset
@@ -101,7 +101,7 @@ func (t *topic) printAsList(meta *kafka.TopicMetadata, plain bool) error {
 		if len(pm.OfflineReplicas) > 0 {
 			b.AddItemF("Offline Replicas: %s", t.brokersToLine(pm.OfflineReplicas...))
 		}
-		b.UnIntend()
+		b.UnIndent()
 	}
 	caption := "CONTROLLER NODES" + kafka.ControllerBrokerLabel
 	if t.includeOffsets {

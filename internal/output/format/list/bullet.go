@@ -8,12 +8,14 @@ import (
 	"github.com/jedib0t/go-pretty/list"
 )
 
+// Bullet represents a bullet list.
 type Bullet struct {
 	writer  list.Writer
 	title   string
 	caption string
 }
 
+// NewBullet creates a new bullet list.
 func NewBullet() *Bullet {
 	w := list.NewWriter()
 	w.SetOutputMirror(os.Stdout)
@@ -24,14 +26,17 @@ func NewBullet() *Bullet {
 	}
 }
 
+// SetTitle sets the title of the list.
 func (b *Bullet) SetTitle(title string) {
 	b.title = title
 }
 
+// SetCaption sets the caption (/footer) of the list.
 func (b *Bullet) SetCaption(caption string) {
 	b.caption = caption
 }
 
+// Render prints out the list into stdout.
 func (b *Bullet) Render() {
 	if len(b.title) > 0 {
 		underline := strings.Repeat("─", len(b.title))
@@ -43,22 +48,27 @@ func (b *Bullet) Render() {
 	}
 }
 
+// AsTree switches the bullet list into a Tree.
 func (b *Bullet) AsTree() {
 	b.writer.SetStyle(list.StyleConnectedRounded)
 }
 
+// AddItem adds a new item to the list.
 func (b *Bullet) AddItem(item interface{}) {
 	b.writer.AppendItem(item)
 }
 
+// AddItemF adds a new formatted item to the list.
 func (b *Bullet) AddItemF(format string, a ...interface{}) {
 	b.writer.AppendItem(fmt.Sprintf(format, a...))
 }
 
-func (b *Bullet) Intend() {
+// Indent adds one level of indentation to the list.
+func (b *Bullet) Indent() {
 	b.writer.Indent()
 }
 
-func (b *Bullet) UnIntend() {
+// UnIndent removes one level of indentation from the list.
+func (b *Bullet) UnIndent() {
 	b.writer.UnIndent()
 }

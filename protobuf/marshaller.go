@@ -12,6 +12,7 @@ import (
 	"github.com/xitonix/trubka/internal"
 )
 
+// Marshaller protocol buffers output serialiser.
 type Marshaller struct {
 	outputEncoding       string
 	includeTimeStamp     bool
@@ -23,6 +24,7 @@ type Marshaller struct {
 	unIndentedMarshaller *jsonpb.Marshaler
 }
 
+// NewMarshaller creates a new protocol buffer Marshaller.
 func NewMarshaller(outputEncoding string, includeTimeStamp, includeTopicName, includeKey bool, enableColor bool, highlightStyle string) *Marshaller {
 	return &Marshaller{
 		outputEncoding:       strings.TrimSpace(strings.ToLower(outputEncoding)),
@@ -36,6 +38,7 @@ func NewMarshaller(outputEncoding string, includeTimeStamp, includeTopicName, in
 	}
 }
 
+// Marshal serialises the proto message into bytes.
 func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, topic string, partition int32) ([]byte, error) {
 	var (
 		result []byte

@@ -8,11 +8,13 @@ import (
 	"github.com/jedib0t/go-pretty/text"
 )
 
+// Table represents a new table to print Tabular output.
 type Table struct {
 	writer table.Writer
 	style  *table.Style
 }
 
+// NewTable creates a new table.
 func NewTable(enableColor bool, columns ...*Column) *Table {
 	t := table.NewWriter()
 	if runtime.GOOS == "windows" {
@@ -40,10 +42,12 @@ func NewTable(enableColor bool, columns ...*Column) *Table {
 	}
 }
 
+// TitleAlignment sets the alignment of the title.
 func (t *Table) TitleAlignment(alignment Alignment) {
 	t.style.Title.Align = text.Align(alignment)
 }
 
+// AddRow adds a new row to the table.
 func (t *Table) AddRow(values ...interface{}) {
 	row := make(table.Row, len(values))
 	for i, value := range values {
@@ -52,14 +56,17 @@ func (t *Table) AddRow(values ...interface{}) {
 	t.writer.AppendRow(row)
 }
 
+// SetTitle sets the title of the table.
 func (t *Table) SetTitle(title string) {
 	t.writer.SetTitle(title)
 }
 
+// SetCaption sets the caption of the table.
 func (t *Table) SetCaption(caption string) {
 	t.writer.SetCaption(" " + caption)
 }
 
+// DisableRowSeparators disables the separator lines between the table rows.
 func (t *Table) DisableRowSeparators() {
 	t.style.Options.SeparateRows = false
 }
@@ -73,6 +80,7 @@ func (t *Table) AddFooter(values ...interface{}) {
 	t.writer.AppendFooter(row)
 }
 
+// Render renders the table into stdout.
 func (t *Table) Render() {
 	t.writer.Render()
 }

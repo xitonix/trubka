@@ -13,6 +13,7 @@ import (
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/kafka"
 	"github.com/xitonix/trubka/protobuf"
 )
@@ -126,7 +127,6 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 
 	go monitorCancellation(prn, cancel)
 
-	topics := make(map[string]*kafka.PartitionCheckpoints)
 	tm := make(map[string]string)
 	checkpoints, err := kafka.NewPartitionCheckpoints(c.from)
 	if err != nil {
@@ -138,6 +138,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
+	var topics map[string]*kafka.PartitionCheckpoints
 	if interactive {
 		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, c.interactiveWithOffset, checkpoints)
 		if err != nil {
@@ -156,9 +157,8 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 				msg += "You may need to explicitly specify the fully qualified type name as the second argument to the consume command"
 				msg += fmt.Sprintf("\nExample: trubka consume proto <flags...> %s <fully qualified type name>", c.topic)
 				return fmt.Errorf("%w. %s", err, msg)
-			} else {
-				return err
 			}
+			return err
 		}
 	}
 
@@ -292,7 +292,7 @@ func (c *consumeProto) process(messageType string,
 		}
 		for _, match := range matches {
 			if highlight {
-				output = bytes.ReplaceAll(output, match, []byte(fmt.Sprint(internal.Yellow(string(match), true))))
+				output = bytes.ReplaceAll(output, match, []byte(fmt.Sprint(format.Yellow(string(match), true))))
 			}
 		}
 	}

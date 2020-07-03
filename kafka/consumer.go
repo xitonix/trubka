@@ -274,7 +274,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*PartitionCheckpoints)
 		}
 
 		for _, partition := range partitions {
-			offset := sarama.OffsetNewest
+			var offset int64
 			switch checkpoints.mode {
 			case ExplicitOffsetMode:
 				cp, found := checkpoints.Get(partition)
