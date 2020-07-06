@@ -10,13 +10,6 @@ import (
 
 const stableGroupLabel = "Stable"
 
-var (
-	yellow = text.FgHiYellow
-	green  = text.FgHiGreen
-	bold   = text.Bold
-	red    = text.FgHiRed
-)
-
 // GreenLabel returns a decorated green label if colours are enabled, otherwise returns "[val]".
 func GreenLabel(val interface{}, enableColor bool) interface{} {
 	if !enableColor {
@@ -50,10 +43,7 @@ func GroupStateLabel(state string, enableColor bool) string {
 
 // BoldGreen returns a bold green string if colours are enabled.
 func BoldGreen(val interface{}, enableColor bool) interface{} {
-	if !enableColor {
-		return val
-	}
-	return text.Colors{text.Bold, text.FgHiGreen}.Sprint(val)
+	return colorIfEnabled(val, enableColor, text.Bold, text.FgHiGreen)
 }
 
 // SpaceIfEmpty returns a single whitespace if the input is an empty string, otherwise returns the input.
@@ -66,22 +56,22 @@ func SpaceIfEmpty(in string) string {
 
 // Yellow returns the input in yellow if coloring is enabled.
 func Yellow(input interface{}, colorEnabled bool) interface{} {
-	return colorIfEnabled(input, yellow, colorEnabled)
+	return colorIfEnabled(input, colorEnabled, text.FgHiYellow)
 }
 
 // Red returns the input in red if coloring is enabled.
 func Red(input interface{}, colorEnabled bool) interface{} {
-	return colorIfEnabled(input, red, colorEnabled)
+	return colorIfEnabled(input, colorEnabled)
 }
 
 // RedIfTrue highlights the input in red, if coloring is enabled and the evaluation function returns true.
 func RedIfTrue(input interface{}, eval func() bool, colorEnabled bool) interface{} {
-	return colorIfEnabled(input, red, colorEnabled && eval())
+	return colorIfEnabled(input, colorEnabled && eval(), text.FgHiRed)
 }
 
 // GreenIfTrue highlights the input in green, if coloring is enabled and the evaluation function returns true.
 func GreenIfTrue(input interface{}, eval func() bool, colorEnabled bool) interface{} {
-	return colorIfEnabled(input, green, colorEnabled && eval())
+	return colorIfEnabled(input, colorEnabled && eval(), text.FgHiGreen)
 }
 
 // Underline returns the underlined text.
@@ -112,9 +102,9 @@ func underlineLen(input string, length int) string {
 	return fmt.Sprintf("%s\n%s", input, underline(length))
 }
 
-func colorIfEnabled(input interface{}, color text.Color, colorEnabled bool) interface{} {
+func colorIfEnabled(input interface{}, colorEnabled bool, color ...text.Color) interface{} {
 	if colorEnabled {
-		return text.Colors{color}.Sprint(input)
+		return append(text.Colors{}, color...).Sprint(input)
 	}
 	return input
 }

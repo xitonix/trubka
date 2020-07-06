@@ -126,14 +126,17 @@ func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...
 	}, nil
 }
 
+// DeleteConsumerGroup deletes the specified consumer group.
 func (m *Manager) DeleteConsumerGroup(group string) error {
 	return m.admin.DeleteConsumerGroup(group)
 }
 
+// DeleteTopic deletes the specified topic.
 func (m *Manager) DeleteTopic(topic string) error {
 	return m.admin.DeleteTopic(topic)
 }
 
+// CreateTopic creates a new topic.
 func (m *Manager) CreateTopic(topic string, partitions int32, replicationFactor int16, validateOnly bool, retention time.Duration) error {
 	verb := "Creating"
 	if validateOnly {
@@ -155,11 +158,13 @@ func (m *Manager) CreateTopic(topic string, partitions int32, replicationFactor 
 	}, validateOnly)
 }
 
+// CreatePartitions readjusts the specified topic's partitions.
 func (m *Manager) CreatePartitions(topic string, partitions int32) error {
 	m.Logf(internal.Verbose, "Readjusting the partitions for %s topic. NP %d", topic, partitions)
 	return m.admin.CreatePartitions(topic, partitions, nil, false)
 }
 
+// DescribeCluster returns detailed information about the cluster.
 func (m *Manager) DescribeCluster(ctx context.Context, includeConfig bool) (*ClusterMetadata, error) {
 	m.Log(internal.Verbose, "Retrieving broker list from the server")
 	result := &ClusterMetadata{
@@ -174,7 +179,7 @@ func (m *Manager) DescribeCluster(ctx context.Context, includeConfig bool) (*Clu
 			result.Brokers = append(result.Brokers, broker)
 			if includeConfig && broker.IsController {
 				m.Logf(internal.Verbose, "Retrieving the cluster configuration from %s", broker.Host)
-				config, err := m.loadConfig(sarama.BrokerResource, strconv.FormatInt(int64(broker.ID), 10))
+				config, err := m.loadConfig(sarama.BrokerResource, strconv.FormatInt(int64(broker.Id), 10))
 				if err != nil {
 					return nil, fmt.Errorf("failed to fetch the cluster configurations: %w", err)
 				}
@@ -185,6 +190,7 @@ func (m *Manager) DescribeCluster(ctx context.Context, includeConfig bool) (*Clu
 	return result, nil
 }
 
+// GetTopics returns a list of all the topics on the server.
 func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp) ([]Topic, error) {
 	m.Log(internal.Verbose, "Retrieving topic list from the server")
 	topics, err := m.admin.ListTopics()
@@ -213,6 +219,7 @@ func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp) ([]Topic
 	return result, nil
 }
 
+// GetGroups returns a list of all the consumer groups on the server.
 func (m *Manager) GetGroups(ctx context.Context, filter *regexp.Regexp, includeStates bool) ([]*ConsumerGroupDetails, error) {
 	m.Log(internal.Verbose, "Retrieving consumer groups from the server")
 	groupList, err := m.admin.ListConsumerGroups()
@@ -258,7 +265,7 @@ func (m *Manager) GetGroups(ctx context.Context, filter *regexp.Regexp, includeS
 				}
 				group.Coordinator = Broker{
 					Host: internal.RemovePort(coordinator.Addr()),
-					ID:   coordinator.ID(),
+					Id:   coordinator.ID(),
 				}
 			}
 		}
@@ -273,6 +280,7 @@ func (m *Manager) GetGroups(ctx context.Context, filter *regexp.Regexp, includeS
 	return output, nil
 }
 
+// DescribeGroup returns detailed information about the specified consumer group.
 func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMembers bool) (*ConsumerGroupDetails, error) {
 	m.Logf(internal.Verbose, "Retrieving %s consumer group details from the server", group)
 	details, err := m.admin.DescribeConsumerGroups([]string{group})
@@ -302,7 +310,7 @@ func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMember
 		}
 		result.Coordinator = Broker{
 			Host: internal.RemovePort(coordinator.Addr()),
-			ID:   coordinator.ID(),
+			Id:   coordinator.ID(),
 		}
 		if includeMembers {
 			for name, description := range d.Members {
@@ -318,6 +326,7 @@ func (m *Manager) DescribeGroup(ctx context.Context, group string, includeMember
 	return result, nil
 }
 
+// DescribeTopic returns detailed information about the specified topic.
 func (m *Manager) DescribeTopic(ctx context.Context, topic string, includeConfig, includeOffsets bool) (*TopicMetadata, error) {
 	m.Logf(internal.Verbose, "Retrieving %s topic details from the server", topic)
 	result := &TopicMetadata{
@@ -369,6 +378,7 @@ func (m *Manager) DescribeTopic(ctx context.Context, topic string, includeConfig
 	return result, nil
 }
 
+// DescribeBroker returns the specified broker.
 func (m *Manager) DescribeBroker(ctx context.Context, addressOrId string, includeLogs, includeAPIVersions bool, topicFilter *regexp.Regexp) (*BrokerMeta, error) {
 	meta := &BrokerMeta{
 		Logs: make([]*LogFile, 0),
@@ -443,6 +453,7 @@ func (m *Manager) DescribeBroker(ctx context.Context, addressOrId string, includ
 	return meta, nil
 }
 
+// GetGroupOffsets returns partition offsets for the specified consumer group.
 func (m *Manager) GetGroupOffsets(ctx context.Context, group string, topicFilter *regexp.Regexp) (TopicPartitionOffset, error) {
 	result := make(TopicPartitionOffset)
 	select {
@@ -522,6 +533,7 @@ func (m *Manager) GetGroupOffsets(ctx context.Context, group string, topicFilter
 	return result, nil
 }
 
+// GetTopicOffsets returns the current partition offsets of the specified topics.
 func (m *Manager) GetTopicOffsets(ctx context.Context, topic string, currentPartitionOffsets PartitionOffset) (PartitionOffset, error) {
 	result := make(PartitionOffset)
 	select {
@@ -577,7 +589,7 @@ func (m *Manager) getBrokerById(id int32) *Broker {
 		return b
 	}
 	return &Broker{
-		ID: id,
+		Id: id,
 	}
 }
 

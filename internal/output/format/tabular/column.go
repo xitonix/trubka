@@ -9,23 +9,31 @@ import (
 	"github.com/jedib0t/go-pretty/text"
 )
 
+// Alignment content horizontal alignment.
 type Alignment int
 
 const (
+	// AlignLeft align the content to the left.
 	AlignLeft Alignment = iota + 1
+	// AlignCenter align the content to the centre.
 	AlignCenter
-	AlignJustify
+	// AlignRight align the content to the right.
 	AlignRight
 )
 
+// VAlignment content vertical alignment.
 type VAlignment int
 
 const (
+	// VAlignTop vertically align the content to the top.
 	VAlignTop Alignment = iota + 1
+	// VAlignMiddle vertically align the content to the middle.
 	VAlignMiddle
+	// VAlignBottom vertically align the content to the bottom.
 	VAlignBottom
 )
 
+// Column represents a table column.
 type Column struct {
 	Header         string
 	humanize       bool
@@ -34,6 +42,7 @@ type Column struct {
 	config         table.ColumnConfig
 }
 
+// C creates a new table column.
 func C(header string) *Column {
 	return &Column{
 		Header: header,
@@ -65,42 +74,50 @@ func (c *Column) configuration(enableColor bool) table.ColumnConfig {
 	return c.config
 }
 
+// Humanize enables comma separation of the digits for numeric columns.
 func (c *Column) Humanize() *Column {
 	c.humanize = true
 	return c
 }
 
+// Warn sets the warning level for the numeric columns.
 func (c *Column) Warn(level int64, greenOtherwise bool) *Column {
 	c.warningLevel = &level
 	c.greenOtherwise = greenOtherwise
 	return c
 }
 
+// HAlign sets the horizontal alignment of the header.
 func (c *Column) HAlign(alignment Alignment) *Column {
 	c.config.AlignHeader = text.Align(alignment)
 	return c
 }
 
+// FAlign sets the horizontal alignment of the footer.
 func (c *Column) FAlign(alignment Alignment) *Column {
 	c.config.AlignFooter = text.Align(alignment)
 	return c
 }
 
+// Align sets the horizontal alignment of the cell content.
 func (c *Column) Align(alignment Alignment) *Column {
 	c.config.Align = text.Align(alignment)
 	return c
 }
 
+// VAlign sets the vertical alignment of the cell content.
 func (c *Column) VAlign(alignment VAlignment) *Column {
 	c.config.VAlign = text.VAlign(alignment)
 	return c
 }
 
+// MinWidth sets the column's minimum width.
 func (c *Column) MinWidth(width int) *Column {
 	c.config.WidthMin = width
 	return c
 }
 
+// MaxWidth sets the column's maximum width.
 func (c *Column) MaxWidth(width int) *Column {
 	c.config.WidthMax = width
 	return c

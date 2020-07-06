@@ -10,12 +10,14 @@ import (
 	"github.com/alecthomas/chroma/styles"
 )
 
+// JsonHighlighter represents a Json highlighter.
 type JsonHighlighter struct {
 	lex chroma.Lexer
 	fm  chroma.Formatter
 	st  *chroma.Style
 }
 
+// NewJsonHighlighter creates a new instance of a Json highlighter.
 func NewJsonHighlighter(style string, enabled bool) *JsonHighlighter {
 	if !enabled || strings.EqualFold(style, "none") {
 		return &JsonHighlighter{}
@@ -38,6 +40,9 @@ func NewJsonHighlighter(style string, enabled bool) *JsonHighlighter {
 	}
 }
 
+// Highlight returns the highlighted Json string based on the requested style.
+//
+// This method does not alter the input if the Highlighter is disabled.
 func (j *JsonHighlighter) Highlight(in []byte) []byte {
 	if j.lex == nil {
 		return in

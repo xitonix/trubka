@@ -6,17 +6,26 @@ import (
 	"github.com/Shopify/sarama"
 )
 
+// GroupMembers represents a map to hold consumer group members.
 type GroupMembers map[string]*GroupMemberDetails
 
+// ConsumerGroupDetails represents consumer group details.
 type ConsumerGroupDetails struct {
-	Name         string       `json:"name"`
-	State        string       `json:"state"`
-	Protocol     string       `json:"protocol"`
-	ProtocolType string       `json:"protocol_type"`
-	Coordinator  Broker       `json:"coordinator"`
-	Members      GroupMembers `json:"members,omitempty"`
+	// Name group name.
+	Name string `json:"name"`
+	// State group state.
+	State string `json:"state"`
+	// Protocol group protocol.
+	Protocol string `json:"protocol"`
+	// ProtocolType group protocol type.
+	ProtocolType string `json:"protocol_type"`
+	// Broker group coordinator.
+	Coordinator Broker `json:"coordinator"`
+	// Members consumer group members.
+	Members GroupMembers `json:"members,omitempty"`
 }
 
+// ToJson returns an object ready to be serialised into json string.
 func (c *ConsumerGroupDetails) ToJson(includeMembers bool) interface{} {
 	if c == nil {
 		return nil
@@ -64,7 +73,7 @@ func (c *ConsumerGroupDetails) ToJson(includeMembers bool) interface{} {
 				Host:        gMember.ClientHost,
 				Assignments: []*assignment{},
 			}
-			for topic, partitions := range gMember.TopicPartitions {
+			for topic, partitions := range gMember.Assignments {
 				m.Assignments = append(m.Assignments, &assignment{
 					Topic:      topic,
 					Partitions: partitions,
@@ -76,6 +85,7 @@ func (c *ConsumerGroupDetails) ToJson(includeMembers bool) interface{} {
 	return output
 }
 
+// ConsumerGroupDetailsByName sorts a list of consumer group details by group name.
 type ConsumerGroupDetailsByName []*ConsumerGroupDetails
 
 func (c ConsumerGroupDetailsByName) Len() int {
@@ -90,9 +100,12 @@ func (c ConsumerGroupDetailsByName) Less(i, j int) bool {
 	return c[i].Name < c[j].Name
 }
 
+// GroupMemberDetails represents consumer group member details.
 type GroupMemberDetails struct {
-	ClientHost      string          `json:"client_host"`
-	TopicPartitions TopicPartitions `json:"topic_partitions"`
+	// ClientHost the host name of the group member.
+	ClientHost string `json:"client_host"`
+	// Assignments partitions assigned to the group member for each topic.
+	Assignments TopicPartitions `json:"assignments"`
 }
 
 func fromGroupMemberDescription(md *sarama.GroupMemberDescription) (*GroupMemberDetails, error) {
@@ -101,7 +114,7 @@ func fromGroupMemberDescription(md *sarama.GroupMemberDescription) (*GroupMember
 		return nil, err
 	}
 	return &GroupMemberDetails{
-		ClientHost:      strings.Trim(md.ClientHost, "/"),
-		TopicPartitions: assignments.Topics,
+		ClientHost:  strings.Trim(md.ClientHost, "/"),
+		Assignments: assignments.Topics,
 	}, nil
 }

@@ -126,9 +126,8 @@ func (c *proto) serializeProto(value string) (result []byte, err error) {
 		if err != nil {
 			if !c.random {
 				return nil, fmt.Errorf("failed to parse the input as json. If the schema has been produced using -g flag, you must use the same flag (-g) to enable template parsing when publishing to Kafka: %w", err)
-			} else {
-				return nil, err
 			}
+			return nil, err
 		}
 
 		result, err = c.protoMessage.Marshal()

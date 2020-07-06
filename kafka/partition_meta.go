@@ -1,14 +1,22 @@
 package kafka
 
+// PartitionMeta represents partition metadata.
 type PartitionMeta struct {
-	Id              int32     `json:"id"`
-	Offset          int64     `json:"offset"`
-	Leader          *Broker   `json:"leader"`
-	Replicas        []*Broker `json:"replicas"`
-	ISRs            []*Broker `json:"in_sync_replicas"`
+	// Id partition id.
+	Id int32 `json:"id"`
+	// Offset partition offset.
+	Offset int64 `json:"offset"`
+	// Leader leader node.
+	Leader *Broker `json:"leader"`
+	// Replicas replication nodes.
+	Replicas []*Broker `json:"replicas"`
+	// ISRs in-sync replicas.
+	ISRs []*Broker `json:"in_sync_replicas"`
+	// OfflineReplicas offline replicas.
 	OfflineReplicas []*Broker `json:"offline_replicas"`
 }
 
+// PartitionMetaById sorts partition metadata by partition Id.
 type PartitionMetaById []*PartitionMeta
 
 func (b PartitionMetaById) Len() int {

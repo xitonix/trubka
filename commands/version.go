@@ -15,6 +15,7 @@ type version struct {
 	app        *kingpin.Application
 }
 
+// AddVersionCommand adds the version command to the app.
 func AddVersionCommand(app *kingpin.Application, appVersion, commit, built, runtimeVer string) {
 	cmd := &version{
 		version:    appVersion,

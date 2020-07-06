@@ -5,6 +5,7 @@ import "sort"
 // TopicPartitionOffset represents a map of topic offset pairs for all the partitions.
 type TopicPartitionOffset map[string]PartitionOffset
 
+// ToJson returns an object ready to be serialised into json string.
 func (t TopicPartitionOffset) ToJson() interface{} {
 	if t == nil {
 		return nil

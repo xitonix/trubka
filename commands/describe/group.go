@@ -76,10 +76,10 @@ func (c *group) printAsList(details *kafka.ConsumerGroupDetails, plain bool) err
 		for member, md := range details.Members {
 			output.NewLines(1)
 			fmt.Printf("%s (%s)\n", member, md.ClientHost)
-			if len(details.Members[member].TopicPartitions) == 0 {
+			if len(details.Members[member].Assignments) == 0 {
 				continue
 			}
-			tps := details.Members[member].TopicPartitions
+			tps := details.Members[member].Assignments
 			sortedTopics := tps.SortedTopics()
 			b := list.New(plain)
 			b.SetTitle(format.WithCount("Assignments", len(sortedTopics)))
@@ -132,11 +132,11 @@ func (c *group) printMemberDetailsTable(members map[string]*kafka.GroupMemberDet
 
 	table.SetTitle(format.WithCount("Members", len(members)))
 	for name, desc := range members {
-		sortedTopics := desc.TopicPartitions.SortedTopics()
+		sortedTopics := desc.Assignments.SortedTopics()
 		var buf strings.Builder
 		for i, topic := range sortedTopics {
 			buf.WriteString(format.Underline(topic))
-			partitions := desc.TopicPartitions.SortedPartitions(topic)
+			partitions := desc.Assignments.SortedPartitions(topic)
 			for j, p := range partitions {
 				if j%20 == 0 {
 					buf.WriteString("\n")
