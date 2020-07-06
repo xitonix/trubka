@@ -88,7 +88,7 @@ func NewPlainTextMarshaller(
 // Marshal marshals the Kafka message into plain text.
 func (m *PlainTextMarshaller) Marshal(msg, key []byte, ts time.Time, topic string, partition int32) ([]byte, error) {
 
-	result, err, mustEncode := m.decode(msg)
+	result, mustEncode, err := m.decode(msg)
 
 	if err != nil {
 		return nil, err
@@ -114,30 +114,30 @@ func (m *PlainTextMarshaller) Marshal(msg, key []byte, ts time.Time, topic strin
 	return result, nil
 }
 
-func (m *PlainTextMarshaller) decode(msg []byte) ([]byte, error, bool) {
+func (m *PlainTextMarshaller) decode(msg []byte) ([]byte, bool, error) {
 	switch m.inputEncoding {
 	case HexEncoding:
 		if m.outputEncoding == HexEncoding {
-			return msg, nil, false
+			return msg, false, nil
 		}
 		buf := make([]byte, hex.DecodedLen(len(msg)))
 		_, err := hex.Decode(buf, msg)
 		if err != nil {
-			return nil, err, false
+			return nil, false, err
 		}
-		return buf, nil, true
+		return buf, true, nil
 	case Base64Encoding:
 		if m.outputEncoding == Base64Encoding {
-			return msg, nil, false
+			return msg, false, nil
 		}
 		buf := make([]byte, base64.StdEncoding.DecodedLen(len(msg)))
 		_, err := base64.StdEncoding.Decode(buf, msg)
 		if err != nil {
-			return nil, err, false
+			return nil, false, err
 		}
-		return buf, nil, true
+		return buf, true, nil
 	default:
-		return msg, nil, true
+		return msg, true, nil
 	}
 }
 
