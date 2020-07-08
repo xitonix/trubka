@@ -6,6 +6,7 @@ import (
 	"github.com/xitonix/trubka/commands"
 )
 
+// AddCommands adds the list command to the app.
 func AddCommands(app *kingpin.Application, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	parent := app.Command("list", "A command to list Kafka entities.")
 	addTopicsSubCommand(parent, global, kafkaParams)

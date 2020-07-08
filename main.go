@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output/format"
 )
 
 // Version build flags
@@ -26,6 +27,6 @@ func main() {
 
 func exit(err error) {
 	msg := fmt.Sprintf("ERROR: %s", internal.Title(err))
-	fmt.Println(internal.Red(msg, enabledColor))
+	fmt.Println(format.Red(msg, enabledColor))
 	os.Exit(1)
 }

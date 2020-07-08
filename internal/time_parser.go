@@ -48,6 +48,7 @@ var (
 	}
 )
 
+// ParseTime parses the time string, regardless of the layout.
 func ParseTime(input string) (time.Time, error) {
 	for _, layout := range layouts {
 		if t, err := time.Parse(layout, input); err == nil {

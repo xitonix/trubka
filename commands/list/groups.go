@@ -90,11 +90,11 @@ func (c *groups) printAsList(groups []*kafka.ConsumerGroupDetails, plain bool) e
 		for _, group := range groups {
 			b.AsTree()
 			b.AddItem(group.Name)
-			b.Intend()
+			b.Indent()
 			b.AddItemF("        State: %s", format.GroupStateLabel(group.State, c.globalParams.EnableColor && !plain))
 			b.AddItemF("     Protocol: %s-%s", group.Protocol, group.ProtocolType)
 			b.AddItemF("  Coordinator: %s", group.Coordinator.Host)
-			b.UnIntend()
+			b.UnIndent()
 		}
 	} else {
 		for _, group := range groups {

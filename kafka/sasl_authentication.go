@@ -10,9 +10,13 @@ import (
 )
 
 const (
-	SASLMechanismNone     = "none"
-	SASLMechanismPlain    = "plain"
+	// SASLMechanismNone SASL authentication is not enabled.
+	SASLMechanismNone = "none"
+	// SASLMechanismPlain plain text authentication mode.
+	SASLMechanismPlain = "plain"
+	// SASLMechanismSCRAM256 sha-256 authentication mode.
 	SASLMechanismSCRAM256 = "scram-sha-256"
+	// SASLMechanismSCRAM512 sha-512 authentication mode.
 	SASLMechanismSCRAM512 = "scram-sha-512"
 )
 
@@ -35,18 +39,18 @@ func newSASL(mechanism, username, password string, version SASLHandshakeVersion)
 			version:   version.toSaramaVersion(),
 		}
 	case SASLMechanismSCRAM256:
-		hash := func() hash.Hash { return sha256.New() }
+		hashed := func() hash.Hash { return sha256.New() }
 		return &sasl{
-			client:    func() sarama.SCRAMClient { return &xdgSCRAMClient{HashGeneratorFcn: hash} },
+			client:    func() sarama.SCRAMClient { return &xdgSCRAMClient{HashGeneratorFcn: hashed} },
 			mechanism: sarama.SASLTypeSCRAMSHA256,
 			username:  username,
 			password:  password,
 			version:   version.toSaramaVersion(),
 		}
 	case SASLMechanismSCRAM512:
-		hash := func() hash.Hash { return sha512.New() }
+		hashed := func() hash.Hash { return sha512.New() }
 		return &sasl{
-			client:    func() sarama.SCRAMClient { return &xdgSCRAMClient{HashGeneratorFcn: hash} },
+			client:    func() sarama.SCRAMClient { return &xdgSCRAMClient{HashGeneratorFcn: hashed} },
 			mechanism: sarama.SASLTypeSCRAMSHA512,
 			username:  username,
 			password:  password,

@@ -11,6 +11,7 @@ import (
 )
 
 var (
+	// DefaultClusterVersion default cluster version.
 	DefaultClusterVersion = sarama.MaxVersion.String()
 )
 

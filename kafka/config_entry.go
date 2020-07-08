@@ -1,10 +1,12 @@
 package kafka
 
+// ConfigEntry represents a Kafka config.
 type ConfigEntry struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
 
+// ConfigEntriesByName sorts configuration entries by name.
 type ConfigEntriesByName []*ConfigEntry
 
 func (c ConfigEntriesByName) Len() int {

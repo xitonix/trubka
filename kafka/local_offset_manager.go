@@ -20,12 +20,14 @@ const (
 	offsetFileExtension = ".tpo"
 )
 
+// LocalOffsetManager represents a type to manage local offset storage.
 type LocalOffsetManager struct {
 	root string
 	db   *diskv.Diskv
 	*internal.Logger
 }
 
+// NewLocalOffsetManager creates a new instance of a local offset manager.
 func NewLocalOffsetManager(level internal.VerbosityLevel) *LocalOffsetManager {
 	root := configdir.LocalConfig(localOffsetRoot)
 	flatTransform := func(s string) []string { return []string{} }
@@ -40,6 +42,9 @@ func NewLocalOffsetManager(level internal.VerbosityLevel) *LocalOffsetManager {
 	}
 }
 
+// GetOffsetFileOrRoot returns the file path to store the topic offsets if a topic has been specified.
+//
+// If the topic value is empty, this method will return the root path for storing offsets under the specified environment.
 func (l *LocalOffsetManager) GetOffsetFileOrRoot(environment string, topic string) (string, error) {
 	if internal.IsEmpty(environment) {
 		return "", ErrEmptyEnvironment

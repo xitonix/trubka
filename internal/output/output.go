@@ -7,12 +7,14 @@ import (
 	"github.com/xitonix/trubka/internal"
 )
 
+// NewLines prints `count` number of new lines to stdout.
 func NewLines(count int) {
 	for i := 0; i < count; i++ {
 		fmt.Println()
 	}
 }
 
+// PrintAsJson prints the input data into stdout as Json.
 func PrintAsJson(data interface{}, style string, enableColor bool) error {
 	result, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {

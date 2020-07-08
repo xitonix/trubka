@@ -13,6 +13,10 @@ import (
 	"github.com/xitonix/trubka/internal"
 )
 
+var (
+	errOffsetNotFound = errors.New("offset not found")
+)
+
 // Consumer represents a new Kafka cluster consumer.
 type Consumer struct {
 	brokers                 []string
@@ -274,71 +278,28 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*PartitionCheckpoints)
 		}
 
 		for _, partition := range partitions {
-			offset := sarama.OffsetNewest
+			var (
+				offset int64
+				err    error
+			)
 			switch checkpoints.mode {
 			case ExplicitOffsetMode:
-				cp, found := checkpoints.Get(partition)
-				if !found {
-					// No need to start consuming the partition because it was not
-					// explicitly asked by the user
-					c.printer.Logf(internal.SuperVerbose, "Partition %d of topic %s has been ignored as per user request", partition, topic)
-					continue
-				}
-				c.printer.Logf(internal.SuperVerbose, "Reading the most recent offset of partition %d for topic %s from the server", partition, topic)
-				mostRecentOffset, err := c.internalClient.GetOffset(topic, partition, sarama.OffsetNewest)
-				if err != nil {
-					return nil, fmt.Errorf("failed to retrieve the current offset value for partition %d of topic %s: %w", partition, topic, err)
-				}
-				c.printer.Logf(internal.SuperVerbose,
-					"The most recent offset for partition %d of topic %s is %v on the server. You asked for offset %v",
-					partition,
-					topic,
-					getOffsetString(mostRecentOffset),
-					cp.OffsetString())
-
-				offset = int64(math.Min(float64(cp.offset), float64(mostRecentOffset)))
+				offset, err = c.getExplicitOffset(topic, partition, checkpoints)
 			case MillisecondsOffsetMode:
-				cp := checkpoints.GetDefault()
-				c.printer.Logf(internal.SuperVerbose,
-					"Reading the most recent offset value for partition %d of topic %s at %s from the server",
-					partition,
-					topic,
-					cp.OffsetString())
-				offset, err = c.internalClient.GetOffset(topic, partition, cp.offset)
-				if err != nil {
-					return nil, fmt.Errorf("failed to retrieve the time-based offset for partition %d of topic %s: %w", partition, topic, err)
-				}
-				c.printer.Logf(internal.SuperVerbose,
-					"The most recent available offset of partition %d of topic %s at %v is %v",
-					partition,
-					topic,
-					internal.FormatTimeUTC(cp.at),
-					getOffsetString(offset))
+				offset, err = c.getTimeBasedOffset(topic, partition, checkpoints)
 			case LocalOffsetMode:
-				cp := checkpoints.GetDefault()
-				offset = cp.offset
-				c.printer.Logf(internal.SuperVerbose,
-					"Checking the local offset store for partition %d of topic %s in %s environment",
-					partition,
-					topic,
-					c.environment)
-				if storedOffset, ok := offsets[partition]; ok {
-					offset = storedOffset.Current
-					c.printer.Logf(internal.SuperVerbose,
-						"The local offset for partition %d of topic %s in %s environment is %v",
-						partition,
-						topic,
-						c.environment,
-						getOffsetString(offset))
-				} else {
-					c.printer.Logf(internal.SuperVerbose,
-						"No local offset found for partition %d of topic %s",
-						partition,
-						topic)
-				}
+				offset, err = c.getLocalOffset(topic, partition, checkpoints, offsets)
 			default:
 				cp := checkpoints.GetDefault()
 				offset = cp.offset
+			}
+			if err != nil {
+				// It only happens in explicit mode.
+				// Not found means: it has not explicitly asked by the user, so we have to ignore the partition.
+				if errors.Is(err, errOffsetNotFound) {
+					continue
+				}
+				return nil, err
 			}
 			c.printer.Logf(internal.SuperVerbose,
 				"Consuming from offset %v of partition %d from topic %s.",
@@ -350,6 +311,74 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*PartitionCheckpoints)
 		topicPartitionOffsets[topic] = offsets
 	}
 	return topicPartitionOffsets, nil
+}
+
+func (c *Consumer) getLocalOffset(topic string, partition int32, checkpoints *PartitionCheckpoints, offsets PartitionOffset) (int64, error) {
+	c.printer.Logf(internal.SuperVerbose,
+		"Checking the local offset store for partition %d of topic %s in %s environment",
+		partition,
+		topic,
+		c.environment)
+	if storedOffset, ok := offsets[partition]; ok {
+		c.printer.Logf(internal.SuperVerbose,
+			"The local offset for partition %d of topic %s in %s environment is %v",
+			partition,
+			topic,
+			c.environment,
+			getOffsetString(storedOffset.Current))
+		return storedOffset.Current, nil
+	}
+
+	c.printer.Logf(internal.SuperVerbose,
+		"No local offset found for partition %d of topic %s",
+		partition,
+		topic)
+
+	cp := checkpoints.GetDefault()
+	return cp.offset, nil
+}
+
+func (c *Consumer) getTimeBasedOffset(topic string, partition int32, checkpoints *PartitionCheckpoints) (int64, error) {
+	cp := checkpoints.GetDefault()
+	c.printer.Logf(internal.SuperVerbose,
+		"Reading the most recent offset value for partition %d of topic %s at %s from the server",
+		partition,
+		topic,
+		cp.OffsetString())
+	offset, err := c.internalClient.GetOffset(topic, partition, cp.offset)
+	if err != nil {
+		return unknownOffset, fmt.Errorf("failed to retrieve the time-based offset for partition %d of topic %s: %w", partition, topic, err)
+	}
+	c.printer.Logf(internal.SuperVerbose,
+		"The most recent available offset of partition %d of topic %s at %v is %v",
+		partition,
+		topic,
+		internal.FormatTimeUTC(cp.at),
+		getOffsetString(offset))
+	return offset, nil
+}
+
+func (c *Consumer) getExplicitOffset(topic string, partition int32, checkpoints *PartitionCheckpoints) (int64, error) {
+	cp, found := checkpoints.Get(partition)
+	if !found {
+		// No need to start consuming the partition because it was not
+		// explicitly asked by the user
+		c.printer.Logf(internal.SuperVerbose, "Partition %d of topic %s has been ignored as per user request", partition, topic)
+		return offsetNotFound, errOffsetNotFound
+	}
+	c.printer.Logf(internal.SuperVerbose, "Reading the most recent offset of partition %d for topic %s from the server", partition, topic)
+	mostRecentOffset, err := c.internalClient.GetOffset(topic, partition, sarama.OffsetNewest)
+	if err != nil {
+		return unknownOffset, fmt.Errorf("failed to retrieve the current offset value for partition %d of topic %s: %w", partition, topic, err)
+	}
+	c.printer.Logf(internal.SuperVerbose,
+		"The most recent offset for partition %d of topic %s is %v on the server. You asked for offset %v",
+		partition,
+		topic,
+		getOffsetString(mostRecentOffset),
+		cp.OffsetString())
+
+	return int64(math.Min(float64(cp.offset), float64(mostRecentOffset))), nil
 }
 
 func getOffsetString(offset int64) interface{} {

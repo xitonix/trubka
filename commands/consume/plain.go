@@ -13,6 +13,7 @@ import (
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -231,7 +232,7 @@ func (c *consumePlain) process(event *kafka.Event, marshaller *internal.PlainTex
 		}
 		for _, match := range matches {
 			if highlight {
-				output = bytes.ReplaceAll(output, match, []byte(fmt.Sprint(internal.Yellow(string(match), true))))
+				output = bytes.ReplaceAll(output, match, []byte(fmt.Sprint(format.Yellow(string(match), true))))
 			}
 		}
 	}

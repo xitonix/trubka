@@ -6,6 +6,7 @@ import (
 	"github.com/xitonix/trubka/commands"
 )
 
+// AddCommands adds the describe command to the app.
 func AddCommands(app *kingpin.Application, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	parent := app.Command("describe", "A command to describe a Kafka entity.")
 	addGroupSubCommand(parent, global, kafkaParams)

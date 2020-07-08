@@ -89,10 +89,10 @@ func (c *cluster) printAsTable(meta *kafka.ClusterMetadata) error {
 				format.BoldGreen(broker.Host, c.globalParams.EnableColor),
 				format.GreenLabel(controlNodeFlag, c.globalParams.EnableColor),
 			)
-			table.AddRow(format.BoldGreen(broker.ID, c.globalParams.EnableColor), host)
+			table.AddRow(format.BoldGreen(broker.Id, c.globalParams.EnableColor), host)
 			continue
 		}
-		table.AddRow(broker.ID, broker.Host)
+		table.AddRow(broker.Id, broker.Host)
 	}
 	table.AddFooter("", fmt.Sprintf("Total: %d", len(meta.Brokers)))
 	output.NewLines(1)
@@ -119,7 +119,7 @@ func (c *cluster) printAsList(meta *kafka.ClusterMetadata, plain bool) error {
 				format.BoldGreen(broker.Host, c.globalParams.EnableColor && !plain),
 				format.GreenLabel(controlNodeFlag, c.globalParams.EnableColor && !plain))
 		} else {
-			fmt.Printf(" %v. %v\n", broker.ID, broker.Host)
+			fmt.Printf(" %v. %v\n", broker.Id, broker.Host)
 		}
 	}
 

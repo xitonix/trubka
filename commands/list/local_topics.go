@@ -83,12 +83,12 @@ func (l *listLocalTopics) printAsList(store map[string][]string, plain bool) err
 	b.AsTree()
 	for env, topics := range store {
 		b.AddItem(format.WithCount(env, len(topics)))
-		b.Intend()
+		b.Indent()
 		sort.Strings(topics)
 		for _, topic := range topics {
 			b.AddItem(topic)
 		}
-		b.UnIntend()
+		b.UnIndent()
 	}
 	b.Render()
 	return nil

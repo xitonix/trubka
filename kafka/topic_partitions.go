@@ -6,8 +6,10 @@ import (
 	"strings"
 )
 
+// TopicPartitions a map of topic and partition list.
 type TopicPartitions map[string][]int32
 
+// SortedPartitions returns a list of all the partitions sorted in ascending order.
 func (t TopicPartitions) SortedPartitions(topic string) []int {
 	partitions, ok := t[topic]
 	if !ok {
@@ -22,6 +24,7 @@ func (t TopicPartitions) SortedPartitions(topic string) []int {
 	return sorted
 }
 
+// SortedPartitionsString returns a comma separated string of the sorted partitions.
 func (t TopicPartitions) SortedPartitionsString(topic string) string {
 	sorted := t.SortedPartitions(topic)
 	if len(sorted) == 0 {
@@ -34,6 +37,7 @@ func (t TopicPartitions) SortedPartitionsString(topic string) string {
 	return strings.Join(partitions, ",")
 }
 
+// SortedTopics returns a list of all the topics in the map sorted alphabetically.
 func (t TopicPartitions) SortedTopics() []string {
 	if len(t) == 0 {
 		return []string{}

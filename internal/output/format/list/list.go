@@ -1,5 +1,6 @@
 package list
 
+// List defines a list interface.
 type List interface {
 	SetTitle(title string)
 	SetCaption(caption string)
@@ -7,10 +8,11 @@ type List interface {
 	AsTree()
 	AddItem(item interface{})
 	AddItemF(format string, a ...interface{})
-	Intend()
-	UnIntend()
+	Indent()
+	UnIndent()
 }
 
+// New creates a new list.
 func New(plain bool) List {
 	if plain {
 		return NewPlain()

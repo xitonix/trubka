@@ -19,12 +19,17 @@ import (
 )
 
 const (
+	// PlainTextFormat plain text format.
 	PlainTextFormat = "plain"
-	TableFormat     = "table"
-	ListFormat      = "list"
-	JsonFormat      = "json"
+	// TableFormat tabular format.
+	TableFormat = "table"
+	// ListFormat list format.
+	ListFormat = "list"
+	// JsonFormat json format.
+	JsonFormat = "json"
 )
 
+// InitKafkaManager initialises the Kafka manager.
 func InitKafkaManager(globalParams *GlobalParameters, kafkaParams *KafkaParameters) (*kafka.Manager, context.Context, context.CancelFunc, error) {
 	brokers := GetBrokers(kafkaParams.Brokers)
 	manager, err := kafka.NewManager(brokers,
@@ -53,6 +58,7 @@ func InitKafkaManager(globalParams *GlobalParameters, kafkaParams *KafkaParamete
 	return manager, ctx, cancel, nil
 }
 
+// GetBrokers returns the list of the brokers.
 func GetBrokers(commaSeparated string) []string {
 	brokers := strings.Split(commaSeparated, ",")
 	for i := 0; i < len(brokers); i++ {
@@ -61,6 +67,7 @@ func GetBrokers(commaSeparated string) []string {
 	return brokers
 }
 
+// AddFormatFlag adds the format flag to the specified command.
 func AddFormatFlag(c *kingpin.CmdClause, format *string, style *string) {
 	c.Flag("format", "Sets the output format.").
 		Default(TableFormat).
@@ -73,6 +80,7 @@ func AddFormatFlag(c *kingpin.CmdClause, format *string, style *string) {
 		EnumVar(style, internal.HighlightStyles...)
 }
 
+// PrintConfigTable prints the configurations in tabular format.
 func PrintConfigTable(entries []*kafka.ConfigEntry) {
 	table := tabular.NewTable(true,
 		tabular.C("Name").Align(tabular.AlignLeft).MaxWidth(100),
@@ -87,6 +95,7 @@ func PrintConfigTable(entries []*kafka.ConfigEntry) {
 	table.Render()
 }
 
+// PrintConfigList prints the configurations as a list.
 func PrintConfigList(entries []*kafka.ConfigEntry, plain bool) {
 	b := list.New(plain)
 	b.SetTitle(format.WithCount("Configurations", len(entries)))
@@ -101,13 +110,13 @@ func PrintConfigList(entries []*kafka.ConfigEntry, plain bool) {
 			continue
 		}
 		b.AddItem(config.Name)
-		b.Intend()
+		b.Indent()
 		for _, val := range parts {
 			if !internal.IsEmpty(val) {
 				b.AddItem(val)
 			}
 		}
-		b.UnIntend()
+		b.UnIndent()
 	}
 	b.Render()
 }

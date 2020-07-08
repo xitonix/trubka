@@ -11,16 +11,22 @@ import (
 )
 
 const (
-	JsonEncoding       = "json"
+	// JsonEncoding un-indented Json output.
+	JsonEncoding = "json"
+	// JsonIndentEncoding indented Json output.
 	JsonIndentEncoding = "json-indent"
 )
 
 const (
+	// PlainTextEncoding plain text encoding.
 	PlainTextEncoding = "plain"
-	Base64Encoding    = "base64"
-	HexEncoding       = "hex"
+	// Base64Encoding base64 encoding.
+	Base64Encoding = "base64"
+	// HexEncoding hex encoding.
+	HexEncoding = "hex"
 )
 
+// HighlightStyles contains the available Json highlighting styles.
 var HighlightStyles = []string{
 	"autumn",
 	"dracula",
@@ -45,8 +51,10 @@ var HighlightStyles = []string{
 	"none",
 }
 
+// DefaultHighlightStyle default Json highlighting style across the app.
 const DefaultHighlightStyle = "fruity"
 
+// PlainTextMarshaller represents plain text marshaller.
 type PlainTextMarshaller struct {
 	includeTimeStamp bool
 	includeTopicName bool
@@ -57,6 +65,7 @@ type PlainTextMarshaller struct {
 	highlighter      *JsonHighlighter
 }
 
+// NewPlainTextMarshaller creates a new instance of a plain text marshaller.
 func NewPlainTextMarshaller(
 	inputEncoding string,
 	outputEncoding string,
@@ -76,9 +85,10 @@ func NewPlainTextMarshaller(
 	}
 }
 
+// Marshal marshals the Kafka message into plain text.
 func (m *PlainTextMarshaller) Marshal(msg, key []byte, ts time.Time, topic string, partition int32) ([]byte, error) {
 
-	result, err, mustEncode := m.decode(msg)
+	result, mustEncode, err := m.decode(msg)
 
 	if err != nil {
 		return nil, err
@@ -104,30 +114,30 @@ func (m *PlainTextMarshaller) Marshal(msg, key []byte, ts time.Time, topic strin
 	return result, nil
 }
 
-func (m *PlainTextMarshaller) decode(msg []byte) ([]byte, error, bool) {
+func (m *PlainTextMarshaller) decode(msg []byte) ([]byte, bool, error) {
 	switch m.inputEncoding {
 	case HexEncoding:
 		if m.outputEncoding == HexEncoding {
-			return msg, nil, false
+			return msg, false, nil
 		}
 		buf := make([]byte, hex.DecodedLen(len(msg)))
 		_, err := hex.Decode(buf, msg)
 		if err != nil {
-			return nil, err, false
+			return nil, false, err
 		}
-		return buf, nil, true
+		return buf, true, nil
 	case Base64Encoding:
 		if m.outputEncoding == Base64Encoding {
-			return msg, nil, false
+			return msg, false, nil
 		}
 		buf := make([]byte, base64.StdEncoding.DecodedLen(len(msg)))
 		_, err := base64.StdEncoding.Decode(buf, msg)
 		if err != nil {
-			return nil, err, false
+			return nil, false, err
 		}
-		return buf, nil, true
+		return buf, true, nil
 	default:
-		return msg, nil, true
+		return msg, true, nil
 	}
 }
 

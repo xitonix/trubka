@@ -107,11 +107,11 @@ func (l *listLocalOffsets) printAsList(offsets kafka.PartitionOffset, plain bool
 		lag := offsets.Lag()
 		totalLag += lag
 		b.AddItemF("P%d", partition)
-		b.Intend()
+		b.Indent()
 		b.AddItemF(" Latest: %s", humanize.Comma(offsets.Latest))
 		b.AddItemF("Current: %s", humanize.Comma(offsets.Current))
 		b.AddItemF("    Lag: %v", format.Warn(lag, l.globalParams.EnableColor && !plain, true))
-		b.UnIntend()
+		b.UnIndent()
 	}
 	b.Render()
 	return nil

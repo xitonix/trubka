@@ -24,6 +24,7 @@ const (
 	Chatty
 )
 
+// ToVerbosityLevel converts the input into a logging verbosity level.
 func ToVerbosityLevel(counter int) VerbosityLevel {
 	switch {
 	case counter == 1:

@@ -9,6 +9,7 @@ const (
 	indentation = "  "
 )
 
+// Plain represents a plain text list.
 type Plain struct {
 	items            []string
 	title            string
@@ -16,6 +17,7 @@ type Plain struct {
 	indentFirstLevel bool
 }
 
+// NewPlain creates new plain text list.
 func NewPlain() *Plain {
 	return &Plain{
 		items:  make([]string, 0),
@@ -23,15 +25,18 @@ func NewPlain() *Plain {
 	}
 }
 
+// SetTitle sets the title of the list.
 func (p *Plain) SetTitle(title string) {
 	p.title = title
 	p.indentFirstLevel = len(title) > 0
 }
 
+// SetCaption sets the caption (/footer) of the list.
 func (p *Plain) SetCaption(caption string) {
 	// no ops for plain lists
 }
 
+// Render prints out the list into stdout.
 func (p *Plain) Render() {
 	if len(p.title) > 0 {
 		fmt.Println(p.title)
@@ -45,23 +50,28 @@ func (p *Plain) Render() {
 	}
 }
 
+// AsTree no-op for a plain text list.
 func (p *Plain) AsTree() {
 	// no ops for plain lists
 }
 
+// AddItem adds a new item to the list.
 func (p *Plain) AddItem(item interface{}) {
 	p.indentF("%v", item)
 }
 
+// AddItemF adds a new formatted item to the list.
 func (p *Plain) AddItemF(format string, a ...interface{}) {
 	p.indentF(format, a...)
 }
 
-func (p *Plain) Intend() {
+// Indent adds one level of indentation to the list.
+func (p *Plain) Indent() {
 	p.indent++
 }
 
-func (p *Plain) UnIntend() {
+// UnIndent removes one level of indentation from the list.
+func (p *Plain) UnIndent() {
 	if p.indent > 0 {
 		p.indent--
 	}

@@ -15,11 +15,13 @@ import (
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/kafka"
 )
 
 type valueSerializer func(raw string) ([]byte, error)
 
+// AddCommands adds the produce command to the app.
 func AddCommands(app *kingpin.Application, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	parent := app.Command("produce", "A command to publish messages to kafka.")
 	addPlainSubCommand(parent, global, kafkaParams)
@@ -68,7 +70,7 @@ func produce(kafkaParams *commands.KafkaParameters,
 		}
 		err := producer.Close()
 		if err != nil {
-			fmt.Println(internal.Red("Failed to close the publisher", globalParams.EnableColor))
+			fmt.Println(format.Red("Failed to close the publisher", globalParams.EnableColor))
 		}
 	}()
 

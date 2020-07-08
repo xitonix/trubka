@@ -16,6 +16,7 @@ import (
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/kafka"
 )
 
@@ -194,10 +195,10 @@ func closeFile(file *os.File, highlight bool) {
 	err := file.Sync()
 	if err != nil {
 		msg := fmt.Sprintf("Failed to sync the file: %s", err)
-		fmt.Println(internal.Red(msg, highlight))
+		fmt.Println(format.Red(msg, highlight))
 	}
 	if err := file.Close(); err != nil {
 		msg := fmt.Sprintf("Failed to close the file: %s", err)
-		fmt.Println(internal.Red(msg, highlight))
+		fmt.Println(format.Red(msg, highlight))
 	}
 }
