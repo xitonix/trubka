@@ -85,39 +85,33 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 
 func (t *topic) printAsList(meta *kafka.TopicMetadata, plain bool) error {
 	var totalOffsets int64
-	b := list.New(plain)
-	b.AsTree()
-	b.SetTitle(format.WithCount("Partitions", len(meta.Partitions)))
+	l := list.New(plain)
+	l.AsTree()
+	l.SetTitle(format.WithCount("Partitions", len(meta.Partitions)))
 	for _, pm := range meta.Partitions {
-		b.AddItemF("P%d", pm.Id)
-		b.Indent()
+		l.AddItemF("P%d", pm.Id)
+		l.Indent()
 		if t.includeOffsets {
-			b.AddItemF("Offset: %s", humanize.Comma(pm.Offset))
+			l.AddItemF("Offset: %s", humanize.Comma(pm.Offset))
 			totalOffsets += pm.Offset
 		}
-		b.AddItemF("Leader: %s", pm.Leader.MarkedHostName())
-		b.AddItemF("ISRs: %s", t.brokersToLine(pm.ISRs...))
-		b.AddItemF("Replicas: %s", t.brokersToLine(pm.Replicas...))
+		l.AddItemF("Leader: %s", pm.Leader.MarkedHostName())
+		l.AddItemF("ISRs: %s", t.brokersToLine(pm.ISRs...))
+		l.AddItemF("Replicas: %s", t.brokersToLine(pm.Replicas...))
 		if len(pm.OfflineReplicas) > 0 {
-			b.AddItemF("Offline Replicas: %s", t.brokersToLine(pm.OfflineReplicas...))
+			l.AddItemF("Offline Replicas: %s", t.brokersToLine(pm.OfflineReplicas...))
 		}
-		b.UnIndent()
+		l.UnIndent()
 	}
 	caption := "CONTROLLER NODES" + kafka.ControllerBrokerLabel
 	if t.includeOffsets {
 		caption = fmt.Sprintf("Total Offsets: %s (%s)", humanize.Comma(totalOffsets), caption)
 	}
-	b.SetCaption(caption)
-	b.Render()
-
+	l.SetCaption(caption)
 	if t.loadConfigs {
-		nl := 2
-		if plain {
-			nl = 1
-		}
-		output.NewLines(nl)
-		commands.PrintConfigList(meta.ConfigEntries, plain)
+		commands.PrintConfigList(l, meta.ConfigEntries, plain)
 	}
+	l.Render()
 
 	return nil
 }

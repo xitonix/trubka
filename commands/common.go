@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -82,6 +83,7 @@ func AddFormatFlag(c *kingpin.CmdClause, format *string, style *string) {
 
 // PrintConfigTable prints the configurations in tabular format.
 func PrintConfigTable(entries []*kafka.ConfigEntry) {
+	sort.Sort(kafka.ConfigEntriesByName(entries))
 	table := tabular.NewTable(true,
 		tabular.C("Name").Align(tabular.AlignLeft).MaxWidth(100),
 		tabular.C("Value").Align(tabular.AlignLeft).FAlign(tabular.AlignRight).MaxWidth(100),
@@ -96,29 +98,29 @@ func PrintConfigTable(entries []*kafka.ConfigEntry) {
 }
 
 // PrintConfigList prints the configurations as a list.
-func PrintConfigList(entries []*kafka.ConfigEntry, plain bool) {
-	b := list.New(plain)
-	b.SetTitle(format.WithCount("Configurations", len(entries)))
+func PrintConfigList(l list.List, entries []*kafka.ConfigEntry, plain bool) {
+	sort.Sort(kafka.ConfigEntriesByName(entries))
+	l.AddItem("Configurations")
+	l.Indent()
 	for _, config := range entries {
 		if plain {
-			b.AddItemF("%s: %v", config.Name, config.Value)
+			l.AddItemF("%s: %v", config.Name, config.Value)
 			continue
 		}
 		parts := strings.Split(config.Value, ",")
 		if len(parts) == 1 {
-			b.AddItemF("%s: %v", config.Name, config.Value)
+			l.AddItemF("%s: %v", config.Name, config.Value)
 			continue
 		}
-		b.AddItem(config.Name)
-		b.Indent()
+		l.AddItem(config.Name)
+		l.Indent()
 		for _, val := range parts {
 			if !internal.IsEmpty(val) {
-				b.AddItem(val)
+				l.AddItem(val)
 			}
 		}
-		b.UnIndent()
+		l.UnIndent()
 	}
-	b.Render()
 }
 
 // AskForConfirmation asks the user for confirmation. The user must type in "yes/y", "no/n" or "exit/quit/q"

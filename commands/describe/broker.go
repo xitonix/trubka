@@ -194,13 +194,10 @@ func (b *broker) appendLogsToTheList(l list.List, logs []*kafka.LogFile) {
 		l.AddItem(logFile.Path)
 		sorted := logFile.SortByPermanentSize()
 		l.Indent()
-		var totalPerm, totalTemp uint64
 		for _, tLogs := range sorted {
 			if !b.includeZeroLogs && tLogs.Permanent == 0 && tLogs.Temporary == 0 {
 				continue
 			}
-			totalPerm += tLogs.Permanent
-			totalTemp += tLogs.Temporary
 			l.AddItem(tLogs.Topic)
 			l.Indent()
 			if b.includeZeroLogs || tLogs.Permanent > 0 {
@@ -243,7 +240,7 @@ func (b *broker) appendAPIsToTheList(l list.List, apis []*kafka.API) {
 }
 
 func (b *broker) getHostName(broker *kafka.Broker, plain bool) string {
-	host := fmt.Sprintf("%d/%s", broker.Id, broker.Host)
+	host := broker.String()
 	if broker.IsController {
 		host = fmt.Sprintf("%s %v", host, format.GreenLabel(controlNodeFlag, b.globalParams.EnableColor && !plain))
 	}
