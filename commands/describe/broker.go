@@ -81,7 +81,7 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 		return output.PrintAsJson(data, b.style, b.globalParams.EnableColor)
 	case commands.TableFormat:
 		return b.printAsTable(meta)
-	case commands.ListFormat:
+	case commands.TreeFormat:
 		return b.printAsList(meta, false)
 	case commands.PlainTextFormat:
 		return b.printAsList(meta, true)
@@ -92,8 +92,6 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 
 func (b *broker) printAsList(meta *kafka.BrokerMeta, plain bool) error {
 	l := list.New(plain)
-	l.AsTree()
-
 	host := b.getHostName(meta.Details, plain)
 	l.AddItem(host)
 

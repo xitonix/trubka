@@ -75,7 +75,7 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 		return output.PrintAsJson(data, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(groups)
-	case commands.ListFormat:
+	case commands.TreeFormat:
 		return c.printAsList(groups, false)
 	case commands.PlainTextFormat:
 		return c.printAsList(groups, true)
@@ -86,7 +86,6 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 
 func (c *groups) printAsList(groups []*kafka.ConsumerGroupDetails, plain bool) error {
 	l := list.New(plain)
-	l.AsTree()
 	for _, group := range groups {
 		if c.includeState {
 			l.AddItem(group.Name)

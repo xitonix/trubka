@@ -74,7 +74,7 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 		return output.PrintAsJson(meta, t.style, t.globalParams.EnableColor)
 	case commands.TableFormat:
 		return t.printAsTable(meta)
-	case commands.ListFormat:
+	case commands.TreeFormat:
 		return t.printAsList(meta, false)
 	case commands.PlainTextFormat:
 		return t.printAsList(meta, true)
@@ -86,7 +86,6 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 func (t *topic) printAsList(meta *kafka.TopicMetadata, plain bool) error {
 	var totalOffsets int64
 	l := list.New(plain)
-	l.AsTree()
 	l.AddItem("Partitions")
 	l.Indent()
 	for _, pm := range meta.Partitions {

@@ -68,7 +68,7 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 		return output.PrintAsJson(meta, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(meta)
-	case commands.ListFormat:
+	case commands.TreeFormat:
 		return c.printAsList(meta, false)
 	case commands.PlainTextFormat:
 		return c.printAsList(meta, true)
@@ -108,7 +108,6 @@ func (c *cluster) printAsTable(meta *kafka.ClusterMetadata) error {
 
 func (c *cluster) printAsList(meta *kafka.ClusterMetadata, plain bool) error {
 	l := list.New(plain)
-	l.AsTree()
 	if len(meta.Brokers) > 0 {
 		l.AddItem("Brokers")
 		l.Indent()

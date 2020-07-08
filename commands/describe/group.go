@@ -60,7 +60,7 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 		return output.PrintAsJson(data, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(cgd)
-	case commands.ListFormat:
+	case commands.TreeFormat:
 		return c.printAsList(cgd, false)
 	case commands.PlainTextFormat:
 		return c.printAsList(cgd, true)
@@ -70,7 +70,6 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 
 func (c *group) printAsList(details *kafka.ConsumerGroupDetails, plain bool) error {
 	l := list.New(plain)
-	l.AsTree()
 	l.AddItemF("Coordinator: %s", details.Coordinator.String())
 	l.AddItemF("      State: %s", format.GroupStateLabel(details.State, c.globalParams.EnableColor && !plain))
 	l.AddItemF("   Protocol: %s/%s", details.Protocol, details.ProtocolType)

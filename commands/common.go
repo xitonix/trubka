@@ -24,8 +24,8 @@ const (
 	PlainTextFormat = "plain"
 	// TableFormat tabular format.
 	TableFormat = "table"
-	// ListFormat list format.
-	ListFormat = "list"
+	// TreeFormat tree format.
+	TreeFormat = "tree"
 	// JsonFormat json format.
 	JsonFormat = "json"
 )
@@ -74,7 +74,7 @@ func AddFormatFlag(c *kingpin.CmdClause, format *string, style *string) {
 		Default(TableFormat).
 		NoEnvar().
 		Short('f').
-		EnumVar(format, PlainTextFormat, TableFormat, ListFormat, JsonFormat)
+		EnumVar(format, PlainTextFormat, TableFormat, TreeFormat, JsonFormat)
 
 	c.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --format=%s only. Disabled (none) by default.", JsonFormat)).
 		Default("none").

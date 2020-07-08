@@ -65,7 +65,7 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 		return output.PrintAsJson(topics, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(topics)
-	case commands.ListFormat:
+	case commands.TreeFormat:
 		return c.printAsList(topics, false)
 	case commands.PlainTextFormat:
 		return c.printAsList(topics, true)
@@ -76,7 +76,6 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 
 func (c *topics) printAsList(topics []kafka.Topic, plain bool) error {
 	l := list.New(plain)
-	l.AsTree()
 	for _, topic := range topics {
 		l.AddItem(topic.Name)
 	}

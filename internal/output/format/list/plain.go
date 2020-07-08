@@ -11,36 +11,19 @@ const (
 
 // Plain represents a plain text list.
 type Plain struct {
-	items            []string
-	title            string
-	indent           int
-	indentFirstLevel bool
+	items  []string
+	indent int
 }
 
-// NewPlain creates new plain text list.
-func NewPlain() *Plain {
+func newPlain() *Plain {
 	return &Plain{
 		items:  make([]string, 0),
 		indent: 0,
 	}
 }
 
-// SetTitle sets the title of the list.
-func (p *Plain) SetTitle(title string) {
-	p.title = title
-	p.indentFirstLevel = len(title) > 0
-}
-
-// SetCaption sets the caption (/footer) of the list.
-func (p *Plain) SetCaption(caption string) {
-	// no ops for plain lists
-}
-
 // Render prints out the list into stdout.
 func (p *Plain) Render() {
-	if len(p.title) > 0 {
-		fmt.Println(p.title)
-	}
 	for i, item := range p.items {
 		if i < len(p.items) {
 			fmt.Println(item)
@@ -48,11 +31,6 @@ func (p *Plain) Render() {
 		}
 		fmt.Print(item)
 	}
-}
-
-// AsTree no-op for a plain text list.
-func (p *Plain) AsTree() {
-	// no ops for plain lists
 }
 
 // AddItem adds a new item to the list.
@@ -78,9 +56,5 @@ func (p *Plain) UnIndent() {
 }
 
 func (p *Plain) indentF(format string, a ...interface{}) {
-	indent := p.indent
-	if p.indentFirstLevel {
-		indent++
-	}
-	p.items = append(p.items, strings.Repeat(indentation, indent)+fmt.Sprintf(format, a...))
+	p.items = append(p.items, strings.Repeat(indentation, p.indent)+fmt.Sprintf(format, a...))
 }
