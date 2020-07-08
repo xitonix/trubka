@@ -15,13 +15,6 @@ type Offset struct {
 	Current int64
 }
 
-func newOffset() Offset {
-	return Offset{
-		Latest:  unknownOffset,
-		Current: unknownOffset,
-	}
-}
-
 // Lag calculates the lag between the latest and the current offset values.
 func (o Offset) Lag() int64 {
 	if o.Latest > o.Current {

@@ -79,14 +79,6 @@ func IgnoreRegexCase(r *regexp.Regexp) (*regexp.Regexp, error) {
 	return ex, nil
 }
 
-// BoolToString maps true to `YES` and false to `NO`.
-func BoolToString(b bool) string {
-	if b {
-		return "YES"
-	}
-	return "NO"
-}
-
 // Title capitalises the first letter of the error message if the error is not nil, otherwise returns "".
 func Title(err error) string {
 	if err == nil {

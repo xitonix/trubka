@@ -25,7 +25,7 @@ darwin:
 	@echo Building Mac amd64 binaries
 	@env GOOS=darwin GOARCH=amd64 go build -i -v -o $(DARWIN)/$(EXECUTABLE) -ldflags="-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.runtimeVer=$(RUNTIME) -X 'main.built=$(BUILT)'"  *.go
 
-build: ## Builds the binaries.
+## Builds the binaries.
 build: windows linux darwin
 	@echo Version: $(VERSION)
 

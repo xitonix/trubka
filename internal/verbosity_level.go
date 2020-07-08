@@ -3,14 +3,6 @@ package internal
 // VerbosityLevel logging verbosity level.
 type VerbosityLevel int8
 
-var verbosityToString = map[VerbosityLevel]string{
-	Forced:       "default",
-	Verbose:      "verbose",
-	VeryVerbose:  "very verbose",
-	SuperVerbose: "super verbose",
-	Chatty:       "chatty",
-}
-
 const (
 	// Forced the lowest logging level. Everything will be printed under this level.
 	Forced VerbosityLevel = iota
