@@ -4,8 +4,8 @@ import "errors"
 
 var (
 	// ErrEmptyEnvironment occurs when the provided environment is empty.
-	ErrEmptyEnvironment = errors.New("The environment cannot be empty")
+	ErrEmptyEnvironment = errors.New("the environment cannot be empty")
 
 	// ErrEmptyTopic occurs when the provided topic is empty.
-	ErrEmptyTopic = errors.New("The topic cannot be empty")
+	ErrEmptyTopic = errors.New("the topic cannot be empty")
 )

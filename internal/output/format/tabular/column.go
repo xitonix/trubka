@@ -21,18 +21,6 @@ const (
 	AlignRight
 )
 
-// VAlignment content vertical alignment.
-type VAlignment int
-
-const (
-	// VAlignTop vertically align the content to the top.
-	VAlignTop Alignment = iota + 1
-	// VAlignMiddle vertically align the content to the middle.
-	VAlignMiddle
-	// VAlignBottom vertically align the content to the bottom.
-	VAlignBottom
-)
-
 // Column represents a table column.
 type Column struct {
 	Header         string
@@ -50,7 +38,7 @@ func C(header string) *Column {
 			Name:        header,
 			Align:       text.Align(AlignCenter),
 			AlignHeader: text.Align(AlignCenter),
-			VAlign:      text.VAlign(VAlignTop),
+			VAlign:      text.VAlignMiddle,
 			AlignFooter: text.Align(AlignRight),
 		},
 	}
@@ -102,12 +90,6 @@ func (c *Column) FAlign(alignment Alignment) *Column {
 // Align sets the horizontal alignment of the cell content.
 func (c *Column) Align(alignment Alignment) *Column {
 	c.config.Align = text.Align(alignment)
-	return c
-}
-
-// VAlign sets the vertical alignment of the cell content.
-func (c *Column) VAlign(alignment VAlignment) *Column {
-	c.config.VAlign = text.VAlign(alignment)
 	return c
 }
 

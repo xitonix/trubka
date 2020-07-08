@@ -61,7 +61,7 @@ func Yellow(input interface{}, colorEnabled bool) interface{} {
 
 // Red returns the input in red if coloring is enabled.
 func Red(input interface{}, colorEnabled bool) interface{} {
-	return colorIfEnabled(input, colorEnabled)
+	return colorIfEnabled(input, colorEnabled, text.FgHiRed)
 }
 
 // RedIfTrue highlights the input in red, if coloring is enabled and the evaluation function returns true.
@@ -79,19 +79,13 @@ func Underline(input string) string {
 	return underlineLen(input, len(input))
 }
 
-// UnderlinedTitleWithCount returns the underlined input in "title [count]" format.
-func UnderlinedTitleWithCount(title string, count int) string {
-	title = titleWithCount(title, count)
-	return fmt.Sprintf("%s\n%s", title, underline(len(title)))
-}
-
 // WithCount returns the input in "title [count]" format.
 func WithCount(title string, count int) string {
 	return titleWithCount(title, count)
 }
 
 func titleWithCount(title string, count int) string {
-	return fmt.Sprintf("%s (%d)", title, count)
+	return fmt.Sprintf("%s [%d]", title, count)
 }
 
 func underline(length int) string {

@@ -48,7 +48,7 @@ func TestToVerbosityLevel(t *testing.T) {
 		},
 		{
 			title:    "max int",
-			counter:  int(math.MaxInt64),
+			counter:  math.MaxInt64,
 			expected: Chatty,
 		},
 	}

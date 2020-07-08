@@ -381,8 +381,9 @@ func (m *Manager) DescribeTopic(ctx context.Context, topic string, includeConfig
 // DescribeBroker returns the specified broker.
 func (m *Manager) DescribeBroker(ctx context.Context, addressOrId string, includeLogs, includeAPIVersions bool, topicFilter *regexp.Regexp) (*BrokerMeta, error) {
 	meta := &BrokerMeta{
-		Logs: make([]*LogFile, 0),
-		APIs: make([]*API, 0),
+		Logs:    make([]*LogFile, 0),
+		APIs:    make([]*API, 0),
+		Details: &Broker{},
 	}
 	select {
 	case <-ctx.Done():
@@ -392,7 +393,7 @@ func (m *Manager) DescribeBroker(ctx context.Context, addressOrId string, includ
 		if err != nil {
 			return nil, err
 		}
-		meta.IsController = broker.IsController
+		meta.Details = broker
 		m.Logf(internal.Verbose, "Connecting to %s", addressOrId)
 		err = broker.Open(m.client.Config())
 		if err != nil {

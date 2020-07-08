@@ -65,7 +65,7 @@ func (g *groupOffset) run(_ *kingpin.ParseContext) error {
 		return output.PrintAsJson(topics.ToJson(), g.style, g.globalParams.EnableColor)
 	case commands.TableFormat:
 		return g.printAsTable(topics)
-	case commands.ListFormat:
+	case commands.TreeFormat:
 		return g.printAsList(topics, false)
 	case commands.PlainTextFormat:
 		return g.printAsList(topics, true)
@@ -104,31 +104,32 @@ func (g *groupOffset) printAsTable(topics kafka.TopicPartitionOffset) error {
 }
 
 func (g *groupOffset) printAsList(topics kafka.TopicPartitionOffset, plain bool) error {
+	l := list.New(plain)
+	if !plain {
+		l.AddItem(g.group)
+		l.Indent()
+	}
 	for topic, partitionOffsets := range topics {
-		b := list.New(plain)
-		b.AsTree()
-		b.AddItem(topic)
+		l.AddItem(topic)
 		var totalLag int64
 		if len(partitionOffsets) > 0 {
 			partitions := partitionOffsets.SortPartitions()
-			b.Indent()
+			l.Indent()
 			for _, partition := range partitions {
 				offsets := partitionOffsets[int32(partition)]
 				lag := offsets.Lag()
 				totalLag += lag
-
-				b.AddItemF("P%d", partition)
-				b.Indent()
-				b.AddItemF(" Latest: %s", humanize.Comma(offsets.Latest))
-				b.AddItemF("Current: %s", humanize.Comma(offsets.Current))
-				b.AddItemF("    Lag: %v", format.Warn(lag, g.globalParams.EnableColor, true))
-				b.UnIndent()
+				l.AddItemF("P%d", partition)
+				l.Indent()
+				l.AddItemF(" Latest: %s", humanize.Comma(offsets.Latest))
+				l.AddItemF("Current: %s", humanize.Comma(offsets.Current))
+				l.AddItemF("    Lag: %v", format.Warn(lag, g.globalParams.EnableColor && !plain, true))
+				l.UnIndent()
 			}
-		}
-		b.Render()
-		if len(partitionOffsets) > 0 {
-			fmt.Printf("\nTotal Lag: %v\n\n", format.Warn(totalLag, g.globalParams.EnableColor, true))
+			l.UnIndent()
 		}
 	}
+	l.UnIndent()
+	l.Render()
 	return nil
 }

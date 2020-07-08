@@ -75,7 +75,7 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 		return output.PrintAsJson(data, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(groups)
-	case commands.ListFormat:
+	case commands.TreeFormat:
 		return c.printAsList(groups, false)
 	case commands.PlainTextFormat:
 		return c.printAsList(groups, true)
@@ -85,29 +85,20 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *groups) printAsList(groups []*kafka.ConsumerGroupDetails, plain bool) error {
-	if c.includeState {
-		for _, group := range groups {
-			b := list.New(plain)
-			b.AsTree()
-			b.AddItem(group.Name)
-			b.Indent()
-			b.AddItemF("        State: %s", format.GroupStateLabel(group.State, c.globalParams.EnableColor))
-			b.AddItemF("     Protocol: %s", group.Protocol)
-			b.AddItemF("Protocol Type: %s", group.ProtocolType)
-			b.AddItemF("  Coordinator: %s", group.Coordinator.Host)
-			b.UnIndent()
-			b.Render()
-			output.NewLines(1)
+	l := list.New(plain)
+	for _, group := range groups {
+		if c.includeState {
+			l.AddItem(group.Name)
+			l.Indent()
+			l.AddItemF("State: %s", format.GroupStateLabel(group.State, c.globalParams.EnableColor && !plain))
+			l.AddItemF("Protocol: %s/%s", group.Protocol, group.ProtocolType)
+			l.AddItemF("Coordinator: %s", group.Coordinator.String())
+			l.UnIndent()
+		} else {
+			l.AddItem(group.Name)
 		}
-	} else {
-		b := list.New(plain)
-		for _, group := range groups {
-			b.AddItem(group.Name)
-		}
-		b.Render()
-		output.NewLines(1)
 	}
-	fmt.Printf("Total: %s", humanize.Comma(int64(len(groups))))
+	l.Render()
 	return nil
 }
 

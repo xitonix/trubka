@@ -53,8 +53,8 @@ func (a APIByCode) Less(i, j int) bool {
 
 // BrokerMeta holds a Kafka broker's metadata.
 type BrokerMeta struct {
-	// IsController is true if the broker is a controller node.
-	IsController bool
+	// Details the broker details.
+	Details *Broker
 	// ConsumerGroups a list of the consumer groups being managed by the broker.
 	ConsumerGroups []string
 	// Logs broker logs.
@@ -73,12 +73,12 @@ func (b *BrokerMeta) ToJson(withLogs, withAPIs, includeZeros bool) interface{} {
 		Entries []*LogEntry `json:"entries"`
 	}
 	output := struct {
-		IsController   bool     `json:"controller"`
-		ConsumerGroups []string `json:"consumer_groups"`
+		Details        *Broker  `json:"details"`
+		ConsumerGroups []string `json:"consumer_groups,omitempty"`
 		Logs           []*log   `json:"logs,omitempty"`
 		APIs           []*API   `json:"api,omitempty"`
 	}{
-		IsController:   b.IsController,
+		Details:        b.Details,
 		ConsumerGroups: b.ConsumerGroups,
 	}
 

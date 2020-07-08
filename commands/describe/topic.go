@@ -36,7 +36,7 @@ func addTopicSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParame
 	c.Arg("topic", "The topic to describe.").Required().StringVar(&cmd.topic)
 	c.Flag("load-config", "Loads the topic's configurations from the server.").
 		NoEnvar().
-		Short('C').BoolVar(&cmd.loadConfigs)
+		Short('c').BoolVar(&cmd.loadConfigs)
 	c.Flag("include-offsets", "Queries the server to read the latest available offset of each partition.").
 		NoEnvar().
 		Short('o').BoolVar(&cmd.includeOffsets)
@@ -74,7 +74,7 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 		return output.PrintAsJson(meta, t.style, t.globalParams.EnableColor)
 	case commands.TableFormat:
 		return t.printAsTable(meta)
-	case commands.ListFormat:
+	case commands.TreeFormat:
 		return t.printAsList(meta, false)
 	case commands.PlainTextFormat:
 		return t.printAsList(meta, true)
@@ -85,35 +85,29 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 
 func (t *topic) printAsList(meta *kafka.TopicMetadata, plain bool) error {
 	var totalOffsets int64
-	b := list.New(plain)
-	b.AsTree()
-	b.SetTitle(format.WithCount("Partitions", len(meta.Partitions)))
+	l := list.New(plain)
+	l.AddItem("Partitions")
+	l.Indent()
 	for _, pm := range meta.Partitions {
-		b.AddItemF("P%d", pm.Id)
-		b.Indent()
+		l.AddItemF("%d", pm.Id)
+		l.Indent()
 		if t.includeOffsets {
-			b.AddItemF("Offset: %s", humanize.Comma(pm.Offset))
+			l.AddItemF("Offset: %s", humanize.Comma(pm.Offset))
 			totalOffsets += pm.Offset
 		}
-		b.AddItemF("Leader: %s", pm.Leader.MarkedHostName())
-		b.AddItemF("ISRs: %s", t.brokersToLine(pm.ISRs...))
-		b.AddItemF("Replicas: %s", t.brokersToLine(pm.Replicas...))
+		l.AddItemF("Leader: %s", pm.Leader.String())
+		l.AddItemF("ISRs: %s", t.brokersToLine(pm.ISRs...))
+		l.AddItemF("Replicas: %s", t.brokersToLine(pm.Replicas...))
 		if len(pm.OfflineReplicas) > 0 {
-			b.AddItemF("Offline Replicas: %s", t.brokersToLine(pm.OfflineReplicas...))
+			l.AddItemF("Offline Replicas: %s", t.brokersToLine(pm.OfflineReplicas...))
 		}
-		b.UnIndent()
+		l.UnIndent()
 	}
-	caption := "CONTROLLER NODES" + kafka.ControllerBrokerLabel
-	if t.includeOffsets {
-		caption = fmt.Sprintf("Total Offsets: %s (%s)", humanize.Comma(totalOffsets), caption)
-	}
-	b.SetCaption(caption)
-	b.Render()
-
+	l.UnIndent()
 	if t.loadConfigs {
-		output.NewLines(2)
-		commands.PrintConfigList(meta.ConfigEntries, plain)
+		commands.PrintConfigList(l, meta.ConfigEntries, plain)
 	}
+	l.Render()
 
 	return nil
 }
@@ -166,7 +160,7 @@ func (t *topic) brokersToList(brokers ...*kafka.Broker) string {
 	}
 	var buf bytes.Buffer
 	for i, b := range brokers {
-		buf.WriteString(b.MarkedHostName())
+		buf.WriteString(b.String())
 		if i < len(brokers)-1 {
 			buf.WriteString("\n")
 		}
@@ -177,7 +171,7 @@ func (t *topic) brokersToList(brokers ...*kafka.Broker) string {
 func (t *topic) brokersToLine(brokers ...*kafka.Broker) string {
 	result := make([]string, len(brokers))
 	for i, b := range brokers {
-		result[i] = b.MarkedHostName()
+		result[i] = b.String()
 	}
 	return strings.Join(result, ", ")
 }

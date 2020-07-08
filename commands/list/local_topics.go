@@ -56,7 +56,7 @@ func (l *listLocalTopics) run(_ *kingpin.ParseContext) error {
 		return output.PrintAsJson(localStore, l.style, l.globalParams.EnableColor)
 	case commands.TableFormat:
 		return l.printAsTable(localStore)
-	case commands.ListFormat:
+	case commands.TreeFormat:
 		return l.printAsList(localStore, false)
 	case commands.PlainTextFormat:
 		return l.printAsList(localStore, true)
@@ -79,17 +79,16 @@ func (l *listLocalTopics) printAsTable(store map[string][]string) error {
 }
 
 func (l *listLocalTopics) printAsList(store map[string][]string, plain bool) error {
-	b := list.New(plain)
-	b.AsTree()
+	ls := list.New(plain)
 	for env, topics := range store {
-		b.AddItem(format.WithCount(env, len(topics)))
-		b.Indent()
+		ls.AddItem(env)
+		ls.Indent()
 		sort.Strings(topics)
 		for _, topic := range topics {
-			b.AddItem(topic)
+			ls.AddItem(topic)
 		}
-		b.UnIndent()
+		ls.UnIndent()
 	}
-	b.Render()
+	ls.Render()
 	return nil
 }

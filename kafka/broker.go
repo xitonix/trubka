@@ -1,6 +1,8 @@
 package kafka
 
 import (
+	"fmt"
+
 	"github.com/Shopify/sarama"
 
 	"github.com/xitonix/trubka/internal"
@@ -41,6 +43,14 @@ func (b *Broker) MarkedHostName() string {
 		return b.Host + ControllerBrokerLabel
 	}
 	return b.Host
+}
+
+// String returns the string representation of the broker.
+func (b *Broker) String() string {
+	if b == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d/%s", b.Id, b.Host)
 }
 
 // BrokersById sorts the brokers by Id.

@@ -65,7 +65,7 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 		return output.PrintAsJson(topics, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(topics)
-	case commands.ListFormat:
+	case commands.TreeFormat:
 		return c.printAsList(topics, false)
 	case commands.PlainTextFormat:
 		return c.printAsList(topics, true)
@@ -75,16 +75,11 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *topics) printAsList(topics []kafka.Topic, plain bool) error {
-	b := list.New(plain)
-	b.SetTitle(format.WithCount("Topics", len(topics)))
-	var totalPartitions int64
+	l := list.New(plain)
 	for _, topic := range topics {
-		totalPartitions += int64(topic.NumberOfPartitions)
-		b.AddItem(topic.Name)
+		l.AddItem(topic.Name)
 	}
-	caption := fmt.Sprintf("SUMMARY: %s partitions in %s topics", humanize.Comma(totalPartitions), humanize.Comma(int64(len(topics))))
-	b.SetCaption(caption)
-	b.Render()
+	l.Render()
 	return nil
 }
 
