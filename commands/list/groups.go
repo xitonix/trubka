@@ -85,24 +85,21 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *groups) printAsList(groups []*kafka.ConsumerGroupDetails, plain bool) error {
-	b := list.New(plain)
-	if c.includeState {
-		for _, group := range groups {
-			b.AsTree()
-			b.AddItem(group.Name)
-			b.Indent()
-			b.AddItemF("        State: %s", format.GroupStateLabel(group.State, c.globalParams.EnableColor && !plain))
-			b.AddItemF("     Protocol: %s-%s", group.Protocol, group.ProtocolType)
-			b.AddItemF("  Coordinator: %s", group.Coordinator.Host)
-			b.UnIndent()
-		}
-	} else {
-		for _, group := range groups {
-			b.AddItem(group.Name)
+	l := list.New(plain)
+	l.AsTree()
+	for _, group := range groups {
+		if c.includeState {
+			l.AddItem(group.Name)
+			l.Indent()
+			l.AddItemF("State: %s", format.GroupStateLabel(group.State, c.globalParams.EnableColor && !plain))
+			l.AddItemF("Protocol: %s/%s", group.Protocol, group.ProtocolType)
+			l.AddItemF("Coordinator: %s", group.Coordinator.String())
+			l.UnIndent()
+		} else {
+			l.AddItem(group.Name)
 		}
 	}
-	b.SetCaption(fmt.Sprintf("Total: %s", humanize.Comma(int64(len(groups)))))
-	b.Render()
+	l.Render()
 	return nil
 }
 

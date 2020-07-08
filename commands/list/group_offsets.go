@@ -104,9 +104,13 @@ func (g *groupOffset) printAsTable(topics kafka.TopicPartitionOffset) error {
 }
 
 func (g *groupOffset) printAsList(topics kafka.TopicPartitionOffset, plain bool) error {
+	b := list.New(plain)
+	b.AsTree()
+	if !plain {
+		b.AddItem(g.group)
+		b.Indent()
+	}
 	for topic, partitionOffsets := range topics {
-		b := list.New(plain)
-		b.AsTree()
 		b.AddItem(topic)
 		var totalLag int64
 		if len(partitionOffsets) > 0 {
@@ -125,8 +129,8 @@ func (g *groupOffset) printAsList(topics kafka.TopicPartitionOffset, plain bool)
 			}
 			b.UnIndent()
 		}
-		b.Render()
 	}
-
+	b.UnIndent()
+	b.Render()
 	return nil
 }
