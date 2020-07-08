@@ -87,15 +87,16 @@ func (t *topic) printAsList(meta *kafka.TopicMetadata, plain bool) error {
 	var totalOffsets int64
 	l := list.New(plain)
 	l.AsTree()
-	l.SetTitle(format.WithCount("Partitions", len(meta.Partitions)))
+	l.AddItem("Partitions")
+	l.Indent()
 	for _, pm := range meta.Partitions {
-		l.AddItemF("P%d", pm.Id)
+		l.AddItemF("%d", pm.Id)
 		l.Indent()
 		if t.includeOffsets {
 			l.AddItemF("Offset: %s", humanize.Comma(pm.Offset))
 			totalOffsets += pm.Offset
 		}
-		l.AddItemF("Leader: %s", pm.Leader.MarkedHostName())
+		l.AddItemF("Leader: %s", pm.Leader.String())
 		l.AddItemF("ISRs: %s", t.brokersToLine(pm.ISRs...))
 		l.AddItemF("Replicas: %s", t.brokersToLine(pm.Replicas...))
 		if len(pm.OfflineReplicas) > 0 {
@@ -103,11 +104,7 @@ func (t *topic) printAsList(meta *kafka.TopicMetadata, plain bool) error {
 		}
 		l.UnIndent()
 	}
-	caption := "CONTROLLER NODES" + kafka.ControllerBrokerLabel
-	if t.includeOffsets {
-		caption = fmt.Sprintf("Total Offsets: %s (%s)", humanize.Comma(totalOffsets), caption)
-	}
-	l.SetCaption(caption)
+	l.UnIndent()
 	if t.loadConfigs {
 		commands.PrintConfigList(l, meta.ConfigEntries, plain)
 	}
@@ -164,7 +161,7 @@ func (t *topic) brokersToList(brokers ...*kafka.Broker) string {
 	}
 	var buf bytes.Buffer
 	for i, b := range brokers {
-		buf.WriteString(b.MarkedHostName())
+		buf.WriteString(b.String())
 		if i < len(brokers)-1 {
 			buf.WriteString("\n")
 		}
@@ -175,7 +172,7 @@ func (t *topic) brokersToList(brokers ...*kafka.Broker) string {
 func (t *topic) brokersToLine(brokers ...*kafka.Broker) string {
 	result := make([]string, len(brokers))
 	for i, b := range brokers {
-		result[i] = b.MarkedHostName()
+		result[i] = b.String()
 	}
 	return strings.Join(result, ", ")
 }
