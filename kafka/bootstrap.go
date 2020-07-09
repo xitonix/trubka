@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/rcrowley/go-metrics"
@@ -32,6 +33,7 @@ func initClient(brokers []string, options ...Option) (sarama.Client, error) {
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Return.Successes = true
 	config.Producer.Partitioner = sarama.NewHashPartitioner
+	config.Consumer.MaxWaitTime = 500 * time.Millisecond
 
 	metrics.UseNilMetrics = true
 	if ops.sasl != nil {

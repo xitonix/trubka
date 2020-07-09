@@ -12,30 +12,35 @@ import (
 	"github.com/xitonix/trubka/internal"
 )
 
-// Marshaller protocol buffers output serialiser.
+// Marshaller protocol buffers output serializer.
 type Marshaller struct {
-	outputEncoding       string
-	includeTimeStamp     bool
-	includeTopicName     bool
-	includeKey           bool
-	enableColor          bool
-	highlighter          *internal.JsonHighlighter
-	indentedMarshaller   *jsonpb.Marshaler
-	unIndentedMarshaller *jsonpb.Marshaler
+	outputFormat     string
+	includeTimeStamp bool
+	includeTopicName bool
+	includeKey       bool
+	enableColor      bool
+	jsonMarshaller   *jsonpb.Marshaler
+	jsonProcessor    *internal.JsonMessageProcessor
 }
 
 // NewMarshaller creates a new protocol buffer Marshaller.
-func NewMarshaller(outputEncoding string, includeTimeStamp, includeTopicName, includeKey bool, enableColor bool, highlightStyle string) *Marshaller {
-	return &Marshaller{
-		outputEncoding:       strings.TrimSpace(strings.ToLower(outputEncoding)),
-		includeTimeStamp:     includeTimeStamp,
-		includeTopicName:     includeTopicName,
-		includeKey:           includeKey,
-		enableColor:          enableColor,
-		highlighter:          internal.NewJsonHighlighter(highlightStyle, enableColor),
-		indentedMarshaller:   newJsonMarshaller("  "),
-		unIndentedMarshaller: newJsonMarshaller(""),
+func NewMarshaller(outputFormat string, includeTimeStamp, includeTopicName, includeKey bool, enableColor bool, highlightStyle string) *Marshaller {
+	outputFormat = strings.TrimSpace(strings.ToLower(outputFormat))
+	m := &Marshaller{
+		outputFormat:     outputFormat,
+		includeTimeStamp: includeTimeStamp,
+		includeTopicName: includeTopicName,
+		includeKey:       includeKey,
+		enableColor:      enableColor,
+		jsonProcessor:    internal.NewJsonMessageProcessor(outputFormat, includeTimeStamp, includeTopicName, includeKey, enableColor, highlightStyle),
 	}
+
+	var indentation string
+	if m.outputFormat == internal.JsonIndentEncoding {
+		indentation = internal.JsonIndentation
+	}
+	m.jsonMarshaller = newJsonMarshaller(indentation)
+	return m
 }
 
 // Marshal serialises the proto message into bytes.
@@ -45,18 +50,17 @@ func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, top
 		err    error
 	)
 
-	switch m.outputEncoding {
+	switch m.outputFormat {
 	case internal.Base64Encoding:
 		result, err = m.marshalBase64(msg)
 	case internal.HexEncoding:
 		result, err = m.marshalHex(msg)
-	case internal.JsonEncoding:
-		result, err = msg.MarshalJSONPB(m.unIndentedMarshaller)
 	default:
-		result, err = msg.MarshalJSONPB(m.indentedMarshaller)
-		if m.enableColor {
-			result = m.highlighter.Highlight(result)
+		message, err := msg.MarshalJSONPB(m.jsonMarshaller)
+		if err != nil {
+			return nil, err
 		}
+		return m.jsonProcessor.Process(message, key, ts, topic, partition)
 	}
 
 	if err != nil {
@@ -67,7 +71,7 @@ func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, top
 		result = internal.PrependTimestamp(ts, result)
 	}
 	if m.includeKey {
-		result = internal.PrependKey(key, partition, result)
+		result = internal.PrependKey(key, partition, result, m.outputFormat == internal.Base64Encoding)
 	}
 
 	if m.includeTopicName {

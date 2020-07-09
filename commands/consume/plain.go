@@ -72,9 +72,10 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *commands.GlobalPa
 
 	c.Flag("format", "The format in which the incoming Kafka messages will be written to the output.").
 		Default(internal.PlainTextEncoding).
-		Short('F').
+		Short('f').
 		EnumVar(&cmd.encodeTo,
 			internal.PlainTextEncoding,
+			internal.JsonEncoding,
 			internal.JsonIndentEncoding,
 			internal.Base64Encoding,
 			internal.HexEncoding)

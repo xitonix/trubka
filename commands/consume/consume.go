@@ -87,7 +87,6 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 
 	pastHour := time.Now().UTC().Add(-1 * time.Hour).Format("02-01-2006T15:04:05.999999999")
 	command.Flag("from", `The offset to start consuming from. Available options are newest (default), oldest, local, time (the most recent available offset at the given time) or a string of comma separated Partition:Offset pairs ("10:150, :0")`).
-		Short('f').
 		Default("newest").
 		HintOptions("newest", "oldest", pastHour, "0:10,1:20,:0").
 		StringVar(from)

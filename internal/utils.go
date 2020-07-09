@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -48,7 +49,10 @@ func PrependTopic(topic string, in []byte) []byte {
 }
 
 // PrependKey prefixes the input with the partition key in `PN: Hex` format where N is the partition number.
-func PrependKey(key []byte, partition int32, in []byte) []byte {
+func PrependKey(key []byte, partition int32, in []byte, b64 bool) []byte {
+	if b64 {
+		return append([]byte(fmt.Sprintf("P%d: %s\n", partition, base64.StdEncoding.EncodeToString(key))), in...)
+	}
 	return append([]byte(fmt.Sprintf("P%d: %X\n", partition, key)), in...)
 }
 

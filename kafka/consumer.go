@@ -230,8 +230,16 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 		c.wg.Add(1)
 		go func(pc sarama.PartitionConsumer) {
 			defer c.wg.Done()
-			for err := range pc.Errors() {
-				c.printer.Errorf(internal.Forced, "Failed to consume message: %s.", err)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case err, more := <-pc.Errors():
+					if !more {
+						return
+					}
+					c.printer.Errorf(internal.Forced, "Failed to consume message: %s.", err)
+				}
 			}
 		}(pc)
 
