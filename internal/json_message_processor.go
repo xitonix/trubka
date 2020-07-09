@@ -6,8 +6,10 @@ import (
 	"time"
 )
 
+// JsonIndentation the indentation of JSON output.
 const JsonIndentation = "  "
 
+// JsonMessageProcessor prepares json output for printing.
 type JsonMessageProcessor struct {
 	outputEncoding   string
 	includeTimeStamp bool
@@ -18,6 +20,7 @@ type JsonMessageProcessor struct {
 	indent           bool
 }
 
+// NewJsonMessageProcessor creates a new instance of JSON message processor.
 func NewJsonMessageProcessor(outputFormat string,
 	includeTimeStamp,
 	includeTopicName,
@@ -35,6 +38,9 @@ func NewJsonMessageProcessor(outputFormat string,
 	}
 }
 
+// Process prepares json output for printing.
+//
+// The method injects the metadata into the json object if required.
 func (j *JsonMessageProcessor) Process(message, key []byte, ts time.Time, topic string, partition int32) ([]byte, error) {
 	includeMetadata := j.includeTopicName || j.includeKey || (j.includeTimeStamp && !ts.IsZero())
 	if !includeMetadata {
