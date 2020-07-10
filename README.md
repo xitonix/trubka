@@ -1,6 +1,7 @@
 ![GitHub release](https://img.shields.io/github/release/xitonix/trubka)
 [![Build Status](https://travis-ci.org/xitonix/trubka.svg?branch=master)](https://travis-ci.org/xitonix/trubka)
 [![Go Report Card](https://goreportcard.com/badge/github.com/xitonix/trubka)](https://goreportcard.com/report/github.com/xitonix/trubka)
+[![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#devops-tools)
 
 <img src="_media/logo-small.jpg" alt="logo-small" align="right" width="350"/>
 
