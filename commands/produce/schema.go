@@ -1,6 +1,7 @@
 package produce
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -12,6 +13,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/protobuf"
 )
 
@@ -44,12 +46,19 @@ func addSchemaSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParam
 }
 
 func (c *schema) run(_ *kingpin.ParseContext) error {
-	loader, err := protobuf.NewFileLoader(c.protoRoot)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		internal.WaitForCancellationSignal()
+		cancel()
+	}()
+
+	loader, err := protobuf.LoadFiles(ctx, c.globalParams.Verbosity, c.protoRoot)
 	if err != nil {
 		return err
 	}
 
-	err = loader.Load(c.proto)
+	err = loader.Load(ctx, c.proto)
 	if err != nil {
 		return err
 	}
@@ -59,43 +68,53 @@ func (c *schema) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 	mp := make(map[string]interface{})
-	c.readSchema(mp, "", msg.GetMessageDescriptor())
-	b, err := json.MarshalIndent(mp, " ", "   ")
-	if err != nil {
-		return err
+	c.readSchema(ctx, mp, "", msg.GetMessageDescriptor())
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		b, err := json.MarshalIndent(mp, "", internal.JsonIndentation)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(b))
 	}
-	fmt.Println(string(b))
 	return nil
 }
 
-func (c *schema) readSchema(mp map[string]interface{}, oneOffChoice string, md *desc.MessageDescriptor) {
+func (c *schema) readSchema(ctx context.Context, mp map[string]interface{}, oneOffChoice string, md *desc.MessageDescriptor) {
 	fields := md.GetFields()
 	for _, field := range fields {
-		options := field.GetFieldOptions()
-		if options != nil && options.Deprecated != nil && *options.Deprecated {
-			continue
-		}
-		t := field.GetType()
-		name := field.GetName()
-		oneOff := field.GetOneOf()
-		oneOffChoice = chooseOneOff(oneOff)
-		if oneOffChoice != "" && name != oneOffChoice && oneOff != nil {
-			continue
-		}
-
-		if t == descriptor.FieldDescriptorProto_TYPE_MESSAGE {
-			if gt, set := c.getGoogleType(name, field); set {
-				mp[name] = gt
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			options := field.GetFieldOptions()
+			if options != nil && options.Deprecated != nil && *options.Deprecated {
 				continue
 			}
-			parent := make(map[string]interface{})
-			mp[name] = parent
-			c.readSchema(parent, oneOffChoice, field.GetMessageType())
-		} else {
-			if c.random {
-				mp[name] = c.getGeneratorFunc(field)
+			t := field.GetType()
+			name := field.GetName()
+			oneOff := field.GetOneOf()
+			oneOffChoice = chooseOneOff(oneOff)
+			if oneOffChoice != "" && name != oneOffChoice && oneOff != nil {
+				continue
+			}
+
+			if t == descriptor.FieldDescriptorProto_TYPE_MESSAGE {
+				if gt, set := c.getGoogleType(name, field); set {
+					mp[name] = gt
+					continue
+				}
+				parent := make(map[string]interface{})
+				mp[name] = parent
+				c.readSchema(ctx, parent, oneOffChoice, field.GetMessageType())
 			} else {
-				mp[name] = field.GetDefaultValue()
+				if c.random {
+					mp[name] = c.getGeneratorFunc(field)
+				} else {
+					mp[name] = field.GetDefaultValue()
+				}
 			}
 		}
 	}

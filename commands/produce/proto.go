@@ -1,6 +1,7 @@
 package produce
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -84,12 +85,20 @@ func (c *proto) run(_ *kingpin.ParseContext) error {
 	if err != nil {
 		return err
 	}
-	loader, err := protobuf.NewFileLoader(c.protoRoot)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		internal.WaitForCancellationSignal()
+		cancel()
+	}()
+
+	loader, err := protobuf.LoadFiles(ctx, c.globalParams.Verbosity, c.protoRoot)
 	if err != nil {
 		return err
 	}
 
-	err = loader.Load(c.proto)
+	err = loader.Load(ctx, c.proto)
 	if err != nil {
 		return err
 	}
@@ -102,7 +111,7 @@ func (c *proto) run(_ *kingpin.ParseContext) error {
 	c.protoMessage = message
 	c.highlighter = internal.NewJsonHighlighter(c.highlightStyle, c.globalParams.EnableColor)
 
-	return produce(c.kafkaParams, c.globalParams, c.topic, c.key, value, c.serializeProto, c.count)
+	return produce(ctx, c.kafkaParams, c.globalParams, c.topic, c.key, value, c.serializeProto, c.count)
 }
 
 func (c *proto) serializeProto(value string) (result []byte, err error) {

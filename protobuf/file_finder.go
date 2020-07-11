@@ -1,19 +1,23 @@
 package protobuf
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/mitchellh/go-homedir"
+
+	"github.com/xitonix/trubka/internal"
 )
 
 type fileFinder struct {
-	root string
+	root      string
+	verbosity internal.VerbosityLevel
 }
 
-func newFileFinder(root string) (*fileFinder, error) {
+func newFileFinder(verbosity internal.VerbosityLevel, root string) (*fileFinder, error) {
 	if strings.HasPrefix(root, "~") {
 		expanded, err := homedir.Expand(root)
 		if err != nil {
@@ -29,20 +33,36 @@ func newFileFinder(root string) (*fileFinder, error) {
 		return nil, fmt.Errorf("%s is not a directory", root)
 	}
 	return &fileFinder{
-		root: root,
+		root:      root,
+		verbosity: verbosity,
 	}, nil
 }
 
-func (f *fileFinder) ls() ([]string, error) {
+func (f *fileFinder) ls(ctx context.Context) ([]string, error) {
 	var files []string
-	err := filepath.Walk(f.root, func(path string, f os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	if f.verbosity >= internal.Verbose {
+		fmt.Printf("Looking for proto contracts in %s\n", f.root)
+	}
+	err := filepath.Walk(f.root, func(path string, fileInfo os.FileInfo, err error) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			if err != nil {
+				return err
+			}
+			isDir := fileInfo.IsDir()
+			if f.verbosity >= internal.VeryVerbose && isDir {
+				fmt.Printf("Loading %s\n", path)
+			}
+			if !isDir && strings.HasSuffix(strings.ToLower(fileInfo.Name()), ".proto") {
+				if f.verbosity >= internal.SuperVerbose {
+					fmt.Printf("Proto file loaded %s\n", path)
+				}
+				files = append(files, path)
+			}
+			return nil
 		}
-		if !f.IsDir() && strings.HasSuffix(strings.ToLower(f.Name()), ".proto") {
-			files = append(files, path)
-		}
-		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -50,16 +70,24 @@ func (f *fileFinder) ls() ([]string, error) {
 	return files, nil
 }
 
-func (f *fileFinder) dirs() ([]string, error) {
+func (f *fileFinder) dirs(ctx context.Context) ([]string, error) {
 	var dirs []string
-	err := filepath.Walk(f.root, func(path string, f os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	err := filepath.Walk(f.root, func(path string, fileInfo os.FileInfo, err error) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			if err != nil {
+				return err
+			}
+			if fileInfo.IsDir() {
+				if f.verbosity >= internal.SuperVerbose {
+					fmt.Printf("Import path detected %s\n", path)
+				}
+				dirs = append(dirs, path)
+			}
+			return nil
 		}
-		if f.IsDir() {
-			dirs = append(dirs, path)
-		}
-		return nil
 	})
 	if err != nil {
 		return nil, err

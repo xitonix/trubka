@@ -1,5 +1,17 @@
 ## Release Notes
 
+### v3.1.2
+
+**[New Features]**
+- Loading proto files from disk now supports different logging verbosity levels. 
+
+**[Changes]**
+
+
+**[Fixes]**
+- Loading proto files from disk respects termination signals received from the OS (Ctrl + C).
+ 
+---
 ### v3.1.1
 
 **[New Features]**

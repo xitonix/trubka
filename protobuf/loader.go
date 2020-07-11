@@ -1,24 +1,23 @@
 package protobuf
 
 import (
+	"context"
 	"fmt"
-	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
+
+	"github.com/xitonix/trubka/internal"
 )
 
 // Loader the interface to load and list the protocol buffer message types.
 type Loader interface {
-	Load(messageName string) error
+	Load(ctx context.Context, messageName string) error
 	Get(messageName string) (*dynamic.Message, error)
 	List(filter *regexp.Regexp) ([]string, error)
 }
-
-const protoExtension = ".proto"
 
 // FileLoader is an implementation of Loader interface to load the proto files from the disk.
 type FileLoader struct {
@@ -28,31 +27,19 @@ type FileLoader struct {
 	root    string
 }
 
-// NewFileLoader creates a new instance of local file loader.
-func NewFileLoader(root string, files ...string) (*FileLoader, error) {
-	finder, err := newFileFinder(root)
+// LoadFiles creates a new instance of local file loader.
+func LoadFiles(ctx context.Context, verbosity internal.VerbosityLevel, root string) (*FileLoader, error) {
+	finder, err := newFileFinder(verbosity, root)
 	if err != nil {
 		return nil, err
 	}
 
-	// We will load all the proto files
-	if len(files) == 0 {
-		files, err = finder.ls()
-		if err != nil {
-			return nil, fmt.Errorf("failed to load the proto files: %w", err)
-		}
-	} else {
-		for i, f := range files {
-			if !strings.HasSuffix(strings.ToLower(f), protoExtension) {
-				f += protoExtension
-			}
-			if !filepath.IsAbs(f) {
-				files[i] = filepath.Join(root, f)
-			}
-		}
+	files, err := finder.ls(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load the proto files: %w", err)
 	}
 
-	importPaths, err := finder.dirs()
+	importPaths, err := finder.dirs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load the import paths: %w", err)
 	}
@@ -94,16 +81,21 @@ func NewFileLoader(root string, files ...string) (*FileLoader, error) {
 // The method will return an error if the specified message type does not exist in the path.
 //
 // Calling load is not thread safe.
-func (f *FileLoader) Load(messageName string) error {
+func (f *FileLoader) Load(ctx context.Context, messageName string) error {
 	_, ok := f.cache[messageName]
 	if ok {
 		return nil
 	}
 	for _, fd := range f.files {
-		md := fd.FindMessage(messageName)
-		if md != nil {
-			f.cache[messageName] = md
-			return nil
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			md := fd.FindMessage(messageName)
+			if md != nil {
+				f.cache[messageName] = md
+				return nil
+			}
 		}
 	}
 	return fmt.Errorf("%s has not been found in %s", messageName, f.root)

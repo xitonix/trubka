@@ -133,7 +133,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	loader, err := protobuf.NewFileLoader(c.protoRoot)
+	loader, err := protobuf.LoadFiles(ctx, c.globalParams.Verbosity, c.protoRoot)
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	}
 
 	for _, messageType := range tm {
-		err := loader.Load(messageType)
+		err := loader.Load(ctx, messageType)
 		if err != nil {
 			if implicitContract && !interactive {
 				msg := "Most likely the message type is not exactly the same as the topic name."

@@ -32,7 +32,6 @@ func (p *Producer) Produce(topic string, key, value []byte) (int32, int64, error
 		Topic: topic,
 		Key:   sarama.ByteEncoder(key),
 		Value: sarama.ByteEncoder(value)}
-
 	return p.producer.SendMessage(message)
 }
 
