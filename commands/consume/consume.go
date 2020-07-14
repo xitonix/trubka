@@ -28,23 +28,33 @@ func AddCommands(app *kingpin.Application, global *commands.GlobalParameters, ka
 }
 
 func bindCommonConsumeFlags(command *kingpin.CmdClause,
-	topic, environment, outputDir, logFile, from *string,
-	includeTimestamp, includeKey, includeTopicName, enableAutoTopicCreation, reverse, interactive, interactiveWithCustomOffset, count *bool,
+	topic, environment, outputDir, logFile *string,
+	from, to *[]string,
+	inclusions *internal.MessageMetadata,
+	enableAutoTopicCreation, reverse, interactive, interactiveWithCustomOffset, count *bool,
 	searchQuery, topicFilter **regexp.Regexp, highlightStyle *string) {
 
 	command.Arg("topic", "The Kafka topic to consume from.").StringVar(topic)
 
-	command.Flag("include-timestamp", "Prints the message timestamp before the content if it's been provided by Kafka.").
-		Short('S').
-		BoolVar(includeTimestamp)
+	command.Flag("include-partition", "Prints the partition to which the message belongs.").
+		Short('P').
+		BoolVar(&inclusions.Partition)
 
-	command.Flag("include-partition-key", "Prints the partition key before the content.").
+	command.Flag("include-partition-key", "Prints the partition key of each message.").
 		Short('K').
-		BoolVar(includeKey)
+		BoolVar(&inclusions.Key)
 
-	command.Flag("include-topic-name", "Prints the topic name before the content.").
+	command.Flag("include-topic-name", "Prints the topic name from which the message was consumed.").
 		Short('T').
-		BoolVar(includeTopicName)
+		BoolVar(&inclusions.Topic)
+
+	command.Flag("include-offset", "Prints the partition offset.").
+		Short('O').
+		BoolVar(&inclusions.Offset)
+
+	command.Flag("include-timestamp", "Prints the message timestamp if it has been provided by Kafka.").
+		Short('S').
+		BoolVar(&inclusions.Timestamp)
 
 	command.Flag("auto-topic-creation", `Enables automatic topic creation before consuming if it's allowed by the server.`).
 		BoolVar(enableAutoTopicCreation)
@@ -85,11 +95,17 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 		Short('c').
 		BoolVar(count)
 
-	pastHour := time.Now().UTC().Add(-1 * time.Hour).Format("02-01-2006T15:04:05.999999999")
-	command.Flag("from", `The offset to start consuming from. Available options are newest (default), oldest, local, time (the most recent available offset at the given time) or a string of comma separated Partition:Offset pairs ("10:150, :0")`).
+	now := time.Now()
+	pastHour := internal.FormatTimeForMachine(now.Add(-1 * time.Hour))
+	command.Flag("from", `The offset to start consuming from. Available options are newest (default), oldest, local, time (the most recent available offset at the given time) or explicit Partition:Offset pairs ("10:150, :0")`).
 		Default("newest").
 		HintOptions("newest", "oldest", pastHour, "0:10,1:20,:0").
-		StringVar(from)
+		StringsVar(from)
+
+	nextHour := internal.FormatTimeForMachine(now.Add(1 * time.Hour))
+	command.Flag("to", `The offset where trubka must stop consuming. Available options are time or explicit Partition:Offset pairs ("10:150, :200")`).
+		HintOptions(nextHour, "0:100,1:200,:300").
+		StringsVar(to)
 
 	command.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --encode-to=%s only. Set to 'none' to disable.", internal.JsonIndentEncoding)).
 		Default(internal.DefaultHighlightStyle).

@@ -111,10 +111,8 @@ func bindSASLFlags(app *kingpin.Application, params *commands.KafkaParameters) {
 			kafka.SASLMechanismSCRAM256,
 			kafka.SASLMechanismSCRAM512)
 	app.Flag("sasl-username", "SASL authentication username. Will be ignored if --sasl-mechanism is set to none.").
-		Short('U').
 		StringVar(&params.SASLUsername)
 	app.Flag("sasl-password", "SASL authentication password. Will be ignored if --sasl-mechanism is set to none.").
-		Short('P').
 		StringVar(&params.SASLPassword)
 	app.Flag("sasl-version", "SASL handshake version. Will be ignored if --sasl-mechanism is set to none.").
 		Default(string(kafka.SASLHandshakeV1)).

@@ -114,7 +114,6 @@ func (c *Consumer) Start(ctx context.Context, topics map[string]*PartitionCheckp
 		return err
 	}
 	c.store.start(topicPartitionOffsets)
-	defer c.store.close()
 
 	c.consumeTopics(ctx, topicPartitionOffsets)
 	return nil
@@ -126,6 +125,13 @@ func (c *Consumer) StoreOffset(event *Event) {
 	if err != nil {
 		c.printer.Errorf(internal.Forced, "Failed to store the offset: %s.", err)
 	}
+}
+
+// CloseOffsetStore closes the underlying offset store.
+//
+// Make sure you call this function once you processed all the messages.
+func (c *Consumer) CloseOffsetStore() {
+	c.store.close()
 }
 
 // Close closes the Kafka consumer.
@@ -148,8 +154,8 @@ func (c *Consumer) Close() {
 }
 
 func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets TopicPartitionOffset) {
-	cn, cancel := context.WithCancel(ctx)
-	defer cancel()
+	parentCtx, cancelAllPartitionConsumers := context.WithCancel(ctx)
+	defer cancelAllPartitionConsumers()
 	var cancelled bool
 	for topic, partitionOffsets := range topicPartitionOffsets {
 		t := topic
@@ -168,20 +174,19 @@ func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets Topi
 					break
 				}
 				select {
-				case <-cn.Done():
+				case <-parentCtx.Done():
 					cancelled = true
 					break
 				default:
 					c.wg.Add(1)
 					go func() {
-						err := c.consumePartition(cn, t, p, o)
+						err := c.consumePartition(parentCtx, t, p, o)
 						if err != nil {
 							c.printer.Errorf(internal.Forced, "Failed to start consuming from %v offset of topic %s, partition %d: %s", getOffsetString(offset.Current), t, p, err)
-							cancel()
+							cancelAllPartitionConsumers()
 							cancelled = true
 						}
 					}()
-
 				}
 			}
 		}
@@ -190,60 +195,83 @@ func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets Topi
 	c.Close()
 }
 
-func (c *Consumer) consumePartition(ctx context.Context, topic string, partition int32, offset Offset) error {
+// func (c *Consumer) consumePartition(ctx context.Context, topic string, partition int32, startOffset Offset, stopCheckpoint *Checkpoint) error {
+func (c *Consumer) consumePartition(ctx context.Context, topic string, partition int32, startOffset Offset) error {
 	defer c.wg.Done()
-	select {
-	case <-ctx.Done():
-		return nil
-	default:
-		pc, err := c.internalConsumer.ConsumePartition(topic, partition, offset.Current)
+	c.printer.Logf(internal.SuperVerbose, "Consuming from %v offset of partition %d of topic %s", getOffsetString(startOffset.Current), partition, topic)
+	pc, err := c.internalConsumer.ConsumePartition(topic, partition, startOffset.Current)
+	if err != nil {
+		return err
+	}
+
+	shutdown := func() error {
+		c.printer.Logf(internal.VeryVerbose, "Closing %s consumer of partition %d", topic, partition)
+		err := pc.Close()
 		if err != nil {
-			return fmt.Errorf("failed to start consuming partition %d of topic %s: %w", partition, topic, err)
+			return fmt.Errorf("failed to close %s consumer of partition %d: %s", topic, partition, err)
 		}
-
-		c.wg.Add(1)
-		go func(pc sarama.PartitionConsumer) {
-			defer func() {
-				pc.AsyncClose()
-				c.wg.Done()
-			}()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case m, more := <-pc.Messages():
-					if !more {
-						return
-					}
-					c.events <- &Event{
-						Topic:     m.Topic,
-						Key:       m.Key,
-						Value:     m.Value,
-						Timestamp: m.Timestamp,
-						Partition: m.Partition,
-						Offset:    m.Offset,
-					}
-				}
-			}
-		}(pc)
-
-		c.wg.Add(1)
-		go func(pc sarama.PartitionConsumer) {
-			defer c.wg.Done()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case err, more := <-pc.Errors():
-					if !more {
-						return
-					}
-					c.printer.Errorf(internal.Forced, "Failed to consume message: %s.", err)
-				}
-			}
-		}(pc)
-
 		return nil
+	}
+
+	//var anyReceived bool
+
+	//mustStop := func(m *sarama.ConsumerMessage) bool {
+	//	if stopCheckpoint == nil {
+	//		return false
+	//	}
+	//	if !anyReceived {
+	//		// Nothing has been consumed from this partition.
+	//		// We need to stop to allow other consumers to proceed.
+	//		return true
+	//	}
+	//	if stopCheckpoint.isTimeBased {
+	//		return m.Timestamp.After(stopCheckpoint.at)
+	//	}
+	//	return m.Offset > stopCheckpoint.offset
+	//}
+
+	//tick := time.NewTicker(2 * time.Second)
+	//defer tick.Stop()
+
+	for {
+		select {
+		//case <-tick.C:
+		//	if mustStop(nil) {
+		//		return shutdown()
+		//	}
+		case <-ctx.Done():
+			return shutdown()
+		case m, more := <-pc.Messages():
+			if !more {
+				return nil
+			}
+
+			//anyReceived = true
+			//
+			//if mustStop(m) {
+			//	c.printer.Logf(
+			//		internal.VeryVerbose,
+			//		"%s consumer of partition %d reached the stop checkpoint: %s",
+			//		topic,
+			//		partition,
+			//		stopCheckpoint.OffsetString())
+			//	return shutdown()
+			//}
+
+			c.events <- &Event{
+				Topic:     m.Topic,
+				Key:       m.Key,
+				Value:     m.Value,
+				Timestamp: m.Timestamp,
+				Partition: m.Partition,
+				Offset:    m.Offset,
+			}
+		case err, more := <-pc.Errors():
+			if !more {
+				return nil
+			}
+			c.printer.Errorf(internal.Forced, "Failed to consume message: %s.", err)
+		}
 	}
 }
 
@@ -263,7 +291,6 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*PartitionCheckpoints)
 
 	topicPartitionOffsets := make(TopicPartitionOffset)
 
-	localOffsetManager := NewLocalOffsetManager(c.printer.Level())
 	for topic, checkpoints := range topics {
 		if !c.enableAutoTopicCreation {
 			if _, ok := existing[topic]; !ok {
@@ -273,6 +300,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*PartitionCheckpoints)
 		c.printer.Logf(internal.SuperVerbose, "Fetching partitions for topic %s.", topic)
 		offsets := make(PartitionOffset)
 		if checkpoints.mode == LocalOffsetMode {
+			localOffsetManager := NewLocalOffsetManager(c.printer.Level())
 			localOffsets, err := localOffsetManager.ReadLocalTopicOffsets(topic, c.environment)
 			if err != nil {
 				return nil, err
@@ -290,16 +318,16 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*PartitionCheckpoints)
 				offset int64
 				err    error
 			)
+			startFrom := checkpoints.get(partition).From
 			switch checkpoints.mode {
+			case PredefinedOffsetMode:
+				offset = startFrom.offset
 			case ExplicitOffsetMode:
-				offset, err = c.getExplicitOffset(topic, partition, checkpoints)
-			case MillisecondsOffsetMode:
-				offset, err = c.getTimeBasedOffset(topic, partition, checkpoints)
+				offset, err = c.getExplicitOffset(topic, partition, startFrom)
 			case LocalOffsetMode:
-				offset, err = c.getLocalOffset(topic, partition, checkpoints, offsets)
+				offset, err = c.getLocalOffset(topic, partition, offsets, startFrom)
 			default:
-				cp := checkpoints.GetDefault()
-				offset = cp.offset
+				offset = startFrom.offset
 			}
 			if err != nil {
 				// It only happens in explicit mode.
@@ -309,11 +337,6 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*PartitionCheckpoints)
 				}
 				return nil, err
 			}
-			c.printer.Logf(internal.SuperVerbose,
-				"Consuming from offset %v of partition %d from topic %s.",
-				getOffsetString(offset),
-				partition,
-				topic)
 			offsets[partition] = Offset{Current: offset}
 		}
 		topicPartitionOffsets[topic] = offsets
@@ -321,7 +344,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*PartitionCheckpoints)
 	return topicPartitionOffsets, nil
 }
 
-func (c *Consumer) getLocalOffset(topic string, partition int32, checkpoints *PartitionCheckpoints, offsets PartitionOffset) (int64, error) {
+func (c *Consumer) getLocalOffset(topic string, partition int32, offsets PartitionOffset, startFrom *Checkpoint) (int64, error) {
 	c.printer.Logf(internal.SuperVerbose,
 		"Checking the local offset store for partition %d of topic %s in %s environment",
 		partition,
@@ -342,18 +365,16 @@ func (c *Consumer) getLocalOffset(topic string, partition int32, checkpoints *Pa
 		partition,
 		topic)
 
-	cp := checkpoints.GetDefault()
-	return cp.offset, nil
+	return startFrom.offset, nil
 }
 
-func (c *Consumer) getTimeBasedOffset(topic string, partition int32, checkpoints *PartitionCheckpoints) (int64, error) {
-	cp := checkpoints.GetDefault()
+func (c *Consumer) getTimeBasedOffset(topic string, partition int32, startFrom *Checkpoint) (int64, error) {
 	c.printer.Logf(internal.SuperVerbose,
 		"Reading the most recent offset value for partition %d of topic %s at %s from the server",
 		partition,
 		topic,
-		cp.OffsetString())
-	offset, err := c.internalClient.GetOffset(topic, partition, cp.offset)
+		startFrom.OffsetString())
+	offset, err := c.internalClient.GetOffset(topic, partition, startFrom.offset)
 	if err != nil {
 		return unknownOffset, fmt.Errorf("failed to retrieve the time-based offset for partition %d of topic %s: %w", partition, topic, err)
 	}
@@ -361,18 +382,14 @@ func (c *Consumer) getTimeBasedOffset(topic string, partition int32, checkpoints
 		"The most recent available offset of partition %d of topic %s at %v is %v",
 		partition,
 		topic,
-		internal.FormatTimeUTC(cp.at),
+		internal.FormatTimeForHuman(startFrom.at),
 		getOffsetString(offset))
 	return offset, nil
 }
 
-func (c *Consumer) getExplicitOffset(topic string, partition int32, checkpoints *PartitionCheckpoints) (int64, error) {
-	cp, found := checkpoints.Get(partition)
-	if !found {
-		// No need to start consuming the partition because it was not
-		// explicitly asked by the user
-		c.printer.Logf(internal.SuperVerbose, "Partition %d of topic %s has been ignored as per user request", partition, topic)
-		return offsetNotFound, errOffsetNotFound
+func (c *Consumer) getExplicitOffset(topic string, partition int32, startFrom *Checkpoint) (int64, error) {
+	if startFrom.isTimeBased {
+		return c.getTimeBasedOffset(topic, partition, startFrom)
 	}
 	c.printer.Logf(internal.SuperVerbose, "Reading the most recent offset of partition %d for topic %s from the server", partition, topic)
 	mostRecentOffset, err := c.internalClient.GetOffset(topic, partition, sarama.OffsetNewest)
@@ -384,9 +401,9 @@ func (c *Consumer) getExplicitOffset(topic string, partition int32, checkpoints 
 		partition,
 		topic,
 		getOffsetString(mostRecentOffset),
-		cp.OffsetString())
+		startFrom.OffsetString())
 
-	return int64(math.Min(float64(cp.offset), float64(mostRecentOffset))), nil
+	return int64(math.Min(float64(startFrom.offset), float64(mostRecentOffset))), nil
 }
 
 func getOffsetString(offset int64) interface{} {

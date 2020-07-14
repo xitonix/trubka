@@ -3,10 +3,13 @@
 ### v3.1.2
 
 **[New Features]**
-- Loading proto files from disk now supports different logging verbosity levels. 
+- The process of loading proto files from disk respects logging verbosity levels.
+- The offset of the consumed message can be optionally included in the output.
 
 **[Changes]**
-
+ - `-U` (for SASL username) and `-P` (for SASL password) short flags have been removed.
+ - `Partition` and `Key` metadata will be printed to the output as separate lines for non-json formats.
+ - `UTC` suffix has been removed from time strings. 
 
 **[Fixes]**
 - Loading proto files from disk respects termination signals received from the OS (Ctrl + C).

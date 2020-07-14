@@ -35,12 +35,11 @@ type consumeProto struct {
 	interactive             bool
 	interactiveWithOffset   bool
 	reverse                 bool
-	includeTimestamp        bool
-	includeKey              bool
-	includeTopicName        bool
+	inclusions              *internal.MessageMetadata
 	enableAutoTopicCreation bool
 	count                   bool
-	from                    string
+	from                    []string
+	to                      []string
 	highlightStyle          string
 }
 
@@ -48,6 +47,7 @@ func addConsumeProtoCommand(parent *kingpin.CmdClause, global *commands.GlobalPa
 	cmd := &consumeProto{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
+		inclusions:   &internal.MessageMetadata{},
 	}
 	c := parent.Command("proto", "Starts consuming protobuf encoded events from the given Kafka topic.").Action(cmd.run)
 	bindCommonConsumeFlags(c,
@@ -56,9 +56,8 @@ func addConsumeProtoCommand(parent *kingpin.CmdClause, global *commands.GlobalPa
 		&cmd.outputDir,
 		&cmd.logFile,
 		&cmd.from,
-		&cmd.includeTimestamp,
-		&cmd.includeKey,
-		&cmd.includeTopicName,
+		&cmd.to,
+		cmd.inclusions,
 		&cmd.enableAutoTopicCreation,
 		&cmd.reverse,
 		&cmd.interactive,
@@ -87,7 +86,6 @@ func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
 		Default(internal.JsonIndentEncoding).
 		Short('f').
 		EnumVar(&c.encodeTo,
-			internal.PlainTextEncoding,
 			internal.JsonEncoding,
 			internal.JsonIndentEncoding,
 			internal.Base64Encoding,
@@ -128,7 +126,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	go monitorCancellation(prn, cancel)
 
 	tm := make(map[string]string)
-	checkpoints, err := kafka.NewPartitionCheckpoints(c.from)
+	checkpoints, err := kafka.NewPartitionCheckpoints(c.from, c.to)
 	if err != nil {
 		return err
 	}
@@ -180,10 +178,10 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		go func() {
 			defer wg.Done()
 
+			c.inclusions.Topic = c.inclusions.Topic && !writeEventsToFile
+			c.inclusions.SetIndentation()
 			marshaller := protobuf.NewMarshaller(c.encodeTo,
-				c.includeTimestamp,
-				c.includeTopicName && !writeEventsToFile,
-				c.includeKey,
+				c.inclusions,
 				c.globalParams.EnableColor && !writeEventsToFile,
 				c.highlightStyle)
 
@@ -197,12 +195,8 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 					}
 				case event, more := <-consumer.Events():
 					if !more {
+						consumer.CloseOffsetStore()
 						return
-					}
-					if cancelled {
-						// We keep consuming and let the Events channel to drain
-						// Otherwise the consumer will deadlock
-						continue
 					}
 
 					output, err := c.process(tm[event.Topic], loader, event, marshaller, c.globalParams.EnableColor && !writeEventsToFile)
@@ -280,7 +274,7 @@ func (c *consumeProto) process(messageType string,
 		return nil, err
 	}
 
-	output, err := marshaller.Marshal(msg, event.Key, event.Timestamp, event.Topic, event.Partition)
+	output, err := marshaller.Marshal(msg, event.Key, event.Timestamp, event.Topic, event.Partition, event.Offset)
 	if err != nil {
 		return nil, err
 	}

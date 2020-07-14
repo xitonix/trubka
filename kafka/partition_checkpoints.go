@@ -1,29 +1,26 @@
 package kafka
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
-	"github.com/Shopify/sarama"
-
-	"github.com/xitonix/trubka/internal"
+	"github.com/araddon/dateparse"
 )
 
 const (
-	allPartitions int32 = -1
+	allPartitions    int32 = -1
+	invalidPartition int32 = -2
 )
 
 // OffsetMode represents the offset mode for a checkpoint.
 type OffsetMode int8
 
 const (
-	// UndefinedOffsetMode the user has not requested for any specific offset.
+	// UndefinedOffsetMode parsing an explicit offset value has failed.
 	UndefinedOffsetMode OffsetMode = iota
-	// MillisecondsOffsetMode the closet available offset at a given time will be fetched from the server
-	// before the consumer starts pulling messages from Kafka.
-	MillisecondsOffsetMode
+	// PredefinedOffsetMode the user picked one of the predefined Sarama values (eg. newest, oldest etc)
+	PredefinedOffsetMode
 	// ExplicitOffsetMode the user has explicitly asked for a specific offset.
 	ExplicitOffsetMode
 	// LocalOffsetMode the offset needs to be read from the local offset store.
@@ -35,158 +32,152 @@ const (
 // If no partition offset has been explicitly asked by the user, the time-based or newest/oldest offset
 // will be stored as the only value in the map under `allPartitions` key.
 type PartitionCheckpoints struct {
-	mode                     OffsetMode
-	partitionCheckpoints     map[int32]*Checkpoint
-	applyExplicitOffsetToAll bool
-	from                     string
+	mode                 OffsetMode
+	partitionCheckpoints map[int32]*CheckpointPair
+	from                 string
+	to                   string
 }
 
 // NewPartitionCheckpoints creates a new instance of partition checkpoints.
-func NewPartitionCheckpoints(from string) (cp *PartitionCheckpoints, err error) {
-	from = strings.TrimSpace(from)
-	if from == "" {
-		return nil, errors.New("the from offset cannot be empty")
-	}
+func NewPartitionCheckpoints(from, to []string) (*PartitionCheckpoints, error) {
+	var (
+		err         error
+		mode        = PredefinedOffsetMode
+		checkpoints = map[int32]*CheckpointPair{
+			allPartitions: {
+				From: newCheckpoint(false),
+			},
+		}
+	)
 
-	switch strings.ToLower(from) {
-	case "local", "stored":
-		cp = newPartitionCheckpoint(LocalOffsetMode, false)
-	case "newest", "latest", "end":
-		cp = newPartitionCheckpoint(UndefinedOffsetMode, false)
-	case "oldest", "earliest", "beginning", "start":
-		cp = newPartitionCheckpoint(UndefinedOffsetMode, true)
-	default:
-		cp, err = parseExplicitOffsets(from)
-	}
-	if cp != nil {
-		cp.from = from
-	}
-	return
-}
-
-func newPartitionCheckpoint(mode OffsetMode, rewind bool) *PartitionCheckpoints {
-	return &PartitionCheckpoints{
-		mode: mode,
-		partitionCheckpoints: map[int32]*Checkpoint{
-			allPartitions: newCheckpoint(rewind),
-		}}
-}
-
-func parseExplicitOffsets(from string) (*PartitionCheckpoints, error) {
-	from = strings.ToUpper(from)
-	t, err := internal.ParseTime(from)
-	if err == nil {
-		return &PartitionCheckpoints{
-			mode: MillisecondsOffsetMode,
-			partitionCheckpoints: map[int32]*Checkpoint{
-				allPartitions: newTimeCheckpoint(t),
-			}}, nil
-	}
-
-	parts := strings.Split(from, ",")
-	checkpoints := newPartitionCheckpoint(UndefinedOffsetMode, false)
-	for _, pcp := range parts {
-		if err := checkpoints.add(pcp); err != nil {
+	for _, raw := range from {
+		mode, err = parseFrom(raw, checkpoints)
+		if err != nil {
 			return nil, err
 		}
 	}
 
-	return checkpoints, nil
-}
-
-func (p *PartitionCheckpoints) add(pcp string) error {
-	parts := strings.Split(pcp, ":")
-	if len(parts) != 2 {
-		return errors.New(`invalid partition offset string. Available options are newest, oldest, local, time (eg. 25-01-2020T15:04:05) or a string of comma separated Partition:Offset pairs (eg. "10:150, :0"")`)
-	}
-	partitionStr := strings.TrimSpace(parts[0])
-	offsetStr := strings.TrimSpace(parts[1])
-	partition := allPartitions
-	if partitionStr != "" {
-		p, err := strconv.ParseInt(partitionStr, 10, 32)
+	for _, raw := range to {
+		err = parseTo(raw, checkpoints)
 		if err != nil {
-			return fmt.Errorf("invalid partition value: %w", err)
+			return nil, err
 		}
-		if p < 0 {
-			return fmt.Errorf("%d is not a valid partition value. Partition must be greater than zero", p)
-		}
-		partition = int32(p)
-	} else {
-		// ":N" parameter has been provided. We need to apply the last winner offset (N)
-		// value to all the partitions which is not explicitly requested.
-		p.applyExplicitOffsetToAll = true
 	}
 
-	offset := sarama.OffsetNewest
-	if offsetStr != "" {
-		o, err := strconv.ParseInt(offsetStr, 10, 64)
-		if err != nil {
-			return fmt.Errorf("invalid offset value: %w", err)
+	for _, cp := range checkpoints {
+		if cp.From.after(cp.To) {
+			return nil, fmt.Errorf("start offset '%v' must be before stop offset '%v'", cp.From.OffsetString(), cp.To.OffsetString())
 		}
-		if o < 0 {
-			return fmt.Errorf("offset cannot be a negative value")
-		}
-		offset = o
 	}
 
-	p.mode = ExplicitOffsetMode
-	p.partitionCheckpoints[partition] = newOffsetCheckpoint(offset)
-
-	return nil
+	return &PartitionCheckpoints{
+		mode:                 mode,
+		partitionCheckpoints: checkpoints,
+		from:                 strings.Join(from, ","),
+		to:                   strings.Join(to, ","),
+	}, nil
 }
 
-// GetDefault returns the default checkpoint applicable to all the partitions.
-//
-// This checkpoint must ONLY be used when no partition offset has been explicitly requested by the user.
-func (p *PartitionCheckpoints) GetDefault() *Checkpoint {
-	if p == nil {
-		return nil
-	}
-	return p.partitionCheckpoints[allPartitions]
-}
-
-// OriginalFromValue returns the raw From value from which the checkpoint has been parsed.
-func (p *PartitionCheckpoints) OriginalFromValue() string {
-	if p == nil {
-		return ""
-	}
-	return p.from
-}
-
-// GetExplicitOffsets returns the string representation of all the explicitly requested partition offsets.
-func (p *PartitionCheckpoints) GetExplicitOffsets() string {
-	if p == nil || p.mode != ExplicitOffsetMode {
-		return ""
-	}
-	offsets := make([]string, 0)
-	for partition, cp := range p.partitionCheckpoints {
-		if partition == allPartitions {
-			if p.applyExplicitOffsetToAll {
-				offsets = append(offsets, fmt.Sprintf(":%s", cp.OffsetString()))
-			}
-		} else {
-			offsets = append(offsets, fmt.Sprintf("%d:%s", partition, cp.OffsetString()))
-		}
-	}
-	return "[" + strings.Join(offsets, ",") + "]"
-}
-
-// Get returns the offset explicitly asked by the user.
+// get returns the offset explicitly asked by the user.
 //
 // If the partition offset is not found in the list of explicitly requested offsets, this method
 // will return true if the offset needs to be applied to all the other partitions (this is to cover --from-offset :Offset)
-func (p *PartitionCheckpoints) Get(partition int32) (*Checkpoint, bool) {
-	if cp, ok := p.partitionCheckpoints[partition]; ok {
-		return cp, ok
+func (p *PartitionCheckpoints) get(partition int32) *CheckpointPair {
+	if pair, ok := p.partitionCheckpoints[partition]; ok {
+		return pair
 	}
 
-	return p.partitionCheckpoints[allPartitions], p.applyExplicitOffsetToAll
+	return p.partitionCheckpoints[allPartitions]
 }
 
-// Mode returns the current check-pointing mode.
-func (p *PartitionCheckpoints) Mode() OffsetMode {
-	if p == nil {
-		return UndefinedOffsetMode
+func parseTo(raw string, checkpoints map[int32]*CheckpointPair) error {
+	cp, partition, err := parseExplicit(raw)
+	if err != nil {
+		return err
 	}
-	return p.mode
+	if pair, ok := checkpoints[partition]; ok {
+		pair.To = cp
+		return nil
+	}
+	checkpoints[partition] = &CheckpointPair{
+		From: newCheckpoint(true),
+		To:   cp,
+	}
+	return nil
+}
+
+func parseFrom(raw string, checkpoints map[int32]*CheckpointPair) (OffsetMode, error) {
+	var mode OffsetMode
+	switch strings.ToLower(raw) {
+	case "local", "stored":
+		mode = LocalOffsetMode
+		checkpoints[allPartitions] = &CheckpointPair{
+			From: newCheckpoint(false),
+		}
+	case "newest", "latest", "end":
+		mode = PredefinedOffsetMode
+		checkpoints[allPartitions] = &CheckpointPair{
+			From: newCheckpoint(false),
+		}
+	case "oldest", "earliest", "beginning", "start":
+		mode = PredefinedOffsetMode
+		checkpoints[allPartitions] = &CheckpointPair{
+			From: newCheckpoint(true),
+		}
+	default:
+		cp, partition, err := parseExplicit(raw)
+		if err != nil {
+			return UndefinedOffsetMode, err
+		}
+		mode = ExplicitOffsetMode
+		checkpoints[partition] = &CheckpointPair{
+			From: cp,
+		}
+	}
+	return mode, nil
+}
+
+func parseExplicit(raw string) (*Checkpoint, int32, error) {
+	t, err := dateparse.ParseAny(raw)
+	if err == nil {
+		return newTimeCheckpoint(t), allPartitions, nil
+	}
+
+	parts := strings.Split(raw, ":")
+	if len(parts) != 2 {
+		return nil, invalidPartition, fmt.Errorf("invalid partition offset string: %s", raw)
+	}
+
+	offsetStr := strings.TrimSpace(parts[1])
+
+	offset, err := parseInt(offsetStr, "offset")
+	if err != nil {
+		return nil, invalidPartition, nil
+	}
+
+	cp := newOffsetCheckpoint(offset)
+
+	partitionStr := strings.TrimSpace(parts[0])
+	if partitionStr != "" {
+		partition, err := parseInt(partitionStr, "partition")
+		if err != nil {
+			return nil, invalidPartition, nil
+		}
+		return cp, int32(partition), nil
+	}
+
+	// ":N" parameter has been provided. We need to apply the last winner offset (N)
+	// value to all the partitions which is not explicitly requested.
+	return cp, allPartitions, nil
+}
+
+func parseInt(value string, entity string) (int64, error) {
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s value: %w", entity, err)
+	}
+	if parsed < 0 {
+		return 0, fmt.Errorf("%s cannot be a negative value", entity)
+	}
+	return parsed, nil
 }

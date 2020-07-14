@@ -12,8 +12,6 @@ import (
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
-	"github.com/xitonix/trubka/internal/output"
-	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 	"github.com/xitonix/trubka/protobuf"
 )
@@ -250,54 +248,55 @@ func parseIndex(input, entryName string, length int) (int, error) {
 }
 
 func askForStartingOffset(topic string, defaultCP *kafka.PartitionCheckpoints) (cp *kafka.PartitionCheckpoints, err error) {
-	var cancelled bool
-	go func() {
-		internal.WaitForCancellationSignal()
-		cancelled = true
-	}()
-	defer func() {
-		if cancelled {
-			cp = nil
-			err = errExitInteractiveMode
-		}
-	}()
-	scanner := bufio.NewScanner(os.Stdin)
-	msg := fmt.Sprintf("Enter the starting offset for %s topic. Press Enter to go with '%s' (Q to quit): ", topic, defaultCP.OriginalFromValue())
-	for fmt.Print(msg); scanner.Scan(); fmt.Print(msg) {
-		trimmed := strings.TrimSpace(scanner.Text())
-		if len(trimmed) == 0 {
-			return defaultCP, nil
-		}
-		if askedToExit(trimmed) {
-			return nil, errExitInteractiveMode
-		}
-		cp, err := kafka.NewPartitionCheckpoints(trimmed)
-		if err != nil {
-			fmt.Printf("%s\n", internal.Title(err))
-			continue
-		}
-		return cp, nil
-	}
+	//var cancelled bool
+	//go func() {
+	//	internal.WaitForCancellationSignal()
+	//	cancelled = true
+	//}()
+	//defer func() {
+	//	if cancelled {
+	//		cp = nil
+	//		err = errExitInteractiveMode
+	//	}
+	//}()
+	//scanner := bufio.NewScanner(os.Stdin)
+	//msg := fmt.Sprintf("Enter the starting offset for %s topic. Press Enter to go with '%s' (Q to quit): ", topic, defaultCP.OriginalFromValue())
+	//for fmt.Print(msg); scanner.Scan(); fmt.Print(msg) {
+	//	trimmed := strings.TrimSpace(scanner.Text())
+	//	if len(trimmed) == 0 {
+	//		return defaultCP, nil
+	//	}
+	//	if askedToExit(trimmed) {
+	//		return nil, errExitInteractiveMode
+	//	}
+	//	//TODO: Fix me
+	//	cp, err := kafka.NewPartitionCheckpoints([]string{trimmed}, []string{})
+	//	if err != nil {
+	//		fmt.Printf("%s\n", internal.Title(err))
+	//		continue
+	//	}
+	//	return cp, nil
+	//}
 	return nil, errExitInteractiveMode
 }
 
 func confirmConsumerStart(topics map[string]*kafka.PartitionCheckpoints, contracts map[string]string) bool {
-	headers := []*tabular.Column{tabular.C("Topic")}
-	isProto := len(contracts) != 0
-	if isProto {
-		headers = append(headers, tabular.C("Contract"))
-	}
-	headers = append(headers, tabular.C("Offset"))
-	table := tabular.NewTable(false, headers...)
-	for topic, cp := range topics {
-		if isProto {
-			table.AddRow(topic, contracts[topic], cp.OriginalFromValue())
-			continue
-		}
-		table.AddRow(topic, cp.OriginalFromValue())
-	}
-	output.NewLines(1)
-	table.Render()
+	//headers := []*tabular.Column{tabular.C("Topic")}
+	//isProto := len(contracts) != 0
+	//if isProto {
+	//	headers = append(headers, tabular.C("Contract"))
+	//}
+	//headers = append(headers, tabular.C("Offset"))
+	//table := tabular.NewTable(false, headers...)
+	//for topic, cp := range topics {
+	//	if isProto {
+	//		table.AddRow(topic, contracts[topic], cp.OriginalFromValue())
+	//		continue
+	//	}
+	//	table.AddRow(topic, cp.OriginalFromValue())
+	//}
+	//output.NewLines(1)
+	//table.Render()
 	return commands.AskForConfirmation("Start consuming")
 }
 

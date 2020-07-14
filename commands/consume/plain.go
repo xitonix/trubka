@@ -32,11 +32,10 @@ type consumePlain struct {
 	interactive             bool
 	interactiveWithOffset   bool
 	reverse                 bool
-	includeTimestamp        bool
-	includeKey              bool
-	includeTopicName        bool
+	inclusions              *internal.MessageMetadata
 	enableAutoTopicCreation bool
-	from                    string
+	from                    []string
+	to                      []string
 	count                   bool
 	highlightStyle          string
 }
@@ -45,6 +44,7 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *commands.GlobalPa
 	cmd := &consumePlain{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
+		inclusions:   &internal.MessageMetadata{},
 	}
 	c := parent.Command("plain", "Starts consuming plain text or json events from the given Kafka topic.").Action(cmd.run)
 	bindCommonConsumeFlags(c,
@@ -53,9 +53,8 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *commands.GlobalPa
 		&cmd.outputDir,
 		&cmd.logFile,
 		&cmd.from,
-		&cmd.includeTimestamp,
-		&cmd.includeKey,
-		&cmd.includeTopicName,
+		&cmd.to,
+		cmd.inclusions,
 		&cmd.enableAutoTopicCreation,
 		&cmd.reverse,
 		&cmd.interactive,
@@ -107,7 +106,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 
 	go monitorCancellation(prn, cancel)
 
-	defaultCheckpoint, err := kafka.NewPartitionCheckpoints(c.from)
+	defaultCheckpoint, err := kafka.NewPartitionCheckpoints(c.from, c.to)
 	if err != nil {
 		return err
 	}
@@ -139,12 +138,12 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 
 	go func() {
 		defer wg.Done()
-
-		marshaller := internal.NewPlainTextMarshaller(c.decodeFrom,
+		c.inclusions.Topic = c.inclusions.Topic && !writeEventsToFile
+		c.inclusions.SetIndentation()
+		marshaller := internal.NewPlainTextMarshaller(
+			c.decodeFrom,
 			c.encodeTo,
-			c.includeTimestamp,
-			c.includeTopicName && !writeEventsToFile,
-			c.includeKey,
+			c.inclusions,
 			c.globalParams.EnableColor && !writeEventsToFile,
 			c.highlightStyle)
 
@@ -158,13 +157,10 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 				}
 			case event, more := <-consumer.Events():
 				if !more {
+					consumer.CloseOffsetStore()
 					return
 				}
-				if cancelled {
-					// We keep consuming and let the Events channel to drain
-					// Otherwise the consumer will deadlock
-					continue
-				}
+
 				output, err := c.process(event, marshaller, c.globalParams.EnableColor && !writeEventsToFile)
 				if err == nil {
 					prn.WriteEvent(event.Topic, output)
@@ -221,7 +217,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *consumePlain) process(event *kafka.Event, marshaller *internal.PlainTextMarshaller, highlight bool) ([]byte, error) {
-	output, err := marshaller.Marshal(event.Value, event.Key, event.Timestamp, event.Topic, event.Partition)
+	output, err := marshaller.Marshal(event.Value, event.Key, event.Timestamp, event.Topic, event.Partition, event.Offset)
 	if err != nil {
 		return nil, fmt.Errorf("invalid '%s' message received from Kafka: %w", c.decodeFrom, err)
 	}

@@ -7,6 +7,7 @@ require (
 	github.com/alecthomas/chroma v0.7.3
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
+	github.com/araddon/dateparse v0.0.0-20200409225146-d820a6159ab1
 	github.com/asaskevich/govalidator v0.0.0-20200428143746-21a406dcc535 // indirect
 	github.com/brianvoe/gofakeit/v4 v4.3.0
 	github.com/dustin/go-humanize v1.0.0

@@ -9,6 +9,14 @@ import (
 	"github.com/xitonix/trubka/internal"
 )
 
+// CheckpointPair represents a pair of From/To checkpoints.
+type CheckpointPair struct {
+	// From Specifies where to start consuming from.
+	From *Checkpoint
+	// To Specifies when the consumer must stop.
+	To *Checkpoint
+}
+
 // Checkpoint represents a point in time or offset, from which the consumer has to start consuming from the specified topic.
 type Checkpoint struct {
 	offset      int64
@@ -55,7 +63,7 @@ func newTimeCheckpoint(at time.Time) *Checkpoint {
 // MillisecondsOffsetMode mode, otherwise returns the string representation of the offset value.
 func (c *Checkpoint) OffsetString() string {
 	if c.isTimeBased {
-		return internal.FormatTimeUTC(c.at)
+		return internal.FormatTimeForHuman(c.at)
 	}
 	switch c.offset {
 	case sarama.OffsetNewest:
@@ -65,4 +73,19 @@ func (c *Checkpoint) OffsetString() string {
 	default:
 		return strconv.FormatInt(c.offset, 10)
 	}
+}
+
+func (c *Checkpoint) after(cp *Checkpoint) bool {
+	if c == nil || cp == nil {
+		return false
+	}
+
+	if c.isTimeBased {
+		if cp.isTimeBased {
+			return c.at.After(cp.at)
+		}
+		return false
+	}
+
+	return c.offset > cp.offset
 }

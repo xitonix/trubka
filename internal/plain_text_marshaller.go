@@ -56,47 +56,45 @@ const DefaultHighlightStyle = "fruity"
 
 // PlainTextMarshaller represents plain text marshaller.
 type PlainTextMarshaller struct {
-	includeTimeStamp bool
-	includeTopicName bool
-	includeKey       bool
-	enableColor      bool
-	inputEncoding    string
-	outputEncoding   string
-	jsonProcessor    *JsonMessageProcessor
-	isJson           bool
+	inclusions     *MessageMetadata
+	enableColor    bool
+	inputEncoding  string
+	outputEncoding string
+	jsonProcessor  *JsonMessageProcessor
+	isJson         bool
 }
 
 // NewPlainTextMarshaller creates a new instance of a plain text marshaller.
 func NewPlainTextMarshaller(
 	inputEncoding string,
 	outputEncoding string,
-	includeTimeStamp bool,
-	includeTopicName bool,
-	includeKey bool,
+	inclusions *MessageMetadata,
 	enableColor bool,
 	highlightStyle string) *PlainTextMarshaller {
 	outputEncoding = strings.TrimSpace(strings.ToLower(outputEncoding))
 	return &PlainTextMarshaller{
-		inputEncoding:    strings.TrimSpace(strings.ToLower(inputEncoding)),
-		outputEncoding:   outputEncoding,
-		includeTimeStamp: includeTimeStamp,
-		includeTopicName: includeTopicName,
-		includeKey:       includeKey,
-		enableColor:      enableColor,
-		jsonProcessor:    NewJsonMessageProcessor(outputEncoding, includeTimeStamp, includeTopicName, includeKey, enableColor, highlightStyle),
-		isJson:           outputEncoding == JsonEncoding || outputEncoding == JsonIndentEncoding,
+		inputEncoding:  strings.TrimSpace(strings.ToLower(inputEncoding)),
+		outputEncoding: outputEncoding,
+		inclusions:     inclusions,
+		enableColor:    enableColor,
+		jsonProcessor: NewJsonMessageProcessor(
+			outputEncoding,
+			inclusions,
+			enableColor,
+			highlightStyle),
+		isJson: outputEncoding == JsonEncoding || outputEncoding == JsonIndentEncoding,
 	}
 }
 
 // Marshal marshals the Kafka message into plain text.
-func (m *PlainTextMarshaller) Marshal(msg, key []byte, ts time.Time, topic string, partition int32) ([]byte, error) {
+func (m *PlainTextMarshaller) Marshal(msg, key []byte, ts time.Time, topic string, partition int32, offset int64) ([]byte, error) {
 	result, mustEncode, err := m.decode(msg)
 	if err != nil {
 		return nil, err
 	}
 
 	if mustEncode {
-		result, err = m.encode(result, key, ts, topic, partition)
+		result, err = m.encode(result, key, ts, topic, partition, offset)
 		if err != nil {
 			return nil, err
 		}
@@ -105,16 +103,8 @@ func (m *PlainTextMarshaller) Marshal(msg, key []byte, ts time.Time, topic strin
 		}
 	}
 
-	if m.includeTimeStamp && !ts.IsZero() {
-		result = PrependTimestamp(ts, result)
-	}
-	if m.includeKey {
-		result = PrependKey(key, partition, result, m.outputEncoding == Base64Encoding)
-	}
+	result = m.inclusions.Render(key, result, ts, topic, partition, offset, m.outputEncoding == Base64Encoding)
 
-	if m.includeTopicName {
-		result = PrependTopic(topic, result)
-	}
 	return result, nil
 }
 
@@ -145,7 +135,7 @@ func (m *PlainTextMarshaller) decode(msg []byte) ([]byte, bool, error) {
 	}
 }
 
-func (m *PlainTextMarshaller) encode(decoded, key []byte, ts time.Time, topic string, partition int32) ([]byte, error) {
+func (m *PlainTextMarshaller) encode(decoded, key []byte, ts time.Time, topic string, partition int32, offset int64) ([]byte, error) {
 	switch m.outputEncoding {
 	case HexEncoding:
 		return m.marshalHex(decoded)
@@ -156,7 +146,7 @@ func (m *PlainTextMarshaller) encode(decoded, key []byte, ts time.Time, topic st
 		if err != nil {
 			return nil, err
 		}
-		return m.jsonProcessor.Process(result, key, ts, topic, partition)
+		return m.jsonProcessor.Process(result, key, ts, topic, partition, offset)
 	default:
 		return decoded, nil
 	}
