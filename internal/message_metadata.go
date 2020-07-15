@@ -98,7 +98,7 @@ func (m *MessageMetadata) getPrefix(prefix string) string {
 }
 
 func (m *MessageMetadata) prependTimestamp(ts time.Time, in []byte) []byte {
-	return append([]byte(fmt.Sprintf("%s: %s\n", m.getPrefix(timePrefix), FormatTimeForHuman(ts))), in...)
+	return append([]byte(fmt.Sprintf("%s: %s\n", m.getPrefix(timePrefix), FormatTime(ts))), in...)
 }
 
 func (m *MessageMetadata) prependTopic(topic string, in []byte) []byte {

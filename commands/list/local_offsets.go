@@ -2,11 +2,13 @@ package list
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/dustin/go-humanize"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/xitonix/trubka/commands"
+	"github.com/xitonix/trubka/internal"
 	"github.com/xitonix/trubka/internal/output"
 	"github.com/xitonix/trubka/internal/output/format"
 	"github.com/xitonix/trubka/internal/output/format/list"
@@ -35,8 +37,8 @@ func addLocalOffsetsSubCommand(parent *kingpin.CmdClause, params *commands.Globa
 }
 
 func (l *listLocalOffsets) run(_ *kingpin.ParseContext) error {
-	offsetManager := kafka.NewLocalOffsetManager(l.globalParams.Verbosity)
-	localOffsets, err := offsetManager.ReadLocalTopicOffsets(l.topic, l.environment)
+	offsetManager := kafka.NewLocalOffsetManager(internal.NewPrinter(l.globalParams.Verbosity, os.Stdout))
+	localOffsets, err := offsetManager.ReadTopicOffsets(l.topic, l.environment)
 	if err != nil {
 		return err
 	}

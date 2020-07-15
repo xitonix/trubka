@@ -5,11 +5,16 @@
 **[New Features]**
 - The process of loading proto files from disk respects logging verbosity levels.
 - The offset of the consumed message can be optionally included in the output.
+- Different time-based starting offsets can be defined for different partitions.
+- Predefined starting offsets (eg. `oldest`, `newest`, `local`, etc) can be defined for individual partitions.
+- A new `--to` flag has been introduced to the consumers to request stop offset/timestamp.
 
 **[Changes]**
  - `-U` (for SASL username) and `-P` (for SASL password) short flags have been removed.
  - `Partition` and `Key` metadata will be printed to the output as separate lines for non-json formats.
- - `UTC` suffix has been removed from time strings. 
+ - `UTC` suffix has been replaced with timezone offset.
+ - `--from` is now a repeatable flag instead of a single comma separated string.
+ - Partition-Offset delimiter has been changed to `#` for `--from` and `--to` values.
 
 **[Fixes]**
 - Loading proto files from disk respects termination signals received from the OS (Ctrl + C).

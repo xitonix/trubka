@@ -14,8 +14,6 @@ const (
 
 // Printer represents a printer type.
 type Printer interface {
-	Logf(level VerbosityLevel, format string, args ...interface{})
-	Log(level VerbosityLevel, msg string)
 	Errorf(level VerbosityLevel, format string, args ...interface{})
 	Error(level VerbosityLevel, msg string)
 	Infof(level VerbosityLevel, format string, args ...interface{})
@@ -83,17 +81,6 @@ func (p *SyncPrinter) Close() {
 		close(inputChannel)
 	}
 	p.wg.Wait()
-}
-
-// Log writes a new line to the Logging io.Writer synchronously if the verbosity level is greater than or equal to the current level.
-func (p *SyncPrinter) Log(level VerbosityLevel, msg string) {
-	p.log(level, msg)
-}
-
-// Logf formats according to a format specifier and writes a new line to the Logging io.Writer synchronously,
-// if the verbosity level is greater than or equal to the current level.
-func (p *SyncPrinter) Logf(level VerbosityLevel, format string, a ...interface{}) {
-	p.log(level, fmt.Sprintf(format, a...))
 }
 
 // Info writes a new line to the Logging io.Writer synchronously if the verbosity level is greater than or equal to the current level.

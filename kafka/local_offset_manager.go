@@ -24,16 +24,16 @@ const (
 type LocalOffsetManager struct {
 	root string
 	db   *diskv.Diskv
-	*internal.Logger
+	internal.Printer
 }
 
 // NewLocalOffsetManager creates a new instance of a local offset manager.
-func NewLocalOffsetManager(level internal.VerbosityLevel) *LocalOffsetManager {
+func NewLocalOffsetManager(printer internal.Printer) *LocalOffsetManager {
 	root := configdir.LocalConfig(localOffsetRoot)
 	flatTransform := func(s string) []string { return []string{} }
 	return &LocalOffsetManager{
-		Logger: internal.NewLogger(level),
-		root:   root,
+		Printer: printer,
+		root:    root,
 		db: diskv.New(diskv.Options{
 			BasePath:     root,
 			Transform:    flatTransform,
@@ -65,17 +65,17 @@ func (l *LocalOffsetManager) GetOffsetFileOrRoot(environment string, topic strin
 	return offsetPath, nil
 }
 
-// ReadLocalTopicOffsets returns the locally stored offsets of the given topic for the specified environment if exists.
+// ReadTopicOffsets returns the locally stored offsets of the given topic for the specified environment if exists.
 //
 // If there is no local offsets, the method will return an empty partition-offset map.
-func (l *LocalOffsetManager) ReadLocalTopicOffsets(topic string, environment string) (PartitionOffset, error) {
+func (l *LocalOffsetManager) ReadTopicOffsets(topic string, environment string) (PartitionOffset, error) {
 	file, err := l.setDBPath(topic, environment)
 	if err != nil {
 		return nil, err
 	}
 
 	stored := make(map[int32]int64)
-	l.Logf(internal.VeryVerbose, "Reading the local offsets of %s topic from %s", topic, l.db.BasePath)
+	l.Infof(internal.VeryVerbose, "Reading the local offsets of %s topic from %s", topic, l.db.BasePath)
 	val, err := l.db.Read(file)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -98,7 +98,7 @@ func (l *LocalOffsetManager) ReadLocalTopicOffsets(topic string, environment str
 func (l *LocalOffsetManager) List(topicFilter *regexp.Regexp, envFilter *regexp.Regexp) (map[string][]string, error) {
 	result := make(map[string][]string)
 	root := configdir.LocalConfig(localOffsetRoot)
-	l.Logf(internal.Verbose, "Searching for local offsets in %s", root)
+	l.Infof(internal.Verbose, "Searching for local offsets in %s", root)
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -109,13 +109,13 @@ func (l *LocalOffsetManager) List(topicFilter *regexp.Regexp, envFilter *regexp.
 		}
 		environment := filepath.Base(filepath.Dir(path))
 		if envFilter != nil && !envFilter.Match([]byte(environment)) {
-			l.Logf(internal.SuperVerbose, "The provided environment filter (%s) does not match with %s environment", envFilter.String(), environment)
+			l.Infof(internal.SuperVerbose, "The provided environment filter (%s) does not match with %s environment", envFilter.String(), environment)
 			return nil
 		}
 		file := filepath.Base(path)
 		topic := strings.TrimSuffix(file, offsetFileExtension)
 		if topicFilter != nil && !topicFilter.Match([]byte(topic)) {
-			l.Logf(internal.SuperVerbose, "The provided topic filter (%s) does not match with %s topic", topicFilter.String(), topic)
+			l.Infof(internal.SuperVerbose, "The provided topic filter (%s) does not match with %s topic", topicFilter.String(), topic)
 			return nil
 		}
 		if _, ok := result[environment]; !ok {

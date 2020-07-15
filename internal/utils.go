@@ -18,15 +18,9 @@ func IsEmpty(val string) bool {
 	return len(strings.TrimSpace(val)) == 0
 }
 
-// FormatTimeForHuman formats the time using `02 Jan 2006 15:04:05.999999999` layout.
-func FormatTimeForHuman(t time.Time) string {
-	return t.Format("02 Jan 2006 15:04:05.999999999")
-}
-
-// FormatTimeForMachine formats the time using `2006-01-02T15:04:05.999999999` layout.
-func FormatTimeForMachine(t time.Time) string {
-	// yyyy-mm-dd
-	return t.Format("2006-01-02T15:04:05.999999999")
+// FormatTime formats the time using time.RFC3339Nano layout.
+func FormatTime(t time.Time) string {
+	return t.Format(time.RFC3339Nano)
 }
 
 // NotFoundError constructs a new NotFound error for the specified entity.

@@ -56,7 +56,7 @@ func (f *fileFinder) ls(ctx context.Context) ([]string, error) {
 				fmt.Printf("Loading %s\n", path)
 			}
 			if !isDir && strings.HasSuffix(strings.ToLower(fileInfo.Name()), ".proto") {
-				if f.verbosity >= internal.SuperVerbose {
+				if f.verbosity >= internal.Chatty {
 					fmt.Printf("Proto file loaded %s\n", path)
 				}
 				files = append(files, path)
@@ -81,7 +81,7 @@ func (f *fileFinder) dirs(ctx context.Context) ([]string, error) {
 				return err
 			}
 			if fileInfo.IsDir() {
-				if f.verbosity >= internal.SuperVerbose {
+				if f.verbosity >= internal.Chatty {
 					fmt.Printf("Import path detected %s\n", path)
 				}
 				dirs = append(dirs, path)

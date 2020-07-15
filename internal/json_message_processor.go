@@ -69,7 +69,7 @@ func (j *JsonMessageProcessor) Process(message, key []byte, ts time.Time, topic 
 	}
 
 	if j.inclusions.Timestamp {
-		output.Timestamp = FormatTimeForMachine(ts)
+		output.Timestamp = FormatTime(ts)
 	}
 
 	var err error

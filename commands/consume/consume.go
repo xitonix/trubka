@@ -96,13 +96,13 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 		BoolVar(count)
 
 	now := time.Now()
-	pastHour := internal.FormatTimeForMachine(now.Add(-1 * time.Hour))
+	pastHour := internal.FormatTime(now.Add(-1 * time.Hour))
 	command.Flag("from", `The offset to start consuming from. Available options are newest (default), oldest, local, time (the most recent available offset at the given time) or explicit Partition:Offset pairs ("10:150, :0")`).
 		Default("newest").
 		HintOptions("newest", "oldest", pastHour, "0:10,1:20,:0").
 		StringsVar(from)
 
-	nextHour := internal.FormatTimeForMachine(now.Add(1 * time.Hour))
+	nextHour := internal.FormatTime(now.Add(1 * time.Hour))
 	command.Flag("to", `The offset where trubka must stop consuming. Available options are time or explicit Partition:Offset pairs ("10:150, :200")`).
 		HintOptions(nextHour, "0:100,1:200,:300").
 		StringsVar(to)

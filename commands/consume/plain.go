@@ -106,7 +106,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 
 	go monitorCancellation(prn, cancel)
 
-	defaultCheckpoint, err := kafka.NewPartitionCheckpoints(c.from, c.to)
+	checkpoints, err := kafka.NewPartitionCheckpoints(c.from, c.to)
 	if err != nil {
 		return err
 	}
@@ -114,12 +114,12 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	topics := make(map[string]*kafka.PartitionCheckpoints)
 
 	if interactive {
-		topics, err = askUserForTopics(consumer, c.topicFilter, c.interactiveWithOffset, defaultCheckpoint)
+		topics, err = askUserForTopics(consumer, c.topicFilter, c.interactiveWithOffset, checkpoints)
 		if err != nil {
 			return filterError(err)
 		}
 	} else {
-		topics[c.topic] = defaultCheckpoint
+		topics[c.topic] = checkpoints
 	}
 
 	writers, writeEventsToFile, err := getOutputWriters(c.outputDir, topics)

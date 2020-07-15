@@ -133,7 +133,7 @@ func (s *offsetStore) writeOffsetsToDisk(topicPartitionOffsets TopicPartitionOff
 		s.printer.Infof(internal.SuperVerbose, "Writing the offset(s) of topic %s to the disk.", topic)
 		for p, offset := range partitionOffsets {
 			if offset.Current >= 0 {
-				s.printer.Logf(internal.Chatty, " P%02d: %d", p, offset.Current)
+				s.printer.Infof(internal.Chatty, " P%02d: %d", p, offset.Current)
 			}
 		}
 		err = s.db.Write(topic+offsetFileExtension, buff)

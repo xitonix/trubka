@@ -119,7 +119,7 @@ func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...
 	return &Manager{
 		client:           client,
 		Logger:           internal.NewLogger(verbosity),
-		localOffsets:     NewLocalOffsetManager(verbosity),
+		localOffsets:     NewLocalOffsetManager(internal.NewPrinter(verbosity, os.Stdout)),
 		admin:            admin,
 		serversByAddress: byAddress,
 		serversById:      byId,

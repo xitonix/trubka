@@ -30,7 +30,7 @@ func addDeleteLocalOffsetsSubCommand(parent *kingpin.CmdClause, params *commands
 }
 
 func (c *localOffsets) run(_ *kingpin.ParseContext) error {
-	offsetManager := kafka.NewLocalOffsetManager(c.globalParams.Verbosity)
+	offsetManager := kafka.NewLocalOffsetManager(internal.NewPrinter(c.globalParams.Verbosity, os.Stdout))
 	path, err := offsetManager.GetOffsetFileOrRoot(c.environment, c.topic)
 	if err != nil {
 		return err
