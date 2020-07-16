@@ -2,7 +2,6 @@ package kafka
 
 import (
 	"strconv"
-	"time"
 )
 
 const unknownOffset int64 = -3
@@ -25,16 +24,6 @@ func (o Offset) Lag() int64 {
 		return o.Latest - o.Current
 	}
 	return 0
-}
-
-func (o Offset) stopInFuture() bool {
-	if o.stopAt == nil {
-		return false
-	}
-	if o.stopAt.mode == timestampMode {
-		return o.stopAt.at.In(time.UTC).After(time.Now().UTC())
-	}
-	return o.stopAt.offset > o.Latest
 }
 
 // String returns the string representation of the given offset.

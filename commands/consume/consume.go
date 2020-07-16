@@ -30,6 +30,8 @@ func AddCommands(app *kingpin.Application, global *commands.GlobalParameters, ka
 func bindCommonConsumeFlags(command *kingpin.CmdClause,
 	topic, environment, outputDir, logFile *string,
 	from, to *[]string,
+	exclusive *bool,
+	idleTimeout *time.Duration,
 	inclusions *internal.MessageMetadata,
 	enableAutoTopicCreation, reverse, interactive, interactiveWithCustomOffset, count *bool,
 	searchQuery, topicFilter **regexp.Regexp, highlightStyle *string) {
@@ -96,16 +98,36 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 		BoolVar(count)
 
 	now := time.Now()
-	pastHour := internal.FormatTime(now.Add(-1 * time.Hour))
-	command.Flag("from", `The offset to start consuming from. Available options are newest (default), oldest, local, time (the most recent available offset at the given time) or explicit Partition:Offset pairs ("10:150, :0")`).
+
+	ts := internal.FormatTime(now.Add(-2 * time.Hour))
+	help := fmt.Sprintf("The offset to start consuming from. "+
+		"Available options are newest, oldest, local, timestamp, offset, Partition#Offset or Partition#Timestamp (eg. \"10#300\", \"7#%s\")", ts)
+	command.Flag("from", help).
 		Default("newest").
-		HintOptions("newest", "oldest", pastHour, "0:10,1:20,:0").
+		HintOptions("newest", "oldest", ts, "8000").
 		StringsVar(from)
 
-	nextHour := internal.FormatTime(now.Add(1 * time.Hour))
-	command.Flag("to", `The offset where trubka must stop consuming. Available options are time or explicit Partition:Offset pairs ("10:150, :200")`).
-		HintOptions(nextHour, "0:100,1:200,:300").
+	ts = internal.FormatTime(now.Add(-1 * time.Hour))
+	help = fmt.Sprintf("The offset where trubka must stop consuming. "+
+		"Available options are timestamp, offset, Partition#Offset or Partition#Timestamp (eg. \"10#800\", \"7#%s\")", ts)
+	command.Flag("to", help).
+		HintOptions(ts, "9000").
 		StringsVar(to)
+
+	command.Flag("exclusive", `Only explicitly defined partitions (Partition#Offset or Partition#Timestamp) will be consumed. The rest will be excluded.`).
+		Short('E').
+		BoolVar(exclusive)
+
+	min := 2 * time.Second
+	help = fmt.Sprintf(`The amount of time the consumer will wait for a message to arrive before stop consuming from a partition (Minimum: %s)`, min)
+	command.Flag("idle-timeout", help).
+		PreAction(func(parseContext *kingpin.ParseContext) error {
+			if *idleTimeout < min {
+				*idleTimeout = min
+			}
+			return nil
+		}).
+		DurationVar(idleTimeout)
 
 	command.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --encode-to=%s only. Set to 'none' to disable.", internal.JsonIndentEncoding)).
 		Default(internal.DefaultHighlightStyle).
@@ -123,6 +145,8 @@ func initialiseConsumer(kafkaParams *commands.KafkaParameters,
 	globalParams *commands.GlobalParameters,
 	environment string,
 	enableAutoTopicCreation bool,
+	exclusive bool,
+	idleTimeout time.Duration,
 	logFile io.Writer,
 	prn *internal.SyncPrinter) (*kafka.Consumer, error) {
 	saramaLogWriter := ioutil.Discard
@@ -135,6 +159,8 @@ func initialiseConsumer(kafkaParams *commands.KafkaParameters,
 		brokers, prn,
 		environment,
 		enableAutoTopicCreation,
+		exclusive,
+		idleTimeout,
 		kafka.WithClusterVersion(kafkaParams.Version),
 		kafka.WithTLS(kafkaParams.TLS),
 		kafka.WithLogWriter(saramaLogWriter),

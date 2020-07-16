@@ -46,6 +46,8 @@ func newPredefinedCheckpoint(rewind bool) *checkpoint {
 func newLocalCheckpoint() *checkpoint {
 	return &checkpoint{
 		mode: localMode,
+		// Fallback offset, in case no offsets are stored locally!
+		offset: sarama.OffsetNewest,
 	}
 }
 

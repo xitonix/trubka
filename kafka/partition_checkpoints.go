@@ -7,22 +7,21 @@ import (
 )
 
 const (
-	allPartitions         int32 = -1
-	allPartitionsWildcard int32 = -2
-	invalidPartition      int32 = -3
+	allPartitions    int32 = -1
+	invalidPartition int32 = -2
 )
 
 // PartitionCheckpoints holds a list of explicitly requested offsets (if applicable).
 //
-// If no partition offset has been explicitly asked by the user, the time-based or newest/oldest offset
-// will be stored as the only value in the map under `allPartitions` key.
+// If no partition offset has been explicitly asked by the user, the global checkpoint will be stored as
+// the only value in the map under `allPartitions` key. The global checkpoint is applicable to all the partitions.
 type PartitionCheckpoints struct {
 	partitionCheckpoints map[int32]*checkpointPair
-	applyToAll           bool
+	exclusive            bool
 }
 
 // NewPartitionCheckpoints creates a new instance of partition checkpoints.
-func NewPartitionCheckpoints(from, to []string) (*PartitionCheckpoints, error) {
+func NewPartitionCheckpoints(from, to []string, exclusive bool) (*PartitionCheckpoints, error) {
 	var (
 		checkpoints = map[int32]*checkpointPair{
 			allPartitions: {
@@ -31,16 +30,10 @@ func NewPartitionCheckpoints(from, to []string) (*PartitionCheckpoints, error) {
 		}
 	)
 
-	var applyToAll bool
 	for _, raw := range from {
 		cp, partition, err := parse(raw, false)
 		if err != nil {
 			return nil, err
-		}
-		if partition == allPartitionsWildcard {
-			applyToAll = true
-			// We still need to store it under `allPartitions` key
-			partition = allPartitions
 		}
 		checkpoints[partition] = &checkpointPair{
 			from: cp,
@@ -51,11 +44,6 @@ func NewPartitionCheckpoints(from, to []string) (*PartitionCheckpoints, error) {
 		cp, partition, err := parse(raw, true)
 		if err != nil {
 			return nil, err
-		}
-		if partition == allPartitionsWildcard {
-			applyToAll = true
-			// We still need to store it under `allPartitions` key
-			partition = allPartitions
 		}
 
 		if _, ok := checkpoints[partition]; !ok {
@@ -84,17 +72,20 @@ func NewPartitionCheckpoints(from, to []string) (*PartitionCheckpoints, error) {
 
 	return &PartitionCheckpoints{
 		partitionCheckpoints: checkpoints,
-		applyToAll:           applyToAll,
+		exclusive:            exclusive,
 	}, nil
 }
 
 // get returns the checkpoint for the specified partition.
+//
+// In `exclusive` mode, if the partition checkpoint has not explicitly defined by the user (using # syntax) this function returns `nil`.
 func (p *PartitionCheckpoints) get(partition int32) *checkpointPair {
 	if pair, ok := p.partitionCheckpoints[partition]; ok {
 		return pair
 	}
 
-	if !p.applyToAll && len(p.partitionCheckpoints) > 1 {
+	// We are in exclusive mode and there are explicitly defined checkpoints in the map.
+	if p.exclusive && len(p.partitionCheckpoints) > 1 {
 		// User explicitly asked for other partitions, but not this one.
 		// We don't want to start consuming from this partition if it has not been asked by the user.
 		return nil
@@ -113,18 +104,13 @@ func parse(raw string, isStopOffset bool) (*checkpoint, int32, error) {
 		}
 		return cp, allPartitions, nil
 	case 2:
-		offset := strings.TrimSpace(parts[1])
-		cp, err := parseCheckpoint(offset, isStopOffset)
+		partition, err := parseInt(strings.TrimSpace(parts[0]), "partition")
 		if err != nil {
 			return nil, invalidPartition, err
 		}
-		partitionStr := strings.TrimSpace(parts[0])
-		if partitionStr == "" {
-			// "#N" parameter has been provided. We need to apply the last winner offset (N)
-			// value to all the partitions which is not explicitly requested.
-			return cp, allPartitionsWildcard, nil
-		}
-		partition, err := parseInt(partitionStr, "partition")
+
+		offset := strings.TrimSpace(parts[1])
+		cp, err := parseCheckpoint(offset, isStopOffset)
 		if err != nil {
 			return nil, invalidPartition, err
 		}

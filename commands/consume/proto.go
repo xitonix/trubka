@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"sync"
+	"time"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -40,6 +41,8 @@ type consumeProto struct {
 	count                   bool
 	from                    []string
 	to                      []string
+	exclusive               bool
+	idleTimeout             time.Duration
 	highlightStyle          string
 }
 
@@ -57,6 +60,8 @@ func addConsumeProtoCommand(parent *kingpin.CmdClause, global *commands.GlobalPa
 		&cmd.logFile,
 		&cmd.from,
 		&cmd.to,
+		&cmd.exclusive,
+		&cmd.idleTimeout,
 		cmd.inclusions,
 		&cmd.enableAutoTopicCreation,
 		&cmd.reverse,
@@ -112,7 +117,16 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 
 	prn := internal.NewPrinter(c.globalParams.Verbosity, logFile)
 
-	consumer, err := initialiseConsumer(c.kafkaParams, c.globalParams, c.environment, c.enableAutoTopicCreation, logFile, prn)
+	consumer, err := initialiseConsumer(
+		c.kafkaParams,
+		c.globalParams,
+		c.environment,
+		c.enableAutoTopicCreation,
+		c.exclusive,
+		c.idleTimeout,
+		logFile,
+		prn)
+
 	if err != nil {
 		return err
 	}
@@ -126,7 +140,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	go monitorCancellation(prn, cancel)
 
 	tm := make(map[string]string)
-	checkpoints, err := kafka.NewPartitionCheckpoints(c.from, c.to)
+	checkpoints, err := kafka.NewPartitionCheckpoints(c.from, c.to, c.exclusive)
 	if err != nil {
 		return err
 	}

@@ -28,10 +28,18 @@ type Consumer struct {
 	store                   *offsetStore
 	local                   *LocalOffsetManager
 	localOffsets            TopicPartitionOffset
+	exclusive               bool
+	idleTimeout             time.Duration
 }
 
 // NewConsumer creates a new instance of Kafka cluster consumer.
-func NewConsumer(brokers []string, printer internal.Printer, environment string, enableAutoTopicCreation bool, options ...Option) (*Consumer, error) {
+func NewConsumer(brokers []string,
+	printer internal.Printer,
+	environment string,
+	enableAutoTopicCreation bool,
+	exclusive bool,
+	idleTimeout time.Duration,
+	options ...Option) (*Consumer, error) {
 	client, err := initClient(brokers, options...)
 	if err != nil {
 		return nil, err
@@ -58,6 +66,8 @@ func NewConsumer(brokers []string, printer internal.Printer, environment string,
 		store:                   store,
 		local:                   NewLocalOffsetManager(printer),
 		localOffsets:            make(TopicPartitionOffset),
+		exclusive:               exclusive,
+		idleTimeout:             idleTimeout,
 	}, nil
 }
 
@@ -224,19 +234,17 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 		if offset.stopAt.mode == timestampMode {
 			return m.Timestamp.After(offset.stopAt.at)
 		}
-		return m.Offset > offset.stopAt.offset
+		return m.Offset >= offset.stopAt.offset
 	}
 
 	lastMessageReceivedAt := time.Now()
 	forceClose := make(chan interface{})
-	// We don't want auto shutdown to happen if the stop checkpoint is in the future.
-	// We only stop consuming if the checkpoint is hit.
-	if offset.stopAt != nil && !offset.stopInFuture() {
+	if c.idleTimeout > 0 {
 		go func() {
 			ticker := time.NewTicker(1 * time.Second)
 			defer ticker.Stop()
 			for now := range ticker.C {
-				if now.Sub(lastMessageReceivedAt) > 5*time.Second {
+				if now.Sub(lastMessageReceivedAt) > c.idleTimeout {
 					close(forceClose)
 					return
 				}
@@ -257,9 +265,6 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 
 			lastMessageReceivedAt = time.Now()
 
-			if mustStop(m) {
-				return shutdown(reachedStopCheckpoint)
-			}
 			c.events <- &Event{
 				Topic:     m.Topic,
 				Key:       m.Key,
@@ -267,6 +272,9 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 				Timestamp: m.Timestamp,
 				Partition: m.Partition,
 				Offset:    m.Offset,
+			}
+			if mustStop(m) {
+				return shutdown(reachedStopCheckpoint)
 			}
 		case err, more := <-pc.Errors():
 			if !more {
@@ -368,15 +376,16 @@ func (c *Consumer) getLocalOffset(topic string, partition int32, startFrom *chec
 	}
 
 	c.printer.Infof(internal.SuperVerbose,
-		"Checking the local offset store for partition %d of topic %s in %s environment",
-		partition,
+		"Checking the local offset store for Topic: %s, Partition: %d, Environment: %s",
 		topic,
+		partition,
 		c.environment)
 	if storedOffset, ok := localOffsets[partition]; ok {
 		c.printer.Infof(internal.SuperVerbose,
-			"The local offset for partition %d of topic %s in %s environment is %v",
-			partition,
+			"Topic: %s, Partition %d, Latest Offset: %v, Start From Local (%s): %v",
 			topic,
+			partition,
+			getOffsetString(latest),
 			c.environment,
 			getOffsetString(storedOffset.Current))
 
@@ -385,9 +394,12 @@ func (c *Consumer) getLocalOffset(topic string, partition int32, startFrom *chec
 	}
 
 	c.printer.Infof(internal.SuperVerbose,
-		"No local offset found for partition %d of topic %s",
+		"No local offsets found for Topic: %s, Partition: %d. Latest: %v, Start From: %v",
+		topic,
 		partition,
-		topic)
+		getOffsetString(latest),
+		getOffsetString(startFrom.offset),
+	)
 
 	return &Offset{
 		Latest:  latest,
@@ -426,9 +438,10 @@ func (c *Consumer) getExplicitOffset(topic string, partition int32, startFrom *c
 		return nil, errOutOfRangeOffset
 	}
 	c.printer.Infof(internal.SuperVerbose,
-		"Topic: %s, Partition %d, Start From: %v",
+		"Topic: %s, Partition %d, Latest: %v, Start From: %v",
 		topic,
 		partition,
+		getOffsetString(latest),
 		startFrom.String())
 
 	return &Offset{

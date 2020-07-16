@@ -3,40 +3,51 @@ package kafka
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/araddon/dateparse"
 )
 
 func TestPartitionCheckpointsGet(t *testing.T) {
-	otherPartitions := int32(1000)
 	fromTimeValue := "2019-01-01T12:00:00+10:00"
 	fromTimestamp, _ := dateparse.ParseAny(fromTimeValue)
 	toTimeValue := "2020-01-01T12:00:00+10:00"
 	toTimestamp, _ := dateparse.ParseAny(toTimeValue)
+	randomPartition := randomInt32(3, 900)
 	testCases := []struct {
-		title              string
-		from               []string
-		to                 []string
-		expected           map[int32]*checkpointPair
-		expectedApplyToAll bool
-		expectedError      string
-		expectedLength     int
+		title          string
+		from           []string
+		to             []string
+		expected       map[int32]*checkpointPair
+		exclusive      bool
+		expectedError  string
+		expectedLength int
 	}{
 		{
-			title: "empty start and stop checkpoints",
+			title: "empty start and stop checkpoints in inclusive mode",
 			expected: map[int32]*checkpointPair{
-				1: {
+				randomPartition: {
 					from: newPredefinedCheckpoint(false),
 				}},
 			expectedLength: 1,
 		},
 		{
+			title: "empty start and stop checkpoints in exclusive mode",
+			expected: map[int32]*checkpointPair{
+				randomPartition: {
+					from: newPredefinedCheckpoint(false),
+				}},
+			expectedLength: 1,
+			exclusive:      true,
+		},
+		{
 			title: "the last global start checkpoint wins",
 			from:  []string{"newest", "oldest", "100"},
 			expected: map[int32]*checkpointPair{
-				1: {
+				randomPartition: {
 					from: newExplicitCheckpoint(100),
 				}},
 			expectedLength: 1,
@@ -45,7 +56,7 @@ func TestPartitionCheckpointsGet(t *testing.T) {
 			title: "the last global stop checkpoint wins",
 			to:    []string{"200", "300", "100"},
 			expected: map[int32]*checkpointPair{
-				1: {
+				randomPartition: {
 					from: newPredefinedCheckpoint(false),
 					to:   newExplicitCheckpoint(100),
 				}},
@@ -56,157 +67,119 @@ func TestPartitionCheckpointsGet(t *testing.T) {
 			from:  []string{"100"},
 			to:    []string{"200"},
 			expected: map[int32]*checkpointPair{
-				1: {
+				randomPartition: {
 					from: newExplicitCheckpoint(100),
 					to:   newExplicitCheckpoint(200),
 				}},
 			expectedLength: 1,
 		},
 		{
-			title: "wildcard stop and stop checkpoint",
-			from:  []string{"#100"},
-			to:    []string{"#200"},
-			expected: map[int32]*checkpointPair{
-				1: {
-					from: newExplicitCheckpoint(100),
-					to:   newExplicitCheckpoint(200),
-				},
-				otherPartitions: {
-					from: newExplicitCheckpoint(100),
-					to:   newExplicitCheckpoint(200),
-				}},
-			expectedLength:     1,
-			expectedApplyToAll: true,
-		},
-		{
-			title: "explicit start checkpoint with no global condition",
+			title: "explicit start checkpoint with no global condition in inclusive mode",
 			from:  []string{"1#100"},
 			expected: map[int32]*checkpointPair{
 				1: {
 					from: newExplicitCheckpoint(100),
 				},
-				otherPartitions: nil,
+				randomPartition: {
+					from: newPredefinedCheckpoint(false),
+				},
 			},
 			expectedLength: 2,
 		},
 		{
-			title: "explicit start checkpoint with global condition",
+			title: "explicit start checkpoint with no global condition in exclusive mode",
+			from:  []string{"1#100"},
+			expected: map[int32]*checkpointPair{
+				1: {
+					from: newExplicitCheckpoint(100),
+				},
+				randomPartition: nil,
+			},
+			expectedLength: 2,
+			exclusive:      true,
+		},
+		{
+			title: "explicit start checkpoint with global condition in inclusive mode",
 			from:  []string{"local", "1#100"},
 			expected: map[int32]*checkpointPair{
 				1: {
 					from: newExplicitCheckpoint(100),
 				},
-				otherPartitions: nil,
+				randomPartition: {
+					from: newLocalCheckpoint(),
+				},
 			},
 			expectedLength: 2,
 		},
 		{
-			title: "explicit start checkpoint with wildcard global condition",
-			from:  []string{"#local", "1#100"},
+			title: "explicit start checkpoint with global condition in exclusive mode",
+			from:  []string{"local", "1#100"},
 			expected: map[int32]*checkpointPair{
 				1: {
 					from: newExplicitCheckpoint(100),
 				},
-				otherPartitions: {
-					from: newLocalCheckpoint(),
-				},
+				randomPartition: nil,
 			},
-			expectedLength:     2,
-			expectedApplyToAll: true,
+			expectedLength: 2,
+			exclusive:      true,
 		},
 		{
-			title: "explicit stop checkpoint with no global condition",
+			title: "explicit stop checkpoint with no global condition in inclusive mode",
 			to:    []string{"1#100"},
 			expected: map[int32]*checkpointPair{
 				1: {
 					from: newPredefinedCheckpoint(false),
 					to:   newExplicitCheckpoint(100),
 				},
-				otherPartitions: nil,
+				randomPartition: {
+					from: newPredefinedCheckpoint(false),
+				},
 			},
 			expectedLength: 2,
 		},
 		{
-			title: "explicit stop checkpoint with global condition",
+			title: "explicit stop checkpoint with no global condition in exclusive mode",
+			to:    []string{"1#100"},
+			expected: map[int32]*checkpointPair{
+				1: {
+					from: newPredefinedCheckpoint(false),
+					to:   newExplicitCheckpoint(100),
+				},
+				randomPartition: nil,
+			},
+			expectedLength: 2,
+			exclusive:      true,
+		},
+		{
+			title: "explicit stop checkpoint with global condition in inclusive mode",
 			to:    []string{"200", "1#100"},
 			expected: map[int32]*checkpointPair{
 				1: {
 					from: newPredefinedCheckpoint(false),
 					to:   newExplicitCheckpoint(100),
 				},
-				otherPartitions: nil,
+				randomPartition: {
+					from: newPredefinedCheckpoint(false),
+					to:   newExplicitCheckpoint(200),
+				},
 			},
 			expectedLength: 2,
 		},
 		{
-			title: "explicit stop checkpoint with wildcard global condition",
-			to:    []string{"#200", "1#100"},
+			title: "explicit stop checkpoint with global condition in exclusive mode",
+			to:    []string{"200", "1#100"},
 			expected: map[int32]*checkpointPair{
 				1: {
 					from: newPredefinedCheckpoint(false),
 					to:   newExplicitCheckpoint(100),
 				},
-				otherPartitions: {
-					from: newPredefinedCheckpoint(false),
-					to:   newExplicitCheckpoint(200),
-				},
+				randomPartition: nil,
 			},
-			expectedLength:     2,
-			expectedApplyToAll: true,
+			expectedLength: 2,
+			exclusive:      true,
 		},
 		{
-			title: "explicit start and stop checkpoints with wildcard conditions",
-			from:  []string{"#300", "1#200"},
-			to:    []string{"#400", "1#500"},
-			expected: map[int32]*checkpointPair{
-				1: {
-					from: newExplicitCheckpoint(200),
-					to:   newExplicitCheckpoint(500),
-				},
-				otherPartitions: {
-					from: newExplicitCheckpoint(300),
-					to:   newExplicitCheckpoint(400),
-				},
-			},
-			expectedLength:     2,
-			expectedApplyToAll: true,
-		},
-		{
-			title: "explicit stop checkpoint with wildcard start condition",
-			from:  []string{"#300", "1#200"},
-			to:    []string{"1#500"},
-			expected: map[int32]*checkpointPair{
-				1: {
-					from: newExplicitCheckpoint(200),
-					to:   newExplicitCheckpoint(500),
-				},
-				otherPartitions: {
-					from: newExplicitCheckpoint(300),
-					to:   nil,
-				},
-			},
-			expectedLength:     2,
-			expectedApplyToAll: true,
-		},
-		{
-			title: "explicit start checkpoint with wildcard stop condition",
-			from:  []string{"1#200"},
-			to:    []string{"#300", "1#500"},
-			expected: map[int32]*checkpointPair{
-				1: {
-					from: newExplicitCheckpoint(200),
-					to:   newExplicitCheckpoint(500),
-				},
-				otherPartitions: {
-					from: newPredefinedCheckpoint(false),
-					to:   newExplicitCheckpoint(300),
-				},
-			},
-			expectedLength:     2,
-			expectedApplyToAll: true,
-		},
-		{
-			title: "explicit start and stop checkpoints",
+			title: "explicit start and stop checkpoints in inclusive mode",
 			from:  []string{"1#200"},
 			to:    []string{"1#500"},
 			expected: map[int32]*checkpointPair{
@@ -214,12 +187,14 @@ func TestPartitionCheckpointsGet(t *testing.T) {
 					from: newExplicitCheckpoint(200),
 					to:   newExplicitCheckpoint(500),
 				},
-				otherPartitions: nil,
+				randomPartition: {
+					from: newPredefinedCheckpoint(false),
+				},
 			},
 			expectedLength: 2,
 		},
 		{
-			title: "explicit start and stop checkpoints",
+			title: "explicit start and stop checkpoints in exclusive mode",
 			from:  []string{"1#200"},
 			to:    []string{"1#500"},
 			expected: map[int32]*checkpointPair{
@@ -227,12 +202,13 @@ func TestPartitionCheckpointsGet(t *testing.T) {
 					from: newExplicitCheckpoint(200),
 					to:   newExplicitCheckpoint(500),
 				},
-				otherPartitions: nil,
+				randomPartition: nil,
 			},
 			expectedLength: 2,
+			exclusive:      true,
 		},
 		{
-			title: "explicit start and stop timestamp checkpoints",
+			title: "explicit start and stop timestamp checkpoints in inclusive mode",
 			from:  []string{"1#" + fromTimeValue},
 			to:    []string{"1#" + toTimeValue},
 			expected: map[int32]*checkpointPair{
@@ -240,12 +216,28 @@ func TestPartitionCheckpointsGet(t *testing.T) {
 					from: newTimeCheckpoint(fromTimestamp),
 					to:   newTimeCheckpoint(toTimestamp),
 				},
-				otherPartitions: nil,
+				randomPartition: {
+					from: newPredefinedCheckpoint(false),
+				},
 			},
 			expectedLength: 2,
 		},
 		{
-			title: "global start and stop timestamp checkpoints",
+			title: "explicit start and stop timestamp checkpoints in exclusive mode",
+			from:  []string{"1#" + fromTimeValue},
+			to:    []string{"1#" + toTimeValue},
+			expected: map[int32]*checkpointPair{
+				1: {
+					from: newTimeCheckpoint(fromTimestamp),
+					to:   newTimeCheckpoint(toTimestamp),
+				},
+				randomPartition: nil,
+			},
+			expectedLength: 2,
+			exclusive:      true,
+		},
+		{
+			title: "global start and stop timestamp checkpoints in inclusive mode",
 			from:  []string{fromTimeValue},
 			to:    []string{toTimeValue},
 			expected: map[int32]*checkpointPair{
@@ -253,7 +245,7 @@ func TestPartitionCheckpointsGet(t *testing.T) {
 					from: newTimeCheckpoint(fromTimestamp),
 					to:   newTimeCheckpoint(toTimestamp),
 				},
-				otherPartitions: {
+				randomPartition: {
 					from: newTimeCheckpoint(fromTimestamp),
 					to:   newTimeCheckpoint(toTimestamp),
 				},
@@ -261,24 +253,24 @@ func TestPartitionCheckpointsGet(t *testing.T) {
 			expectedLength: 1,
 		},
 		{
-			title: "wildcard start and stop timestamp checkpoints",
-			from:  []string{"#" + fromTimeValue},
-			to:    []string{"#" + toTimeValue},
+			title: "global start and stop timestamp checkpoints in exclusive mode",
+			from:  []string{fromTimeValue},
+			to:    []string{toTimeValue},
 			expected: map[int32]*checkpointPair{
 				1: {
 					from: newTimeCheckpoint(fromTimestamp),
 					to:   newTimeCheckpoint(toTimestamp),
 				},
-				otherPartitions: {
+				randomPartition: {
 					from: newTimeCheckpoint(fromTimestamp),
 					to:   newTimeCheckpoint(toTimestamp),
 				},
 			},
-			expectedLength:     1,
-			expectedApplyToAll: true,
+			expectedLength: 1,
+			exclusive:      true,
 		},
 		{
-			title: "global stop checkpoints applies to all the partitions if not defined",
+			title: "global stop checkpoints apply to all the partitions with explicit start checkpoints if it has not been explicitly defined",
 			from:  []string{"50", "1#100", "2#80"},
 			to:    []string{"90", "1#150"},
 			expected: map[int32]*checkpointPair{
@@ -312,18 +304,6 @@ func TestPartitionCheckpointsGet(t *testing.T) {
 			expectedError: "must be before stop offset",
 		},
 		{
-			title:         "out of order wildcard global start and explicit stop checkpoints",
-			from:          []string{"#500"},
-			to:            []string{"1#200"},
-			expectedError: "must be before stop offset",
-		},
-		{
-			title:         "out of order wildcard global start and stop checkpoints",
-			from:          []string{"#500"},
-			to:            []string{"#200"},
-			expectedError: "must be before stop offset",
-		},
-		{
 			title:         "out of order start and stop timestamp checkpoints",
 			from:          []string{"1#" + toTimeValue},
 			to:            []string{"1#" + fromTimeValue},
@@ -337,11 +317,6 @@ func TestPartitionCheckpointsGet(t *testing.T) {
 		{
 			title:         "explicit start checkpoint with invalid offset value",
 			from:          []string{"1#invalid"},
-			expectedError: "invalid offset value",
-		},
-		{
-			title:         "wildcard start checkpoint with invalid offset value",
-			from:          []string{"#invalid"},
 			expectedError: "invalid offset value",
 		},
 		{
@@ -360,11 +335,6 @@ func TestPartitionCheckpointsGet(t *testing.T) {
 			expectedError: "invalid offset value",
 		},
 		{
-			title:         "wildcard stop checkpoint with invalid offset value",
-			to:            []string{"#invalid"},
-			expectedError: "invalid offset value",
-		},
-		{
 			title:         "global stop checkpoint with invalid offset value",
 			to:            []string{"invalid"},
 			expectedError: "invalid offset value",
@@ -380,16 +350,6 @@ func TestPartitionCheckpointsGet(t *testing.T) {
 			expectedError: "offset cannot be a negative value",
 		},
 		{
-			title:         "wildcard start checkpoint with negative offset value",
-			from:          []string{"#-1"},
-			expectedError: "offset cannot be a negative value",
-		},
-		{
-			title:         "global start checkpoint with negative offset value",
-			from:          []string{"-1"},
-			expectedError: "offset cannot be a negative value",
-		},
-		{
 			title:         "explicit stop checkpoint with negative partition value",
 			to:            []string{"-1#100"},
 			expectedError: "partition cannot be a negative value",
@@ -400,24 +360,14 @@ func TestPartitionCheckpointsGet(t *testing.T) {
 			expectedError: "offset cannot be a negative value",
 		},
 		{
-			title:         "wildcard stop checkpoint with negative offset value",
-			to:            []string{"#-1"},
-			expectedError: "offset cannot be a negative value",
-		},
-		{
-			title:         "global stop checkpoint with negative offset value",
-			to:            []string{"-1"},
-			expectedError: "offset cannot be a negative value",
-		},
-		{
 			title:         "malformed explicit start offset with a single delimiter",
 			from:          []string{"#"},
-			expectedError: "start/stop checkpoint value cannot be empty",
+			expectedError: "invalid partition value",
 		},
 		{
 			title:         "malformed explicit start offset with white space around the delimiter",
 			from:          []string{" # "},
-			expectedError: "start/stop checkpoint value cannot be empty",
+			expectedError: "invalid partition value",
 		},
 		{
 			title:         "malformed explicit start offset with more than one delimiter sign",
@@ -427,12 +377,12 @@ func TestPartitionCheckpointsGet(t *testing.T) {
 		{
 			title:         "malformed explicit stop offset with a single delimiter",
 			to:            []string{"#"},
-			expectedError: "start/stop checkpoint value cannot be empty",
+			expectedError: "invalid partition value",
 		},
 		{
 			title:         "malformed explicit stop offset with white space around the delimiter",
 			to:            []string{" # "},
-			expectedError: "start/stop checkpoint value cannot be empty",
+			expectedError: "invalid partition value",
 		},
 		{
 			title:         "malformed explicit stop offset with more than one delimiter sign",
@@ -442,15 +392,12 @@ func TestPartitionCheckpointsGet(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.title, func(t *testing.T) {
-			checkpoints, err := NewPartitionCheckpoints(tC.from, tC.to)
+			checkpoints, err := NewPartitionCheckpoints(tC.from, tC.to, tC.exclusive)
 			if !checkError(err, tC.expectedError) {
 				t.Errorf("Expected error: %q, Actual: %s", tC.expectedError, err)
 			}
 			if tC.expectedError != "" {
 				return
-			}
-			if tC.expectedApplyToAll != checkpoints.applyToAll {
-				t.Errorf("Expected Apply to All: %v, Actual: %v", tC.expectedApplyToAll, checkpoints.applyToAll)
 			}
 			if tC.expectedLength != len(checkpoints.partitionCheckpoints) {
 				t.Errorf("Expected Number of Checkpoint Pairs: %v, Actual: %v", tC.expectedLength, len(checkpoints.partitionCheckpoints))
@@ -530,4 +477,9 @@ func modeToString(mode checkpointMode) string {
 	default:
 		return "unknown"
 	}
+}
+
+func randomInt32(min, max int32) int32 {
+	rand.Seed(time.Now().UnixNano())
+	return rand.Int31n(max-min+1) + min
 }

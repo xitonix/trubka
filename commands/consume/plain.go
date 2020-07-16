@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"sync"
+	"time"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -36,6 +37,8 @@ type consumePlain struct {
 	enableAutoTopicCreation bool
 	from                    []string
 	to                      []string
+	exclusive               bool
+	idleTimeout             time.Duration
 	count                   bool
 	highlightStyle          string
 }
@@ -47,6 +50,7 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *commands.GlobalPa
 		inclusions:   &internal.MessageMetadata{},
 	}
 	c := parent.Command("plain", "Starts consuming plain text or json events from the given Kafka topic.").Action(cmd.run)
+
 	bindCommonConsumeFlags(c,
 		&cmd.topic,
 		&cmd.environment,
@@ -54,6 +58,8 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *commands.GlobalPa
 		&cmd.logFile,
 		&cmd.from,
 		&cmd.to,
+		&cmd.exclusive,
+		&cmd.idleTimeout,
 		cmd.inclusions,
 		&cmd.enableAutoTopicCreation,
 		&cmd.reverse,
@@ -93,7 +99,15 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 
 	prn := internal.NewPrinter(c.globalParams.Verbosity, logFile)
 
-	consumer, err := initialiseConsumer(c.kafkaParams, c.globalParams, c.environment, c.enableAutoTopicCreation, logFile, prn)
+	consumer, err := initialiseConsumer(
+		c.kafkaParams,
+		c.globalParams,
+		c.environment,
+		c.enableAutoTopicCreation,
+		c.exclusive,
+		c.idleTimeout,
+		logFile,
+		prn)
 	if err != nil {
 		return err
 	}
@@ -106,7 +120,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 
 	go monitorCancellation(prn, cancel)
 
-	checkpoints, err := kafka.NewPartitionCheckpoints(c.from, c.to)
+	checkpoints, err := kafka.NewPartitionCheckpoints(c.from, c.to, c.exclusive)
 	if err != nil {
 		return err
 	}

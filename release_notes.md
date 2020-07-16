@@ -7,14 +7,18 @@
 - The offset of the consumed message can be optionally included in the output.
 - Different time-based starting offsets can be defined for different partitions.
 - Predefined starting offsets (eg. `oldest`, `newest`, `local`, etc) can be defined for individual partitions.
-- A new `--to` flag has been introduced to the consumers to request stop offset/timestamp.
+- The following new flags have been added to `consume` commands: 
+    - `--to`: To define a stop offset/timestamp.
+    - `--idle-timeout`: The amount of time the consumer will wait for a message to arrive before stop consuming from a partition.
+    - `--exclusive`: Only explicitly defined partitions (Partition#Offset|Timestamp) will be consumed. The rest will be excluded.
 
 **[Changes]**
  - `-U` (for SASL username) and `-P` (for SASL password) short flags have been removed.
  - `Partition` and `Key` metadata will be printed to the output as separate lines for non-json formats.
- - `UTC` suffix has been replaced with timezone offset.
+ - `UTC` suffix has been replaced with timezone offsets.
  - `--from` is now a repeatable flag instead of a single comma separated string.
  - Partition-Offset delimiter has been changed to `#` for `--from` and `--to` values.
+ - Wildcard offset definition syntax (`:Offset`) has been replaced with `--exclusive` flag to reduce the complexity. 
 
 **[Fixes]**
 - Loading proto files from disk respects termination signals received from the OS (Ctrl + C).
