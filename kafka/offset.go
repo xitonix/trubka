@@ -1,6 +1,9 @@
 package kafka
 
-import "strconv"
+import (
+	"strconv"
+	"time"
+)
 
 const unknownOffset int64 = -3
 const offsetNotFound int64 = -4
@@ -13,7 +16,7 @@ type Offset struct {
 	Latest int64
 	// Current the current value of the local or consumer group offset. This is where the consumer up to.
 	Current int64
-	StopAt  *checkpoint `json:"-"`
+	stopAt  *checkpoint `json:"-"`
 }
 
 // Lag calculates the lag between the latest and the current offset values.
@@ -22,6 +25,16 @@ func (o Offset) Lag() int64 {
 		return o.Latest - o.Current
 	}
 	return 0
+}
+
+func (o Offset) stopInFuture() bool {
+	if o.stopAt == nil {
+		return false
+	}
+	if o.stopAt.mode == timestampMode {
+		return o.stopAt.at.In(time.UTC).After(time.Now().UTC())
+	}
+	return o.stopAt.offset > o.Latest
 }
 
 // String returns the string representation of the given offset.

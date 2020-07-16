@@ -198,8 +198,9 @@ func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets Topi
 func (c *Consumer) consumePartition(ctx context.Context, topic string, partition int32, offset Offset) error {
 	defer c.wg.Done()
 	var stopAt string
-	if offset.StopAt != nil {
-		stopAt = " Stopping at " + offset.StopAt.String()
+
+	if offset.stopAt != nil {
+		stopAt = ", Stopping at: " + offset.stopAt.String()
 	}
 	c.printer.Infof(internal.VeryVerbose, "Consuming from Topic: %s, Partition: %d, Offset: %v%s", topic, partition, getOffsetString(offset.Current), stopAt)
 	pc, err := c.internalConsumer.ConsumePartition(topic, partition, offset.Current)
@@ -217,18 +218,20 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 	}
 
 	mustStop := func(m *sarama.ConsumerMessage) bool {
-		if offset.StopAt == nil {
+		if offset.stopAt == nil {
 			return false
 		}
-		if offset.StopAt.mode == timestampMode {
-			return m.Timestamp.After(offset.StopAt.at)
+		if offset.stopAt.mode == timestampMode {
+			return m.Timestamp.After(offset.stopAt.at)
 		}
-		return m.Offset > offset.StopAt.offset
+		return m.Offset > offset.stopAt.offset
 	}
 
 	lastMessageReceivedAt := time.Now()
 	forceClose := make(chan interface{})
-	if offset.StopAt != nil {
+	// We don't want auto shutdown to happen if the stop checkpoint is in the future.
+	// We only stop consuming if the checkpoint is hit.
+	if offset.stopAt != nil && !offset.stopInFuture() {
 		go func() {
 			ticker := time.NewTicker(1 * time.Second)
 			defer ticker.Stop()
@@ -315,7 +318,7 @@ func (c *Consumer) calculateStartingOffsets(topic string, checkpoints *Partition
 	offsets := make(PartitionOffset)
 	for _, partition := range partitions {
 		var (
-			offset int64
+			offset *Offset
 			err    error
 		)
 		cp := checkpoints.get(partition)
@@ -324,8 +327,6 @@ func (c *Consumer) calculateStartingOffsets(topic string, checkpoints *Partition
 			continue
 		}
 		switch cp.from.mode {
-		case predefinedMode:
-			offset = cp.from.offset
 		case explicitMode:
 			offset, err = c.getExplicitOffset(topic, partition, cp.from)
 		case timestampMode:
@@ -333,29 +334,37 @@ func (c *Consumer) calculateStartingOffsets(topic string, checkpoints *Partition
 		case localMode:
 			offset, err = c.getLocalOffset(topic, partition, cp.from)
 		default:
-			offset = cp.from.offset
+			offset = &Offset{Current: cp.from.offset}
 		}
 		if err != nil {
+			// It only occurs when the requested explicit start offset is greater than the latest available offset
+			// of the partition. If we start consuming from the partition by that offset, we will get an error from Kafka.
+			// Remember that the specified offset might be valid for other partitions. So we simply ignore the out of range ones.
 			if errors.Is(err, errOutOfRangeOffset) {
 				continue
 			}
 			return nil, err
 		}
-		off := Offset{Current: offset, StopAt: cp.to}
-		offsets[partition] = off
+		offset.stopAt = cp.to
+		offsets[partition] = *offset
 	}
 	return offsets, nil
 }
 
-func (c *Consumer) getLocalOffset(topic string, partition int32, startFrom *checkpoint) (int64, error) {
+func (c *Consumer) getLocalOffset(topic string, partition int32, startFrom *checkpoint) (*Offset, error) {
 	localOffsets, ok := c.localOffsets[topic]
 	if !ok {
 		offsets, err := c.local.ReadTopicOffsets(topic, c.environment)
 		if err != nil {
-			return unknownOffset, err
+			return nil, err
 		}
 		c.localOffsets[topic] = offsets
 		localOffsets = offsets
+	}
+
+	latest, err := c.internalClient.GetOffset(topic, partition, sarama.OffsetNewest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve the current offset value for partition %d of topic %s: %w", partition, topic, err)
 	}
 
 	c.printer.Infof(internal.SuperVerbose,
@@ -370,7 +379,9 @@ func (c *Consumer) getLocalOffset(topic string, partition int32, startFrom *chec
 			topic,
 			c.environment,
 			getOffsetString(storedOffset.Current))
-		return storedOffset.Current, nil
+
+		storedOffset.Latest = latest
+		return &storedOffset, nil
 	}
 
 	c.printer.Infof(internal.SuperVerbose,
@@ -378,13 +389,16 @@ func (c *Consumer) getLocalOffset(topic string, partition int32, startFrom *chec
 		partition,
 		topic)
 
-	return startFrom.offset, nil
+	return &Offset{
+		Latest:  latest,
+		Current: startFrom.offset,
+	}, nil
 }
 
-func (c *Consumer) getTimeBasedOffset(topic string, partition int32, startFrom *checkpoint) (int64, error) {
+func (c *Consumer) getTimeBasedOffset(topic string, partition int32, startFrom *checkpoint) (*Offset, error) {
 	offset, err := c.internalClient.GetOffset(topic, partition, startFrom.offset)
 	if err != nil {
-		return unknownOffset, fmt.Errorf("failed to retrieve the time-based offset for partition %d of topic %s: %w", partition, topic, err)
+		return nil, fmt.Errorf("failed to retrieve the time-based offset for partition %d of topic %s: %w", partition, topic, err)
 	}
 	c.printer.Infof(internal.SuperVerbose,
 		"Topic: %s, Partition %d, Requested: %s, Start From: %v",
@@ -392,31 +406,35 @@ func (c *Consumer) getTimeBasedOffset(topic string, partition int32, startFrom *
 		partition,
 		startFrom.String(),
 		getOffsetString(offset))
-	return offset, nil
+	return &Offset{
+		Current: offset,
+	}, nil
 }
 
-func (c *Consumer) getExplicitOffset(topic string, partition int32, startFrom *checkpoint) (int64, error) {
-	mostRecentOffset, err := c.internalClient.GetOffset(topic, partition, sarama.OffsetNewest)
+func (c *Consumer) getExplicitOffset(topic string, partition int32, startFrom *checkpoint) (*Offset, error) {
+	latest, err := c.internalClient.GetOffset(topic, partition, sarama.OffsetNewest)
 	if err != nil {
-		return unknownOffset, fmt.Errorf("failed to retrieve the current offset value for partition %d of topic %s: %w", partition, topic, err)
+		return nil, fmt.Errorf("failed to retrieve the current offset value for partition %d of topic %s: %w", partition, topic, err)
 	}
-	if startFrom.offset > mostRecentOffset {
+	if startFrom.offset > latest {
 		c.printer.Infof(internal.SuperVerbose,
 			"Topic: %s, Partition %d, Requested: %s, Available: %v, Ignored",
 			topic,
 			partition,
 			startFrom.String(),
-			getOffsetString(mostRecentOffset))
-		return unknownOffset, errOutOfRangeOffset
+			getOffsetString(latest))
+		return nil, errOutOfRangeOffset
 	}
-
 	c.printer.Infof(internal.SuperVerbose,
 		"Topic: %s, Partition %d, Start From: %v",
 		topic,
 		partition,
 		startFrom.String())
 
-	return startFrom.offset, nil
+	return &Offset{
+		Current: startFrom.offset,
+		Latest:  latest,
+	}, nil
 }
 
 func getOffsetString(offset int64) interface{} {

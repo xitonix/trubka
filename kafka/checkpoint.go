@@ -116,17 +116,17 @@ func parseCheckpoint(value string, isStopOffset bool) (*checkpoint, error) {
 	switch value {
 	case "local", "stored":
 		if isStopOffset {
-			return nil, invalidToValue(value)
+			return nil, invalidStopValue(value)
 		}
 		return newLocalCheckpoint(), nil
 	case "newest", "latest", "end":
 		if isStopOffset {
-			return nil, invalidToValue(value)
+			return nil, invalidStopValue(value)
 		}
 		return newPredefinedCheckpoint(false), nil
 	case "oldest", "earliest", "beginning", "start":
 		if isStopOffset {
-			return nil, invalidToValue(value)
+			return nil, invalidStopValue(value)
 		}
 		return newPredefinedCheckpoint(true), nil
 	}
@@ -139,6 +139,6 @@ func parseCheckpoint(value string, isStopOffset bool) (*checkpoint, error) {
 	return newExplicitCheckpoint(offset), nil
 }
 
-func invalidToValue(value string) error {
+func invalidStopValue(value string) error {
 	return fmt.Errorf("'%s' is not an acceptable stop condition", value)
 }

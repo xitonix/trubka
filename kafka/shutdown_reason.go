@@ -11,7 +11,7 @@ const (
 var (
 	shutdownReasonToString = map[shutdownReason]string{
 		cancelledByUser:       "Cancelled by user",
-		noMoreMessage:         "No more message received",
+		noMoreMessage:         "No more messages received",
 		reachedStopCheckpoint: "Reached stop checkpoint",
 	}
 )

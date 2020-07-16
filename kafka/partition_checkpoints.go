@@ -8,7 +8,7 @@ import (
 
 const (
 	allPartitions         int32 = -1
-	allPartitionsExplicit int32 = -2
+	allPartitionsWildcard int32 = -2
 	invalidPartition      int32 = -3
 )
 
@@ -37,7 +37,7 @@ func NewPartitionCheckpoints(from, to []string) (*PartitionCheckpoints, error) {
 		if err != nil {
 			return nil, err
 		}
-		if partition == allPartitionsExplicit {
+		if partition == allPartitionsWildcard {
 			applyToAll = true
 			// We still need to store it under `allPartitions` key
 			partition = allPartitions
@@ -52,11 +52,26 @@ func NewPartitionCheckpoints(from, to []string) (*PartitionCheckpoints, error) {
 		if err != nil {
 			return nil, err
 		}
+		if partition == allPartitionsWildcard {
+			applyToAll = true
+			// We still need to store it under `allPartitions` key
+			partition = allPartitions
+		}
+
 		if _, ok := checkpoints[partition]; !ok {
 			checkpoints[partition] = &checkpointPair{
 				from: checkpoints[allPartitions].from,
 				to:   cp,
 			}
+		}
+
+		if partition == allPartitions {
+			for partition, pair := range checkpoints {
+				if partition == allPartitions || pair.to == nil {
+					pair.to = cp
+				}
+			}
+			continue
 		}
 		checkpoints[partition].to = cp
 	}
@@ -105,9 +120,9 @@ func parse(raw string, isStopOffset bool) (*checkpoint, int32, error) {
 		}
 		partitionStr := strings.TrimSpace(parts[0])
 		if partitionStr == "" {
-			// ":N" parameter has been provided. We need to apply the last winner offset (N)
+			// "#N" parameter has been provided. We need to apply the last winner offset (N)
 			// value to all the partitions which is not explicitly requested.
-			return cp, allPartitionsExplicit, nil
+			return cp, allPartitionsWildcard, nil
 		}
 		partition, err := parseInt(partitionStr, "partition")
 		if err != nil {
@@ -115,14 +130,14 @@ func parse(raw string, isStopOffset bool) (*checkpoint, int32, error) {
 		}
 		return cp, int32(partition), nil
 	default:
-		return nil, invalidPartition, fmt.Errorf("invalid partition offset string: %s", raw)
+		return nil, invalidPartition, fmt.Errorf("invalid start/stop value: %s", raw)
 	}
 }
 
 func parseInt(value string, entity string) (int64, error) {
 	parsed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("invalid %s value: %w", entity, err)
+		return 0, fmt.Errorf("invalid %s value", entity)
 	}
 	if parsed < 0 {
 		return 0, fmt.Errorf("%s cannot be a negative value", entity)
