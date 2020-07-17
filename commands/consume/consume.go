@@ -148,26 +148,35 @@ func initialiseConsumer(kafkaParams *commands.KafkaParameters,
 	exclusive bool,
 	idleTimeout time.Duration,
 	logFile io.Writer,
-	prn *internal.SyncPrinter) (*kafka.Consumer, error) {
+	printer internal.Printer) (*kafka.Consumer, error) {
 	saramaLogWriter := ioutil.Discard
 	if globalParams.Verbosity >= internal.Chatty {
 		saramaLogWriter = logFile
 	}
 
 	brokers := commands.GetBrokers(kafkaParams.Brokers)
-	consumer, err := kafka.NewConsumer(
-		brokers, prn,
-		environment,
-		enableAutoTopicCreation,
-		exclusive,
-		idleTimeout,
-		kafka.WithClusterVersion(kafkaParams.Version),
+
+	store, err := kafka.NewLocalOffsetStore(printer, environment)
+	if err != nil {
+		return nil, err
+	}
+
+	wrapper, err := kafka.NewConsumerWrapper(brokers, kafka.WithClusterVersion(kafkaParams.Version),
 		kafka.WithTLS(kafkaParams.TLS),
 		kafka.WithLogWriter(saramaLogWriter),
 		kafka.WithSASL(kafkaParams.SASLMechanism,
 			kafkaParams.SASLUsername,
 			kafkaParams.SASLPassword,
 			kafkaParams.SASLHandshakeVersion))
+
+	consumer, err := kafka.NewConsumer(
+		store,
+		wrapper,
+		printer,
+		enableAutoTopicCreation,
+		exclusive,
+		idleTimeout,
+	)
 
 	if err != nil {
 		return nil, err

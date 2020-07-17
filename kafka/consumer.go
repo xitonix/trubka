@@ -15,56 +15,34 @@ import (
 
 // Consumer represents a new Kafka cluster consumer.
 type Consumer struct {
-	brokers                 []string
 	printer                 internal.Printer
-	internalConsumer        sarama.Consumer
-	internalClient          sarama.Client
-	wg                      sync.WaitGroup
+	internalConsumer        partitionConsumer
+	store                   offsetStore
 	remoteTopics            []string
 	enableAutoTopicCreation bool
-	environment             string
 	events                  chan *Event
 	closeOnce               sync.Once
-	store                   *offsetStore
-	local                   *LocalOffsetManager
 	localOffsets            TopicPartitionOffset
 	exclusive               bool
 	idleTimeout             time.Duration
+	wg                      sync.WaitGroup
 }
 
 // NewConsumer creates a new instance of Kafka cluster consumer.
-func NewConsumer(brokers []string,
+func NewConsumer(
+	store offsetStore,
+	internalConsumer partitionConsumer,
 	printer internal.Printer,
-	environment string,
 	enableAutoTopicCreation bool,
 	exclusive bool,
-	idleTimeout time.Duration,
-	options ...Option) (*Consumer, error) {
-	client, err := initClient(brokers, options...)
-	if err != nil {
-		return nil, err
-	}
-
-	consumer, err := sarama.NewConsumerFromClient(client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialise the Kafka consumer: %w", err)
-	}
-
-	store, err := newOffsetStore(printer, environment)
-	if err != nil {
-		return nil, err
-	}
+	idleTimeout time.Duration) (*Consumer, error) {
 
 	return &Consumer{
-		brokers:                 brokers,
 		printer:                 printer,
-		internalConsumer:        consumer,
-		internalClient:          client,
+		internalConsumer:        internalConsumer,
 		enableAutoTopicCreation: enableAutoTopicCreation,
-		environment:             environment,
 		events:                  make(chan *Event, 128),
 		store:                   store,
-		local:                   NewLocalOffsetManager(printer),
 		localOffsets:            make(TopicPartitionOffset),
 		exclusive:               exclusive,
 		idleTimeout:             idleTimeout,
@@ -131,9 +109,9 @@ func (c *Consumer) Start(ctx context.Context, topics map[string]*PartitionCheckp
 
 // StoreOffset stores the offset of the successfully processed message into the offset store.
 func (c *Consumer) StoreOffset(event *Event) {
-	err := c.store.Store(event.Topic, event.Partition, event.Offset+1)
+	err := c.store.commit(event.Topic, event.Partition, event.Offset+1)
 	if err != nil {
-		c.printer.Errorf(internal.Forced, "Failed to store the offset: %s.", err)
+		c.printer.Errorf(internal.Forced, "Failed to commit the offset: %s.", err)
 	}
 }
 
@@ -151,11 +129,6 @@ func (c *Consumer) Close() {
 		err := c.internalConsumer.Close()
 		if err != nil {
 			c.printer.Errorf(internal.Forced, "Failed to close the Kafka consumer: %s.", err)
-		}
-		c.printer.Info(internal.Verbose, "Closing Kafka connections.")
-		err = c.internalClient.Close()
-		if err != nil {
-			c.printer.Errorf(internal.Forced, "Failed to close Kafka connections: %s.", err)
 		} else {
 			c.printer.Info(internal.VeryVerbose, "The Kafka client has been closed successfully.")
 		}
@@ -362,7 +335,7 @@ func (c *Consumer) calculateStartingOffsets(topic string, checkpoints *Partition
 func (c *Consumer) getLocalOffset(topic string, partition int32, startFrom *checkpoint) (*Offset, error) {
 	localOffsets, ok := c.localOffsets[topic]
 	if !ok {
-		offsets, err := c.local.ReadTopicOffsets(topic, c.environment)
+		offsets, err := c.store.read(topic)
 		if err != nil {
 			return nil, err
 		}
@@ -370,23 +343,22 @@ func (c *Consumer) getLocalOffset(topic string, partition int32, startFrom *chec
 		localOffsets = offsets
 	}
 
-	latest, err := c.internalClient.GetOffset(topic, partition, sarama.OffsetNewest)
+	latest, err := c.internalConsumer.GetOffset(topic, partition, sarama.OffsetNewest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve the current offset value for partition %d of topic %s: %w", partition, topic, err)
 	}
 
 	c.printer.Infof(internal.SuperVerbose,
-		"Checking the local offset store for Topic: %s, Partition: %d, Environment: %s",
+		"Checking the local offset for Topic: %s, Partition: %d",
 		topic,
-		partition,
-		c.environment)
+		partition)
+
 	if storedOffset, ok := localOffsets[partition]; ok {
 		c.printer.Infof(internal.SuperVerbose,
-			"Topic: %s, Partition %d, Latest Offset: %v, Start From Local (%s): %v",
+			"Topic: %s, Partition %d, Latest Offset: %v, Start From Local: %v",
 			topic,
 			partition,
 			getOffsetString(latest),
-			c.environment,
 			getOffsetString(storedOffset.Current))
 
 		storedOffset.Latest = latest
@@ -408,7 +380,7 @@ func (c *Consumer) getLocalOffset(topic string, partition int32, startFrom *chec
 }
 
 func (c *Consumer) getTimeBasedOffset(topic string, partition int32, startFrom *checkpoint) (*Offset, error) {
-	offset, err := c.internalClient.GetOffset(topic, partition, startFrom.offset)
+	offset, err := c.internalConsumer.GetOffset(topic, partition, startFrom.offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve the time-based offset for partition %d of topic %s: %w", partition, topic, err)
 	}
@@ -424,7 +396,7 @@ func (c *Consumer) getTimeBasedOffset(topic string, partition int32, startFrom *
 }
 
 func (c *Consumer) getExplicitOffset(topic string, partition int32, startFrom *checkpoint) (*Offset, error) {
-	latest, err := c.internalClient.GetOffset(topic, partition, sarama.OffsetNewest)
+	latest, err := c.internalConsumer.GetOffset(topic, partition, sarama.OffsetNewest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve the current offset value for partition %d of topic %s: %w", partition, topic, err)
 	}
