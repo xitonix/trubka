@@ -6,7 +6,7 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-type partitionConsumer interface {
+type client interface {
 	Partitions(topic string) ([]int32, error)
 	ConsumePartition(topic string, partition int32, offset int64) (sarama.PartitionConsumer, error)
 	Topics() ([]string, error)

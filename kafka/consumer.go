@@ -16,7 +16,7 @@ import (
 // Consumer represents a new Kafka cluster consumer.
 type Consumer struct {
 	printer                 internal.Printer
-	internalConsumer        partitionConsumer
+	client                  client
 	store                   offsetStore
 	remoteTopics            []string
 	enableAutoTopicCreation bool
@@ -31,7 +31,7 @@ type Consumer struct {
 // NewConsumer creates a new instance of Kafka cluster consumer.
 func NewConsumer(
 	store offsetStore,
-	internalConsumer partitionConsumer,
+	client client,
 	printer internal.Printer,
 	enableAutoTopicCreation bool,
 	exclusive bool,
@@ -39,7 +39,7 @@ func NewConsumer(
 
 	return &Consumer{
 		printer:                 printer,
-		internalConsumer:        internalConsumer,
+		client:                  client,
 		enableAutoTopicCreation: enableAutoTopicCreation,
 		events:                  make(chan *Event, 128),
 		store:                   store,
@@ -55,7 +55,7 @@ func (c *Consumer) GetTopics(search *regexp.Regexp) ([]string, error) {
 		return c.remoteTopics, nil
 	}
 
-	topics, err := c.internalConsumer.Topics()
+	topics, err := c.client.Topics()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the topic list from the server: %w", err)
 	}
@@ -126,7 +126,7 @@ func (c *Consumer) CloseOffsetStore() {
 func (c *Consumer) Close() {
 	c.closeOnce.Do(func() {
 		c.printer.Info(internal.Verbose, "Closing Kafka consumer.")
-		err := c.internalConsumer.Close()
+		err := c.client.Close()
 		if err != nil {
 			c.printer.Errorf(internal.Forced, "Failed to close the Kafka consumer: %s.", err)
 		} else {
@@ -186,7 +186,7 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 		stopAt = ", Stopping at: " + offset.stopAt.String()
 	}
 	c.printer.Infof(internal.VeryVerbose, "Consuming from Topic: %s, Partition: %d, Offset: %v%s", topic, partition, getOffsetString(offset.Current), stopAt)
-	pc, err := c.internalConsumer.ConsumePartition(topic, partition, offset.Current)
+	pc, err := c.client.ConsumePartition(topic, partition, offset.Current)
 	if err != nil {
 		return err
 	}
@@ -291,7 +291,7 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*PartitionCheckpoints)
 
 func (c *Consumer) calculateStartingOffsets(topic string, checkpoints *PartitionCheckpoints) (PartitionOffset, error) {
 	c.printer.Infof(internal.SuperVerbose, "Fetching partitions for topic %s.", topic)
-	partitions, err := c.internalConsumer.Partitions(topic)
+	partitions, err := c.client.Partitions(topic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the partition offsets for topic %s: %w", topic, err)
 	}
@@ -343,7 +343,7 @@ func (c *Consumer) getLocalOffset(topic string, partition int32, startFrom *chec
 		localOffsets = offsets
 	}
 
-	latest, err := c.internalConsumer.GetOffset(topic, partition, sarama.OffsetNewest)
+	latest, err := c.client.GetOffset(topic, partition, sarama.OffsetNewest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve the current offset value for partition %d of topic %s: %w", partition, topic, err)
 	}
@@ -380,7 +380,7 @@ func (c *Consumer) getLocalOffset(topic string, partition int32, startFrom *chec
 }
 
 func (c *Consumer) getTimeBasedOffset(topic string, partition int32, startFrom *checkpoint) (*Offset, error) {
-	offset, err := c.internalConsumer.GetOffset(topic, partition, startFrom.offset)
+	offset, err := c.client.GetOffset(topic, partition, startFrom.offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve the time-based offset for partition %d of topic %s: %w", partition, topic, err)
 	}
@@ -396,7 +396,7 @@ func (c *Consumer) getTimeBasedOffset(topic string, partition int32, startFrom *
 }
 
 func (c *Consumer) getExplicitOffset(topic string, partition int32, startFrom *checkpoint) (*Offset, error) {
-	latest, err := c.internalConsumer.GetOffset(topic, partition, sarama.OffsetNewest)
+	latest, err := c.client.GetOffset(topic, partition, sarama.OffsetNewest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve the current offset value for partition %d of topic %s: %w", partition, topic, err)
 	}
