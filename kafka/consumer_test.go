@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 )
@@ -18,6 +19,8 @@ func TestConsumerStart(t *testing.T) {
 		noTopicOnTheServer          bool
 		forceTopicListFailure       bool
 		forcePartitionsQueryFailure bool
+		expectedOffsets             map[int32]int64
+		publishToPartitions         []int32
 	}{
 		{
 			title:       "empty topic list",
@@ -73,6 +76,23 @@ func TestConsumerStart(t *testing.T) {
 				tC.forcePartitionsQueryFailure,
 			)
 			consumer := NewConsumer(store, client, &printerMock{}, tC.autoTopicCreation, tC.exclusive, tC.idleTimeout)
+
+			actualOffsets := make(map[int32]int64)
+			wg := sync.WaitGroup{}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for event := range consumer.Events() {
+					actualOffsets[event.Partition] = event.Offset
+				}
+			}()
+
+			for _, topic := range topics {
+				for _, partition := range tC.publishToPartitions {
+					client.receive(topic, partition)
+				}
+			}
+
 			timeout := tC.idleTimeout + (10 * time.Millisecond)
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
@@ -82,6 +102,21 @@ func TestConsumerStart(t *testing.T) {
 			}
 			if tC.expectedErr != "" {
 				return
+			}
+			wg.Wait()
+
+			if len(tC.expectedOffsets) != len(actualOffsets) {
+				t.Errorf("Expected Number of Received Messages: %d, Actual: %d", len(tC.expectedOffsets), len(actualOffsets))
+			}
+
+			for partition, expectedOffset := range tC.expectedOffsets {
+				actual, ok := actualOffsets[partition]
+				if !ok {
+					t.Errorf("Did not receive a message with offset %d from partition %d", expectedOffset, partition)
+				}
+				if actual != expectedOffset {
+					t.Errorf("Expected offset: %d from partition %d, Actual: %d", expectedOffset, partition, actual)
+				}
 			}
 		})
 	}

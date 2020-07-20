@@ -2,15 +2,17 @@ package kafka
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/Shopify/sarama"
 )
 
 var (
-	deliberateErr error = errors.New("asked by user")
+	deliberateErr = errors.New("asked by user")
 )
 
 type clientMock struct {
+	mux                         sync.Mutex
 	partitionConsumers          map[string]map[int32]*partitionConsumerMock
 	topics                      []string
 	partitions                  []int32
@@ -56,6 +58,8 @@ func (c *clientMock) Partitions(_ string) ([]int32, error) {
 }
 
 func (c *clientMock) ConsumePartition(topic string, partition int32, offset int64) (sarama.PartitionConsumer, error) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
 	c.partitionConsumers[topic][partition] = newPartitionConsumerMock(topic, partition, offset)
 	return c.partitionConsumers[topic][partition], nil
 }

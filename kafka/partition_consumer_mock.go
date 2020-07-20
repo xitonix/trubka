@@ -20,8 +20,8 @@ type partitionConsumerMock struct {
 
 func newPartitionConsumerMock(topic string, partition int32, offset int64) *partitionConsumerMock {
 	return &partitionConsumerMock{
-		messages:  make(chan *sarama.ConsumerMessage),
-		errors:    make(chan *sarama.ConsumerError),
+		messages:  make(chan *sarama.ConsumerMessage, 100),
+		errors:    make(chan *sarama.ConsumerError, 100),
 		topic:     topic,
 		partition: partition,
 		offset:    offset,
