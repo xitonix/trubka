@@ -1,24 +1,42 @@
 package kafka
 
 import (
+	"errors"
+
 	"github.com/Shopify/sarama"
 )
 
+var (
+	deliberateErr error = errors.New("asked by user")
+)
+
 type clientMock struct {
-	partitionConsumers map[string]map[int32]*partitionConsumerMock
-	topics             []string
-	partitions         []int32
+	partitionConsumers          map[string]map[int32]*partitionConsumerMock
+	topics                      []string
+	partitions                  []int32
+	topicNotFound               bool
+	forceTopicsQueryFailure     bool
+	forcePartitionsQueryFailure bool
 }
 
-func newClientMock(topics []string, numberOfPartitions int) *clientMock {
+func newClientMock(
+	topics []string,
+	numberOfPartitions int,
+	topicNotFound bool,
+	forceTopicListFailure bool,
+	forcePartitionsQueryFailure bool) *clientMock {
+
 	partitions := make([]int32, numberOfPartitions)
 	for i := 0; i < numberOfPartitions; i++ {
 		partitions[i] = int32(i)
 	}
 	cm := &clientMock{
-		topics:             topics,
-		partitionConsumers: make(map[string]map[int32]*partitionConsumerMock),
-		partitions:         partitions,
+		topics:                      topics,
+		partitionConsumers:          make(map[string]map[int32]*partitionConsumerMock),
+		partitions:                  partitions,
+		topicNotFound:               topicNotFound,
+		forceTopicsQueryFailure:     forceTopicListFailure,
+		forcePartitionsQueryFailure: forcePartitionsQueryFailure,
 	}
 
 	for _, topic := range topics {
@@ -31,17 +49,25 @@ func newClientMock(topics []string, numberOfPartitions int) *clientMock {
 }
 
 func (c *clientMock) Partitions(_ string) ([]int32, error) {
+	if c.forcePartitionsQueryFailure {
+		return nil, deliberateErr
+	}
 	return c.partitions, nil
 }
 
 func (c *clientMock) ConsumePartition(topic string, partition int32, offset int64) (sarama.PartitionConsumer, error) {
-	if _, ok := c.partitionConsumers[topic][partition]; !ok {
-		c.partitionConsumers[topic][partition] = newPartitionConsumerMock(topic, partition, offset)
-	}
+	c.partitionConsumers[topic][partition] = newPartitionConsumerMock(topic, partition, offset)
 	return c.partitionConsumers[topic][partition], nil
 }
 
 func (c *clientMock) Topics() ([]string, error) {
+	if c.forceTopicsQueryFailure {
+		return nil, deliberateErr
+	}
+	if c.topicNotFound {
+		// Simulating the behaviour when the topic was not found on the server
+		return []string{}, nil
+	}
 	return c.topics, nil
 }
 

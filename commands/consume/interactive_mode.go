@@ -12,8 +12,17 @@ import (
 
 	"github.com/xitonix/trubka/commands"
 	"github.com/xitonix/trubka/internal"
+	"github.com/xitonix/trubka/internal/output"
+	"github.com/xitonix/trubka/internal/output/format/tabular"
 	"github.com/xitonix/trubka/kafka"
 	"github.com/xitonix/trubka/protobuf"
+)
+
+type checkpointMode int8
+
+const (
+	startCheckpoint checkpointMode = iota
+	stopCheckpoint
 )
 
 var errExitInteractiveMode = errors.New("exit")
@@ -21,7 +30,8 @@ var errExitInteractiveMode = errors.New("exit")
 func askUserForTopics(consumer *kafka.Consumer,
 	topicFilter *regexp.Regexp,
 	offsetInteractiveMode bool,
-	defaultCheckpoint *kafka.PartitionCheckpoints) (map[string]*kafka.PartitionCheckpoints, error) {
+	defaultCheckpoints *kafka.PartitionCheckpoints,
+	exclusive bool) (map[string]*kafka.PartitionCheckpoints, error) {
 
 	remoteTopics, err := consumer.GetTopics(topicFilter)
 	if err != nil {
@@ -37,9 +47,9 @@ func askUserForTopics(consumer *kafka.Consumer,
 	result := make(map[string]*kafka.PartitionCheckpoints)
 	for _, index := range indexes {
 		topic := remoteTopics[index]
-		result[topic] = defaultCheckpoint
+		result[topic] = defaultCheckpoints
 		if offsetInteractiveMode {
-			cp, err := askForStartingOffset(topic, defaultCheckpoint)
+			cp, err := readCheckpoints(topic, defaultCheckpoints, exclusive)
 			if err != nil {
 				return nil, err
 			}
@@ -58,7 +68,8 @@ func readUserData(consumer *kafka.Consumer,
 	loader protobuf.Loader,
 	topicFilter, typeFilter *regexp.Regexp,
 	offsetInteractiveMode bool,
-	defaultCheckpoint *kafka.PartitionCheckpoints) (map[string]*kafka.PartitionCheckpoints, map[string]string, error) {
+	defaultCheckpoints *kafka.PartitionCheckpoints,
+	exclusive bool) (map[string]*kafka.PartitionCheckpoints, map[string]string, error) {
 
 	remoteTopics, err := consumer.GetTopics(topicFilter)
 	if err != nil {
@@ -82,14 +93,14 @@ func readUserData(consumer *kafka.Consumer,
 	sort.Strings(types)
 	for _, index := range topicIndexes {
 		topic := remoteTopics[index]
-		topics[topic] = defaultCheckpoint
+		topics[topic] = defaultCheckpoints
 		typeIndexes, err := pickAnIndex(fmt.Sprintf("stored in %s topic", topic), "message type", types, false)
 		if err != nil {
 			return nil, nil, err
 		}
 		tm[topic] = types[typeIndexes[0]]
 		if offsetInteractiveMode {
-			cp, err := askForStartingOffset(topic, defaultCheckpoint)
+			cp, err := readCheckpoints(topic, defaultCheckpoints, exclusive)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -247,56 +258,97 @@ func parseIndex(input, entryName string, length int) (int, error) {
 	return i - 1, nil
 }
 
-func askForStartingOffset(topic string, defaultCP *kafka.PartitionCheckpoints) (cp *kafka.PartitionCheckpoints, err error) {
-	//var cancelled bool
-	//go func() {
-	//	internal.WaitForCancellationSignal()
-	//	cancelled = true
-	//}()
-	//defer func() {
-	//	if cancelled {
-	//		cp = nil
-	//		err = errExitInteractiveMode
-	//	}
-	//}()
-	//scanner := bufio.NewScanner(os.Stdin)
-	//msg := fmt.Sprintf("Enter the starting offset for %s topic. Press Enter to go with '%s' (Q to quit): ", topic, defaultCP.OriginalFromValue())
-	//for fmt.Print(msg); scanner.Scan(); fmt.Print(msg) {
-	//	trimmed := strings.TrimSpace(scanner.Text())
-	//	if len(trimmed) == 0 {
-	//		return defaultCP, nil
-	//	}
-	//	if askedToExit(trimmed) {
-	//		return nil, errExitInteractiveMode
-	//	}
-	//	//TODO: Fix me
-	//	cp, err := kafka.NewPartitionCheckpoints([]string{trimmed}, []string{})
-	//	if err != nil {
-	//		fmt.Printf("%s\n", internal.Title(err))
-	//		continue
-	//	}
-	//	return cp, nil
-	//}
+func readCheckpoints(topic string, defaultCP *kafka.PartitionCheckpoints, exclusive bool) (cp *kafka.PartitionCheckpoints, err error) {
+	var (
+		cancelled bool
+	)
+
+	go func() {
+		internal.WaitForCancellationSignal()
+		cancelled = true
+	}()
+	defer func() {
+		if cancelled {
+			cp = nil
+			err = errExitInteractiveMode
+		}
+	}()
+
+	for {
+		from, err := readCheckpoint(topic, startCheckpoint, defaultCP.From())
+		if err != nil {
+			return nil, err
+		}
+
+		to, err := readCheckpoint(topic, stopCheckpoint, defaultCP.To())
+		if err != nil {
+			return nil, err
+		}
+
+		cp, err = kafka.NewPartitionCheckpoints(from, to, exclusive)
+		if err != nil {
+			fmt.Printf("%s\n", internal.Title(err))
+			continue
+		}
+		return cp, err
+	}
+}
+
+func readCheckpoint(topic string, mode checkpointMode, defaultValue string) ([]string, error) {
+	var (
+		modeName string
+		fallback []string
+	)
+
+	if defaultValue != "" {
+		fallback = strings.Split(defaultValue, ",")
+	}
+
+	if mode == startCheckpoint {
+		modeName = "start"
+	} else {
+		modeName = "stop"
+		if defaultValue == "" {
+			defaultValue = "None"
+		}
+	}
+
+	scanner := bufio.NewScanner(os.Stdin)
+	msg := fmt.Sprintf("Enter a comma separated list of %s conditions for %s topic. Press Enter to go with '%s' (Q to quit): ", modeName, topic, defaultValue)
+	for fmt.Print(msg); scanner.Scan(); fmt.Print(msg) {
+		trimmed := strings.TrimSpace(scanner.Text())
+		if len(trimmed) == 0 {
+			return fallback, nil
+		}
+		if askedToExit(trimmed) {
+			return nil, errExitInteractiveMode
+		}
+		return strings.Split(trimmed, ","), nil
+	}
 	return nil, errExitInteractiveMode
 }
 
 func confirmConsumerStart(topics map[string]*kafka.PartitionCheckpoints, contracts map[string]string) bool {
-	//headers := []*tabular.Column{tabular.C("Topic")}
-	//isProto := len(contracts) != 0
-	//if isProto {
-	//	headers = append(headers, tabular.C("Contract"))
-	//}
-	//headers = append(headers, tabular.C("Offset"))
-	//table := tabular.NewTable(false, headers...)
-	//for topic, cp := range topics {
-	//	if isProto {
-	//		table.AddRow(topic, contracts[topic], cp.OriginalFromValue())
-	//		continue
-	//	}
-	//	table.AddRow(topic, cp.OriginalFromValue())
-	//}
-	//output.NewLines(1)
-	//table.Render()
+	headers := []*tabular.Column{tabular.C("Topic")}
+	isProto := len(contracts) != 0
+	if isProto {
+		headers = append(headers, tabular.C("Contract"))
+	}
+	headers = append(headers, tabular.C("From").Align(tabular.AlignCenter), tabular.C("To").Align(tabular.AlignCenter))
+	table := tabular.NewTable(false, headers...)
+	for topic, cp := range topics {
+		to := cp.To()
+		if to == "" {
+			to = "-"
+		}
+		if isProto {
+			table.AddRow(topic, contracts[topic], cp.From(), to)
+			continue
+		}
+		table.AddRow(topic, cp.From(), to)
+	}
+	output.NewLines(1)
+	table.Render()
 	return commands.AskForConfirmation("Start consuming")
 }
 

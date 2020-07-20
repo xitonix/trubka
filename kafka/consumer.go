@@ -35,7 +35,7 @@ func NewConsumer(
 	printer internal.Printer,
 	enableAutoTopicCreation bool,
 	exclusive bool,
-	idleTimeout time.Duration) (*Consumer, error) {
+	idleTimeout time.Duration) *Consumer {
 
 	return &Consumer{
 		printer:                 printer,
@@ -46,7 +46,7 @@ func NewConsumer(
 		localOffsets:            make(TopicPartitionOffset),
 		exclusive:               exclusive,
 		idleTimeout:             idleTimeout,
-	}, nil
+	}
 }
 
 // GetTopics fetches the topics from the server.
@@ -238,6 +238,10 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 
 			lastMessageReceivedAt = time.Now()
 
+			if mustStop(m) {
+				return shutdown(reachedStopCheckpoint)
+			}
+			
 			c.events <- &Event{
 				Topic:     m.Topic,
 				Key:       m.Key,
@@ -246,9 +250,7 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 				Partition: m.Partition,
 				Offset:    m.Offset,
 			}
-			if mustStop(m) {
-				return shutdown(reachedStopCheckpoint)
-			}
+
 		case err, more := <-pc.Errors():
 			if !more {
 				return nil

@@ -128,7 +128,7 @@ func (c *consumePlain) run(_ *kingpin.ParseContext) error {
 	topics := make(map[string]*kafka.PartitionCheckpoints)
 
 	if interactive {
-		topics, err = askUserForTopics(consumer, c.topicFilter, c.interactiveWithOffset, checkpoints)
+		topics, err = askUserForTopics(consumer, c.topicFilter, c.interactiveWithOffset, checkpoints, c.exclusive)
 		if err != nil {
 			return filterError(err)
 		}

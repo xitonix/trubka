@@ -169,7 +169,11 @@ func initialiseConsumer(kafkaParams *commands.KafkaParameters,
 			kafkaParams.SASLPassword,
 			kafkaParams.SASLHandshakeVersion))
 
-	consumer, err := kafka.NewConsumer(
+	if err != nil {
+		return nil, err
+	}
+
+	consumer := kafka.NewConsumer(
 		store,
 		wrapper,
 		printer,
@@ -178,9 +182,6 @@ func initialiseConsumer(kafkaParams *commands.KafkaParameters,
 		idleTimeout,
 	)
 
-	if err != nil {
-		return nil, err
-	}
 	return consumer, nil
 }
 

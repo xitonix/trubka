@@ -152,7 +152,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 
 	var topics map[string]*kafka.PartitionCheckpoints
 	if interactive {
-		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, c.interactiveWithOffset, checkpoints)
+		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, c.interactiveWithOffset, checkpoints, c.exclusive)
 		if err != nil {
 			return filterError(err)
 		}

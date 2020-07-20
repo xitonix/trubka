@@ -18,6 +18,8 @@ const (
 type PartitionCheckpoints struct {
 	partitionCheckpoints map[int32]*checkpointPair
 	exclusive            bool
+	from                 string
+	to                   string
 }
 
 // NewPartitionCheckpoints creates a new instance of partition checkpoints.
@@ -73,7 +75,19 @@ func NewPartitionCheckpoints(from, to []string, exclusive bool) (*PartitionCheck
 	return &PartitionCheckpoints{
 		partitionCheckpoints: checkpoints,
 		exclusive:            exclusive,
+		from:                 strings.Join(from, ","),
+		to:                   strings.Join(to, ","),
 	}, nil
+}
+
+// From returns the comma separated string of all the start checkpoints.
+func (p *PartitionCheckpoints) From() string {
+	return p.from
+}
+
+// To returns the comma separated string of all the stop checkpoints.
+func (p *PartitionCheckpoints) To() string {
+	return p.to
 }
 
 // get returns the checkpoint for the specified partition.
