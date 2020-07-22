@@ -207,22 +207,13 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 		if offset.stopAt.mode == timestampMode {
 			return m.Timestamp.After(offset.stopAt.at)
 		}
-		return m.Offset >= offset.stopAt.offset
+		return m.Offset > offset.stopAt.offset
 	}
 
-	lastMessageReceivedAt := time.Now()
+	lastMessages := make(chan time.Time, 10)
 	forceClose := make(chan interface{})
 	if c.idleTimeout > 0 {
-		go func() {
-			ticker := time.NewTicker(1 * time.Second)
-			defer ticker.Stop()
-			for now := range ticker.C {
-				if now.Sub(lastMessageReceivedAt) > c.idleTimeout {
-					close(forceClose)
-					return
-				}
-			}
-		}()
+		go c.monitorMessageArrival(lastMessages, forceClose)
 	}
 
 	for {
@@ -233,15 +224,16 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 			return shutdown(cancelledByUser)
 		case m, more := <-pc.Messages():
 			if !more {
+				close(lastMessages)
 				return nil
 			}
 
-			lastMessageReceivedAt = time.Now()
+			lastMessages <- time.Now()
 
 			if mustStop(m) {
 				return shutdown(reachedStopCheckpoint)
 			}
-			
+
 			c.events <- &Event{
 				Topic:     m.Topic,
 				Key:       m.Key,
@@ -256,6 +248,26 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 				return nil
 			}
 			c.printer.Errorf(internal.Forced, "Failed to consume message: %s.", err)
+		}
+	}
+}
+
+func (c *Consumer) monitorMessageArrival(lastMessages chan time.Time, forceClose chan interface{}) {
+	ticker := time.NewTicker(1 * time.Second)
+	var lastMessage time.Time
+	defer ticker.Stop()
+	for {
+		select {
+		case t, more := <-lastMessages:
+			if !more {
+				return
+			}
+			lastMessage = t
+		case now := <-ticker.C:
+			if now.Sub(lastMessage) > c.idleTimeout {
+				close(forceClose)
+				return
+			}
 		}
 	}
 }

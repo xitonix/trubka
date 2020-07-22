@@ -35,11 +35,11 @@ test: ##  Runs the unit tests.
 
 package:
 	@echo Creating the zip file
-	@tar -C $(DARWIN) -cvzf ./bin/trubka_darwin-$(VERSION).tar.gz $(EXECUTABLE)
-	@zip -j ./bin/trubka_windows-$(VERSION).zip $(WINDOWS)/$(EXECUTABLE).exe
-	@tar -C $(LINUX) -cvzf ./bin/trubka_linux-$(VERSION).tar.gz $(EXECUTABLE)
+	@tar -C $(DARWIN) -cvzf ./bin/$(EXECUTABLE)_darwin-$(VERSION).tar.gz $(EXECUTABLE)
+	@zip -j ./bin/$(EXECUTABLE)_windows-$(VERSION).zip $(WINDOWS)/$(EXECUTABLE).exe
+	@tar -C $(LINUX) -cvzf ./bin/$(EXECUTABLE)_linux-$(VERSION).tar.gz $(EXECUTABLE)
 	@echo Darwin Checksum:
-	@shasum -a 256 ./bin/trubka_darwin-$(VERSION).tar.gz
+	@shasum -a 256 ./bin/$(EXECUTABLE)_darwin-$(VERSION).tar.gz
 
 install:
 	@cp -pv $(DARWIN)/$(EXECUTABLE)

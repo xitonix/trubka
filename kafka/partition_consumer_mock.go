@@ -8,14 +8,14 @@ import (
 )
 
 type partitionConsumerMock struct {
-	mux       sync.Mutex
-	closed    bool
-	messages  chan *sarama.ConsumerMessage
-	errors    chan *sarama.ConsumerError
-	offset    int64
-	latest    int64
-	partition int32
-	topic     string
+	mux                  sync.Mutex
+	closed               bool
+	messages             chan *sarama.ConsumerMessage
+	errors               chan *sarama.ConsumerError
+	offset               int64
+	partition            int32
+	topic                string
+	fistMessageTimestamp time.Time
 }
 
 func newPartitionConsumerMock(topic string, partition int32, offset int64) *partitionConsumerMock {
@@ -44,15 +44,7 @@ func (p *partitionConsumerMock) Close() error {
 	return nil
 }
 
-func (p *partitionConsumerMock) getLatest() int64 {
-	return p.latest
-}
-
-func (p *partitionConsumerMock) setLatest(latest int64) {
-	p.latest = latest
-}
-
-func (p *partitionConsumerMock) receive() {
+func (p *partitionConsumerMock) receive(at time.Time) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	if p.closed {
@@ -60,7 +52,7 @@ func (p *partitionConsumerMock) receive() {
 	}
 
 	p.messages <- &sarama.ConsumerMessage{
-		Timestamp: time.Now(),
+		Timestamp: at,
 		Key:       []byte("key"),
 		Value:     []byte("value"),
 		Topic:     p.topic,
@@ -79,5 +71,5 @@ func (p *partitionConsumerMock) Errors() <-chan *sarama.ConsumerError {
 }
 
 func (p *partitionConsumerMock) HighWaterMarkOffset() int64 {
-	return unknownOffset
+	return p.offset + 1
 }
