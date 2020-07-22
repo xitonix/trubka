@@ -18,18 +18,20 @@ const (
 )
 
 type clientMock struct {
-	mux                         sync.Mutex
-	counter                     int
-	partitionConsumers          map[string]map[int32]*partitionConsumerMock
-	topics                      []string
-	partitions                  []int32
-	topicNotFound               bool
-	forceTopicsQueryFailure     bool
-	forcePartitionsQueryFailure bool
-	publishStartTime            time.Time
-	ready                       chan interface{}
-	availableOffsets            map[int32]map[int64]int64
-	numberOfActivePartitions    int
+	mux                                sync.Mutex
+	counter                            int
+	partitionConsumers                 map[string]map[int32]*partitionConsumerMock
+	topics                             []string
+	partitions                         []int32
+	topicNotFound                      bool
+	forceTopicsQueryFailure            bool
+	forcePartitionsQueryFailure        bool
+	forceOffsetQueryFailure            bool
+	forcePartitionConsumerCloseFailure bool
+	publishStartTime                   time.Time
+	ready                              chan interface{}
+	availableOffsets                   map[int32]map[int64]int64
+	numberOfActivePartitions           int
 }
 
 func newClientMock(
@@ -38,7 +40,8 @@ func newClientMock(
 	numberOfActivePartitions int,
 	topicNotFound bool,
 	forceTopicListFailure bool,
-	forcePartitionsQueryFailure bool) *clientMock {
+	forcePartitionsQueryFailure bool,
+	forceOffsetQueryFailure bool) *clientMock {
 	available := make(map[int32]map[int64]int64)
 	partitions := make([]int32, numberOfPartitions)
 	for i := 0; i < numberOfPartitions; i++ {
@@ -58,6 +61,7 @@ func newClientMock(
 		topicNotFound:               topicNotFound,
 		forceTopicsQueryFailure:     forceTopicListFailure,
 		forcePartitionsQueryFailure: forcePartitionsQueryFailure,
+		forceOffsetQueryFailure:     forceOffsetQueryFailure,
 		ready:                       make(chan interface{}),
 		availableOffsets:            available,
 		numberOfActivePartitions:    numberOfActivePartitions,
@@ -66,7 +70,10 @@ func newClientMock(
 	for _, topic := range topics {
 		cm.partitionConsumers[topic] = make(map[int32]*partitionConsumerMock)
 		for _, partition := range partitions {
-			cm.partitionConsumers[topic][partition] = newPartitionConsumerMock(topic, partition, sarama.OffsetNewest)
+			cm.partitionConsumers[topic][partition] = newPartitionConsumerMock(
+				topic,
+				partition,
+				sarama.OffsetNewest)
 		}
 	}
 	return cm
@@ -109,6 +116,9 @@ func (c *clientMock) Topics() ([]string, error) {
 }
 
 func (c *clientMock) GetOffset(_ string, partition int32, offset int64) (int64, error) {
+	if c.forceOffsetQueryFailure {
+		return unknownOffset, deliberateErr
+	}
 	return c.availableOffsets[partition][offset], nil
 }
 

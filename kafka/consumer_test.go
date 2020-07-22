@@ -84,6 +84,7 @@ func TestConsumerStart(t *testing.T) {
 				tC.noTopicOnTheServer,
 				tC.forceTopicListFailure,
 				tC.forcePartitionsQueryFailure,
+				false,
 			)
 
 			consumer := NewConsumer(store, client, &printerMock{}, tC.autoTopicCreation, tC.checkpoints.exclusive, 0)
@@ -108,7 +109,21 @@ func TestConsumerTimestampCheckpoints(t *testing.T) {
 		availableOffsets         map[int32]map[interface{}]int64
 		expectedOffsets          map[int32]_consumedOffset
 		messages                 map[int32][]string
+		forceOffsetQueryFailure  bool
+		expectedErr              string
 	}{
+		{
+
+			title: "offset query failure",
+			checkpoints: _checkpointInput{
+				from:      []string{"2020-08-20T10:20:00"},
+				to:        []string{"2020-08-20T10:22:00"},
+				exclusive: false,
+			},
+			forceOffsetQueryFailure: true,
+			expectedErr:             "failed to retrieve the time-based offset",
+			topics:                  []string{"topic"},
+		},
 		{
 			title: "global checkpoints in inclusive mode",
 			checkpoints: _checkpointInput{
@@ -371,7 +386,7 @@ func TestConsumerTimestampCheckpoints(t *testing.T) {
 				false,
 				false,
 				false,
-			)
+				tC.forceOffsetQueryFailure)
 
 			for partition, atOffset := range tC.availableOffsets {
 				for at, offset := range atOffset {
@@ -428,8 +443,12 @@ func TestConsumerTimestampCheckpoints(t *testing.T) {
 			}()
 
 			err = consumer.Start(ctx, tpc)
-			if err != nil {
-				t.Errorf("Did not expect any error, but received: %v", err)
+			if !checkError(err, tC.expectedErr) {
+				t.Errorf("Expected start error: %q, Actual: %v", tC.expectedErr, err)
+			}
+
+			if tC.expectedErr != "" {
+				return
 			}
 
 			wg.Wait()
@@ -468,7 +487,20 @@ func TestConsumerExplicitCheckpoints(t *testing.T) {
 		availableOffsets         map[int32]map[interface{}]int64
 		expectedOffsets          map[int32]_consumedOffset
 		messages                 map[int32][]string
+		forceOffsetQueryFailure  bool
+		expectedErr              string
 	}{
+		{
+			title:                   "offset query failure",
+			forceOffsetQueryFailure: true,
+			expectedErr:             "failed to retrieve the current offset value",
+			checkpoints: _checkpointInput{
+				from:      []string{"1"},
+				to:        []string{"2"},
+				exclusive: false,
+			},
+			topics: []string{"topic"},
+		},
 		{
 			title: "global checkpoints in inclusive mode",
 			checkpoints: _checkpointInput{
@@ -813,7 +845,7 @@ func TestConsumerExplicitCheckpoints(t *testing.T) {
 				false,
 				false,
 				false,
-			)
+				tC.forceOffsetQueryFailure)
 
 			for partition, atOffset := range tC.availableOffsets {
 				for at, offset := range atOffset {
@@ -870,8 +902,12 @@ func TestConsumerExplicitCheckpoints(t *testing.T) {
 			}()
 
 			err = consumer.Start(ctx, tpc)
-			if err != nil {
-				t.Errorf("Did not expect any error, but received: %v", err)
+			if !checkError(err, tC.expectedErr) {
+				t.Errorf("Expected start error: %q, Actual: %v", tC.expectedErr, err)
+			}
+
+			if tC.expectedErr != "" {
+				return
 			}
 
 			wg.Wait()
@@ -910,6 +946,7 @@ func TestConsumerPredefinedCheckpoints(t *testing.T) {
 		availableOffsets         map[int32]map[interface{}]int64
 		expectedOffsets          map[int32]_consumedOffset
 		messages                 map[int32][]string
+		expectedErr              string
 	}{
 		{
 			title: "newest to newest plus two",
@@ -1222,7 +1259,7 @@ func TestConsumerPredefinedCheckpoints(t *testing.T) {
 				false,
 				false,
 				false,
-			)
+				false)
 
 			for partition, atOffset := range tC.availableOffsets {
 				for at, offset := range atOffset {
@@ -1279,8 +1316,13 @@ func TestConsumerPredefinedCheckpoints(t *testing.T) {
 			}()
 
 			err = consumer.Start(ctx, tpc)
-			if err != nil {
-				t.Errorf("Did not expect any error, but received: %v", err)
+
+			if !checkError(err, tC.expectedErr) {
+				t.Errorf("Expected start error: %q, Actual: %v", tC.expectedErr, err)
+			}
+
+			if tC.expectedErr != "" && len(tC.expectedOffsets) == 0 {
+				return
 			}
 
 			wg.Wait()
