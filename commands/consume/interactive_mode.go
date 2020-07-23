@@ -27,15 +27,14 @@ const (
 
 var errExitInteractiveMode = errors.New("exit")
 
-func askUserForTopics(consumer *kafka.Consumer,
-	topicFilter *regexp.Regexp,
-	offsetInteractiveMode bool,
-	defaultCheckpoints *kafka.PartitionCheckpoints,
-	exclusive bool) (map[string]*kafka.PartitionCheckpoints, error) {
-
+func selectTopics(consumer *kafka.Consumer, topicFilter *regexp.Regexp) ([]string, error) {
 	remoteTopics, err := consumer.GetTopics(topicFilter)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(remoteTopics) <= 1 {
+		return remoteTopics, nil
 	}
 
 	sort.Strings(remoteTopics)
@@ -43,10 +42,38 @@ func askUserForTopics(consumer *kafka.Consumer,
 	if err != nil {
 		return nil, err
 	}
+	result := make([]string, len(indexes))
+	for i, index := range indexes {
+		result[i] = remoteTopics[index]
+	}
+	return result, nil
+}
+
+func askUserForTopics(consumer *kafka.Consumer,
+	topic string,
+	topicFilter *regexp.Regexp,
+	offsetInteractiveMode bool,
+	defaultCheckpoints *kafka.PartitionCheckpoints,
+	exclusive bool) (map[string]*kafka.PartitionCheckpoints, error) {
+
+	var (
+		topics []string
+		err    error
+	)
+
+	// Topic is not provided by the user.
+	// Let's load the topics from the server.
+	if internal.IsEmpty(topic) {
+		topics, err = selectTopics(consumer, topicFilter)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		topics = []string{topic}
+	}
 
 	result := make(map[string]*kafka.PartitionCheckpoints)
-	for _, index := range indexes {
-		topic := remoteTopics[index]
+	for _, topic := range topics {
 		result[topic] = defaultCheckpoints
 		if offsetInteractiveMode {
 			cp, err := readCheckpoints(topic, defaultCheckpoints, exclusive)
@@ -66,53 +93,66 @@ func askUserForTopics(consumer *kafka.Consumer,
 
 func readUserData(consumer *kafka.Consumer,
 	loader protobuf.Loader,
+	topic, messageType string,
 	topicFilter, typeFilter *regexp.Regexp,
 	offsetInteractiveMode bool,
 	defaultCheckpoints *kafka.PartitionCheckpoints,
 	exclusive bool) (map[string]*kafka.PartitionCheckpoints, map[string]string, error) {
+	var (
+		topics, types []string
+		err           error
+	)
 
-	remoteTopics, err := consumer.GetTopics(topicFilter)
-	if err != nil {
-		return nil, nil, err
-	}
-	types, err := loader.List(typeFilter)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	sort.Strings(remoteTopics)
-
-	tm := make(map[string]string)
-	topics := make(map[string]*kafka.PartitionCheckpoints, 0)
-
-	topicIndexes, err := pickAnIndex("to consume from", "topic", remoteTopics, true)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	sort.Strings(types)
-	for _, index := range topicIndexes {
-		topic := remoteTopics[index]
-		topics[topic] = defaultCheckpoints
-		typeIndexes, err := pickAnIndex(fmt.Sprintf("stored in %s topic", topic), "message type", types, false)
+	// Topic is not provided by the user.
+	// Let's load the topics from the server.
+	if internal.IsEmpty(topic) {
+		topics, err = selectTopics(consumer, topicFilter)
 		if err != nil {
 			return nil, nil, err
 		}
-		tm[topic] = types[typeIndexes[0]]
+	} else {
+		topics = []string{topic}
+	}
+
+	// Message type is not provided by the user.
+	// Let's load it from the disk.
+	if internal.IsEmpty(messageType) {
+		types, err = loader.List(typeFilter)
+		if err != nil {
+			return nil, nil, err
+		}
+		sort.Strings(types)
+	} else {
+		types = []string{messageType}
+	}
+
+	tm := make(map[string]string)
+	checkpoints := make(map[string]*kafka.PartitionCheckpoints, 0)
+	for _, topic := range topics {
+		checkpoints[topic] = defaultCheckpoints
+		if len(types) > 1 {
+			typeIndexes, err := pickAnIndex(fmt.Sprintf("stored in %s topic", topic), "message type", types, false)
+			if err != nil {
+				return nil, nil, err
+			}
+			tm[topic] = types[typeIndexes[0]]
+		} else {
+			tm[topic] = types[0]
+		}
 		if offsetInteractiveMode {
 			cp, err := readCheckpoints(topic, defaultCheckpoints, exclusive)
 			if err != nil {
 				return nil, nil, err
 			}
-			topics[topic] = cp
+			checkpoints[topic] = cp
 		}
 	}
 
-	if !confirmConsumerStart(topics, tm) {
+	if !confirmConsumerStart(checkpoints, tm) {
 		return nil, nil, errExitInteractiveMode
 	}
 
-	return topics, tm, nil
+	return checkpoints, tm, nil
 }
 
 // pickAnIndex returns the index of one of the items within the list

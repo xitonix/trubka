@@ -31,7 +31,7 @@ build: windows linux darwin
 
 test: ##  Runs the unit tests.
 	@echo Running unit tests
-	@go test -count=1 ./...
+	@go test -v -race ./...
 
 package:
 	@echo Creating the zip file

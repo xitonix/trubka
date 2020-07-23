@@ -102,7 +102,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	var implicitContract bool
 	if !interactive {
 		if internal.IsEmpty(c.topic) {
-			return errors.New("which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i)")
+			return errors.New("which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i/-I)")
 		}
 		if internal.IsEmpty(c.messageType) {
 			c.messageType = c.topic
@@ -152,7 +152,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 
 	var topics map[string]*kafka.PartitionCheckpoints
 	if interactive {
-		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, c.interactiveWithOffset, checkpoints, c.exclusive)
+		topics, tm, err = readUserData(consumer, loader, c.topic, c.messageType, c.topicFilter, c.protoFilter, c.interactiveWithOffset, checkpoints, c.exclusive)
 		if err != nil {
 			return filterError(err)
 		}

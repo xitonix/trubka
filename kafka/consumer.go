@@ -228,7 +228,9 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 				return nil
 			}
 
-			lastMessages <- time.Now()
+			if c.idleTimeout > 0 {
+				lastMessages <- time.Now()
+			}
 
 			if mustStop(m) {
 				return shutdown(reachedStopCheckpoint)
@@ -254,11 +256,14 @@ func (c *Consumer) consumePartition(ctx context.Context, topic string, partition
 
 func (c *Consumer) monitorMessageArrival(lastMessages chan time.Time, forceClose chan interface{}) {
 	ticker := time.NewTicker(1 * time.Second)
-	var lastMessage time.Time
-	defer ticker.Stop()
+	lastMessage := time.Now()
+	defer func() {
+		ticker.Stop()
+	}()
 	for {
 		select {
 		case t, more := <-lastMessages:
+			fmt.Println(t)
 			if !more {
 				return
 			}
@@ -351,7 +356,7 @@ func (c *Consumer) getLocalOffset(topic string, partition int32, startFrom *chec
 	if !ok {
 		offsets, err := c.store.read(topic)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to query the local offset store: %w", err)
 		}
 		c.localOffsets[topic] = offsets
 		localOffsets = offsets
