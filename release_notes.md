@@ -18,7 +18,8 @@
  - `UTC` suffix has been replaced with timezone offsets.
  - `--from` is now a repeatable flag instead of a single comma separated string.
  - Partition-Offset delimiter has been changed to `#` for `--from` and `--to` values.
- - Wildcard offset definition syntax (`:Offset`) has been replaced with `--exclusive` flag to reduce the complexity. 
+ - Wildcard offset definition syntax (`:Offset`) has been replaced with `--exclusive` flag to reduce the complexity.
+ - User will not be asked to provide `topic` (or proto `schema`) in the interactive mode, if it's already been provided via command arguments. 
 
 **[Fixes]**
 - Loading proto files from disk respects termination signals received from the OS (Ctrl + C).
