@@ -10,6 +10,8 @@ type Topic struct {
 	NumberOfPartitions int32 `json:"number_of_partitions"`
 	// ReplicationFactor replication factor.
 	ReplicationFactor int16 `json:"replication_factor"`
+	// Topic metadata.
+	Metadata           *TopicMetadata `json:"metadata"`
 }
 
 // TopicsByName sorts the topic list by name.

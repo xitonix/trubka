@@ -191,7 +191,7 @@ func (m *Manager) DescribeCluster(ctx context.Context, includeConfig bool) (*Clu
 }
 
 // GetTopics returns a list of all the topics on the server.
-func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp) ([]Topic, error) {
+func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp, includeConfig bool) ([]Topic, error) {
 	m.Log(internal.Verbose, "Retrieving topic list from the server")
 	topics, err := m.admin.ListTopics()
 	if err != nil {
@@ -209,11 +209,19 @@ func (m *Manager) GetTopics(ctx context.Context, filter *regexp.Regexp) ([]Topic
 				m.Logf(internal.SuperVerbose, "Filtering out %s topic", topic)
 				continue
 			}
-			result = append(result, Topic{
+			t := Topic{
 				Name:               topic,
 				NumberOfPartitions: details.NumPartitions,
 				ReplicationFactor:  details.ReplicationFactor,
-			})
+			}
+			if includeConfig {
+				meta, err := m.DescribeTopic(ctx, topic, includeConfig, includeConfig)
+				if err == nil {
+					t.Metadata = meta
+
+				}
+			}
+			result = append(result, t)
 		}
 	}
 	return result, nil
