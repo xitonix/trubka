@@ -1495,7 +1495,6 @@ func TestConsumerLocalCheckpoints(t *testing.T) {
 			},
 		},
 
-
 		{
 			title: "partition specific checkpoint with local offsets in inclusive mode",
 			checkpoints: _checkpointInput{

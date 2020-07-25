@@ -27,7 +27,7 @@ func (o *offsetStoreMock) commit(topic string, partition int32, offset int64) er
 
 func (o *offsetStoreMock) read(topic string) (PartitionOffset, error) {
 	if o.forceReadFailure {
-		return nil, deliberateErr
+		return nil, errDeliberate
 	}
 	return o.tpo[topic], nil
 }

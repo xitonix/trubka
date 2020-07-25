@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	deliberateErr = errors.New("asked by user")
+	errDeliberate = errors.New("asked by user")
 )
 
 const (
@@ -81,7 +81,7 @@ func newClientMock(
 
 func (c *clientMock) Partitions(_ string) ([]int32, error) {
 	if c.forcePartitionsQueryFailure {
-		return nil, deliberateErr
+		return nil, errDeliberate
 	}
 	return c.partitions, nil
 }
@@ -106,7 +106,7 @@ func (c *clientMock) ConsumePartition(topic string, partition int32, offset int6
 
 func (c *clientMock) Topics() ([]string, error) {
 	if c.forceTopicsQueryFailure {
-		return nil, deliberateErr
+		return nil, errDeliberate
 	}
 	if c.topicNotFound {
 		// Simulating the behaviour when the topic was not found on the server
@@ -117,7 +117,7 @@ func (c *clientMock) Topics() ([]string, error) {
 
 func (c *clientMock) GetOffset(_ string, partition int32, offset int64) (int64, error) {
 	if c.forceOffsetQueryFailure {
-		return unknownOffset, deliberateErr
+		return unknownOffset, errDeliberate
 	}
 	return c.availableOffsets[partition][offset], nil
 }
