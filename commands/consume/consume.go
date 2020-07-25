@@ -28,23 +28,35 @@ func AddCommands(app *kingpin.Application, global *commands.GlobalParameters, ka
 }
 
 func bindCommonConsumeFlags(command *kingpin.CmdClause,
-	topic, environment, outputDir, logFile, from *string,
-	includeTimestamp, includeKey, includeTopicName, enableAutoTopicCreation, reverse, interactive, interactiveWithCustomOffset, count *bool,
+	topic, environment, outputDir, logFile *string,
+	from, to *[]string,
+	exclusive *bool,
+	idleTimeout *time.Duration,
+	inclusions *internal.MessageMetadata,
+	enableAutoTopicCreation, reverse, interactive, interactiveWithCustomOffset, count *bool,
 	searchQuery, topicFilter **regexp.Regexp, highlightStyle *string) {
 
 	command.Arg("topic", "The Kafka topic to consume from.").StringVar(topic)
 
-	command.Flag("include-timestamp", "Prints the message timestamp before the content if it's been provided by Kafka.").
-		Short('S').
-		BoolVar(includeTimestamp)
+	command.Flag("include-partition", "Prints the partition to which the message belongs.").
+		Short('P').
+		BoolVar(&inclusions.Partition)
 
-	command.Flag("include-partition-key", "Prints the partition key before the content.").
+	command.Flag("include-partition-key", "Prints the partition key of each message.").
 		Short('K').
-		BoolVar(includeKey)
+		BoolVar(&inclusions.Key)
 
-	command.Flag("include-topic-name", "Prints the topic name before the content.").
+	command.Flag("include-topic-name", "Prints the topic name from which the message was consumed.").
 		Short('T').
-		BoolVar(includeTopicName)
+		BoolVar(&inclusions.Topic)
+
+	command.Flag("include-offset", "Prints the partition offset.").
+		Short('O').
+		BoolVar(&inclusions.Offset)
+
+	command.Flag("include-timestamp", "Prints the message timestamp if it has been provided by Kafka.").
+		Short('S').
+		BoolVar(&inclusions.Timestamp)
 
 	command.Flag("auto-topic-creation", `Enables automatic topic creation before consuming if it's allowed by the server.`).
 		BoolVar(enableAutoTopicCreation)
@@ -85,11 +97,37 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 		Short('c').
 		BoolVar(count)
 
-	pastHour := time.Now().UTC().Add(-1 * time.Hour).Format("02-01-2006T15:04:05.999999999")
-	command.Flag("from", `The offset to start consuming from. Available options are newest (default), oldest, local, time (the most recent available offset at the given time) or a string of comma separated Partition:Offset pairs ("10:150, :0")`).
+	now := time.Now()
+
+	ts := internal.FormatTime(now.Add(-2 * time.Hour))
+	help := fmt.Sprintf("The offset to start consuming from. "+
+		"Available options are newest, oldest, local, timestamp, offset, Partition#Offset or Partition#Timestamp (eg. \"10#300\", \"7#%s\")", ts)
+	command.Flag("from", help).
 		Default("newest").
-		HintOptions("newest", "oldest", pastHour, "0:10,1:20,:0").
-		StringVar(from)
+		HintOptions("newest", "oldest", ts, "8000").
+		StringsVar(from)
+
+	ts = internal.FormatTime(now.Add(-1 * time.Hour))
+	help = fmt.Sprintf("The offset where trubka must stop consuming. "+
+		"Available options are timestamp, offset, Partition#Offset or Partition#Timestamp (eg. \"10#800\", \"7#%s\")", ts)
+	command.Flag("to", help).
+		HintOptions(ts, "9000").
+		StringsVar(to)
+
+	command.Flag("exclusive", `Only explicitly defined partitions (Partition#Offset or Partition#Timestamp) will be consumed. The rest will be excluded.`).
+		Short('E').
+		BoolVar(exclusive)
+
+	min := 2 * time.Second
+	help = fmt.Sprintf(`The amount of time the consumer will wait for a message to arrive before stop consuming from a partition (Minimum: %s)`, min)
+	command.Flag("idle-timeout", help).
+		PreAction(func(parseContext *kingpin.ParseContext) error {
+			if *idleTimeout < min {
+				*idleTimeout = min
+			}
+			return nil
+		}).
+		DurationVar(idleTimeout)
 
 	command.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --encode-to=%s only. Set to 'none' to disable.", internal.JsonIndentEncoding)).
 		Default(internal.DefaultHighlightStyle).
@@ -107,19 +145,23 @@ func initialiseConsumer(kafkaParams *commands.KafkaParameters,
 	globalParams *commands.GlobalParameters,
 	environment string,
 	enableAutoTopicCreation bool,
+	exclusive bool,
+	idleTimeout time.Duration,
 	logFile io.Writer,
-	prn *internal.SyncPrinter) (*kafka.Consumer, error) {
+	printer internal.Printer) (*kafka.Consumer, error) {
 	saramaLogWriter := ioutil.Discard
 	if globalParams.Verbosity >= internal.Chatty {
 		saramaLogWriter = logFile
 	}
 
 	brokers := commands.GetBrokers(kafkaParams.Brokers)
-	consumer, err := kafka.NewConsumer(
-		brokers, prn,
-		environment,
-		enableAutoTopicCreation,
-		kafka.WithClusterVersion(kafkaParams.Version),
+
+	store, err := kafka.NewLocalOffsetStore(printer, environment)
+	if err != nil {
+		return nil, err
+	}
+
+	wrapper, err := kafka.NewConsumerWrapper(brokers, kafka.WithClusterVersion(kafkaParams.Version),
 		kafka.WithTLS(kafkaParams.TLS),
 		kafka.WithLogWriter(saramaLogWriter),
 		kafka.WithSASL(kafkaParams.SASLMechanism,
@@ -130,6 +172,16 @@ func initialiseConsumer(kafkaParams *commands.KafkaParameters,
 	if err != nil {
 		return nil, err
 	}
+
+	consumer := kafka.NewConsumer(
+		store,
+		wrapper,
+		printer,
+		enableAutoTopicCreation,
+		exclusive,
+		idleTimeout,
+	)
+
 	return consumer, nil
 }
 

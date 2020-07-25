@@ -11,39 +11,33 @@ const JsonIndentation = "  "
 
 // JsonMessageProcessor prepares json output for printing.
 type JsonMessageProcessor struct {
-	outputEncoding   string
-	includeTimeStamp bool
-	includeTopicName bool
-	includeKey       bool
-	enableColor      bool
-	highlighter      *JsonHighlighter
-	indent           bool
+	outputEncoding string
+	enableColor    bool
+	highlighter    *JsonHighlighter
+	indent         bool
+	inclusions     *MessageMetadata
 }
 
 // NewJsonMessageProcessor creates a new instance of JSON message processor.
-func NewJsonMessageProcessor(outputFormat string,
-	includeTimeStamp,
-	includeTopicName,
-	includeKey bool,
+func NewJsonMessageProcessor(
+	outputFormat string,
+	inclusions *MessageMetadata,
 	enableColor bool,
 	highlightStyle string) *JsonMessageProcessor {
 	return &JsonMessageProcessor{
-		outputEncoding:   outputFormat,
-		includeTimeStamp: includeTimeStamp,
-		includeTopicName: includeTopicName,
-		includeKey:       includeKey,
-		enableColor:      enableColor,
-		highlighter:      NewJsonHighlighter(highlightStyle, enableColor),
-		indent:           outputFormat == JsonIndentEncoding,
+		outputEncoding: outputFormat,
+		inclusions:     inclusions,
+		enableColor:    enableColor,
+		highlighter:    NewJsonHighlighter(highlightStyle, enableColor),
+		indent:         outputFormat == JsonIndentEncoding,
 	}
 }
 
 // Process prepares json output for printing.
 //
 // The method injects the metadata into the json object if required.
-func (j *JsonMessageProcessor) Process(message, key []byte, ts time.Time, topic string, partition int32) ([]byte, error) {
-	includeMetadata := j.includeTopicName || j.includeKey || (j.includeTimeStamp && !ts.IsZero())
-	if !includeMetadata {
+func (j *JsonMessageProcessor) Process(message, key []byte, ts time.Time, topic string, partition int32, offset int64) ([]byte, error) {
+	if !j.inclusions.IsRequested() {
 		return j.highlight(message), nil
 	}
 
@@ -52,23 +46,32 @@ func (j *JsonMessageProcessor) Process(message, key []byte, ts time.Time, topic 
 		Timestamp    string          `json:"timestamp,omitempty"`
 		Partition    *int32          `json:"partition,omitempty"`
 		PartitionKey string          `json:"key,omitempty"`
+		Offset       *int64          `json:"offset,omitempty"`
 		Message      json.RawMessage `json:"message"`
 	}{
 		Message: message,
 	}
 
-	if j.includeTopicName {
+	if j.inclusions.Topic {
 		output.Topic = topic
 	}
 
-	if j.includeKey {
-		output.PartitionKey = fmt.Sprintf("%X", key)
+	if j.inclusions.Partition {
 		output.Partition = &partition
 	}
 
-	if j.includeTimeStamp && !ts.IsZero() {
-		output.Timestamp = FormatTimeUTC(ts)
+	if j.inclusions.Offset {
+		output.Offset = &offset
 	}
+
+	if j.inclusions.Key {
+		output.PartitionKey = fmt.Sprintf("%X", key)
+	}
+
+	if j.inclusions.Timestamp {
+		output.Timestamp = FormatTime(ts)
+	}
+
 	var err error
 	if j.indent {
 		message, err = json.MarshalIndent(output, "", JsonIndentation)

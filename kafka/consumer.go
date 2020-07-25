@@ -4,61 +4,49 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"regexp"
 	"sync"
+	"time"
 
 	"github.com/Shopify/sarama"
 
 	"github.com/xitonix/trubka/internal"
 )
 
-var (
-	errOffsetNotFound = errors.New("offset not found")
-)
-
 // Consumer represents a new Kafka cluster consumer.
 type Consumer struct {
-	brokers                 []string
 	printer                 internal.Printer
-	internalConsumer        sarama.Consumer
-	internalClient          sarama.Client
-	wg                      sync.WaitGroup
+	client                  client
+	store                   offsetStore
 	remoteTopics            []string
 	enableAutoTopicCreation bool
-	environment             string
 	events                  chan *Event
 	closeOnce               sync.Once
-	store                   *offsetStore
+	localOffsets            TopicPartitionOffset
+	exclusive               bool
+	idleTimeout             time.Duration
+	wg                      sync.WaitGroup
 }
 
 // NewConsumer creates a new instance of Kafka cluster consumer.
-func NewConsumer(brokers []string, printer internal.Printer, environment string, enableAutoTopicCreation bool, options ...Option) (*Consumer, error) {
-	client, err := initClient(brokers, options...)
-	if err != nil {
-		return nil, err
-	}
-
-	consumer, err := sarama.NewConsumerFromClient(client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialise the Kafka consumer: %w", err)
-	}
-
-	store, err := newOffsetStore(printer, environment)
-	if err != nil {
-		return nil, err
-	}
+func NewConsumer(
+	store offsetStore,
+	client client,
+	printer internal.Printer,
+	enableAutoTopicCreation bool,
+	exclusive bool,
+	idleTimeout time.Duration) *Consumer {
 
 	return &Consumer{
-		brokers:                 brokers,
 		printer:                 printer,
-		internalConsumer:        consumer,
-		internalClient:          client,
+		client:                  client,
 		enableAutoTopicCreation: enableAutoTopicCreation,
-		environment:             environment,
 		events:                  make(chan *Event, 128),
 		store:                   store,
-	}, nil
+		localOffsets:            make(TopicPartitionOffset),
+		exclusive:               exclusive,
+		idleTimeout:             idleTimeout,
+	}
 }
 
 // GetTopics fetches the topics from the server.
@@ -67,7 +55,7 @@ func (c *Consumer) GetTopics(search *regexp.Regexp) ([]string, error) {
 		return c.remoteTopics, nil
 	}
 
-	topics, err := c.internalConsumer.Topics()
+	topics, err := c.client.Topics()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the topic list from the server: %w", err)
 	}
@@ -114,7 +102,6 @@ func (c *Consumer) Start(ctx context.Context, topics map[string]*PartitionCheckp
 		return err
 	}
 	c.store.start(topicPartitionOffsets)
-	defer c.store.close()
 
 	c.consumeTopics(ctx, topicPartitionOffsets)
 	return nil
@@ -122,24 +109,26 @@ func (c *Consumer) Start(ctx context.Context, topics map[string]*PartitionCheckp
 
 // StoreOffset stores the offset of the successfully processed message into the offset store.
 func (c *Consumer) StoreOffset(event *Event) {
-	err := c.store.Store(event.Topic, event.Partition, event.Offset+1)
+	err := c.store.commit(event.Topic, event.Partition, event.Offset+1)
 	if err != nil {
-		c.printer.Errorf(internal.Forced, "Failed to store the offset: %s.", err)
+		c.printer.Errorf(internal.Forced, "Failed to commit the offset: %s.", err)
 	}
+}
+
+// CloseOffsetStore closes the underlying offset store.
+//
+// Make sure you call this function once you processed all the messages.
+func (c *Consumer) CloseOffsetStore() {
+	c.store.close()
 }
 
 // Close closes the Kafka consumer.
 func (c *Consumer) Close() {
 	c.closeOnce.Do(func() {
 		c.printer.Info(internal.Verbose, "Closing Kafka consumer.")
-		err := c.internalConsumer.Close()
+		err := c.client.Close()
 		if err != nil {
 			c.printer.Errorf(internal.Forced, "Failed to close the Kafka consumer: %s.", err)
-		}
-		c.printer.Info(internal.Verbose, "Closing Kafka connections.")
-		err = c.internalClient.Close()
-		if err != nil {
-			c.printer.Errorf(internal.Forced, "Failed to close Kafka connections: %s.", err)
 		} else {
 			c.printer.Info(internal.VeryVerbose, "The Kafka client has been closed successfully.")
 		}
@@ -148,8 +137,8 @@ func (c *Consumer) Close() {
 }
 
 func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets TopicPartitionOffset) {
-	cn, cancel := context.WithCancel(ctx)
-	defer cancel()
+	parentCtx, cancelAllPartitionConsumers := context.WithCancel(ctx)
+	defer cancelAllPartitionConsumers()
 	var cancelled bool
 	for topic, partitionOffsets := range topicPartitionOffsets {
 		t := topic
@@ -168,20 +157,19 @@ func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets Topi
 					break
 				}
 				select {
-				case <-cn.Done():
+				case <-parentCtx.Done():
 					cancelled = true
 					break
 				default:
 					c.wg.Add(1)
 					go func() {
-						err := c.consumePartition(cn, t, p, o)
+						err := c.consumePartition(parentCtx, t, p, o)
 						if err != nil {
 							c.printer.Errorf(internal.Forced, "Failed to start consuming from %v offset of topic %s, partition %d: %s", getOffsetString(offset.Current), t, p, err)
-							cancel()
+							cancelAllPartitionConsumers()
 							cancelled = true
 						}
 					}()
-
 				}
 			}
 		}
@@ -192,58 +180,100 @@ func (c *Consumer) consumeTopics(ctx context.Context, topicPartitionOffsets Topi
 
 func (c *Consumer) consumePartition(ctx context.Context, topic string, partition int32, offset Offset) error {
 	defer c.wg.Done()
-	select {
-	case <-ctx.Done():
-		return nil
-	default:
-		pc, err := c.internalConsumer.ConsumePartition(topic, partition, offset.Current)
+	var stopAt string
+
+	if offset.stopAt != nil {
+		stopAt = ", Stopping at: " + offset.stopAt.String()
+	}
+	c.printer.Infof(internal.VeryVerbose, "Consuming from Topic: %s, Partition: %d, Offset: %v%s", topic, partition, getOffsetString(offset.Current), stopAt)
+	pc, err := c.client.ConsumePartition(topic, partition, offset.Current)
+	if err != nil {
+		return err
+	}
+
+	shutdown := func(reason shutdownReason) error {
+		c.printer.Infof(internal.VeryVerbose, "Closing consumer Topic: %s, Partition %d, Reason: %s", topic, partition, reason.String())
+		err := pc.Close()
 		if err != nil {
-			return fmt.Errorf("failed to start consuming partition %d of topic %s: %w", partition, topic, err)
+			return fmt.Errorf("failed to close %s consumer of partition %d: %s", topic, partition, err)
 		}
-
-		c.wg.Add(1)
-		go func(pc sarama.PartitionConsumer) {
-			defer func() {
-				pc.AsyncClose()
-				c.wg.Done()
-			}()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case m, more := <-pc.Messages():
-					if !more {
-						return
-					}
-					c.events <- &Event{
-						Topic:     m.Topic,
-						Key:       m.Key,
-						Value:     m.Value,
-						Timestamp: m.Timestamp,
-						Partition: m.Partition,
-						Offset:    m.Offset,
-					}
-				}
-			}
-		}(pc)
-
-		c.wg.Add(1)
-		go func(pc sarama.PartitionConsumer) {
-			defer c.wg.Done()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case err, more := <-pc.Errors():
-					if !more {
-						return
-					}
-					c.printer.Errorf(internal.Forced, "Failed to consume message: %s.", err)
-				}
-			}
-		}(pc)
-
 		return nil
+	}
+
+	mustStop := func(m *sarama.ConsumerMessage) bool {
+		if offset.stopAt == nil {
+			return false
+		}
+		if offset.stopAt.mode == timestampMode {
+			return m.Timestamp.After(offset.stopAt.at)
+		}
+		return m.Offset > offset.stopAt.offset
+	}
+
+	lastMessages := make(chan time.Time, 10)
+	forceClose := make(chan interface{})
+	if c.idleTimeout > 0 {
+		go c.monitorMessageArrival(lastMessages, forceClose)
+	}
+
+	for {
+		select {
+		case <-forceClose:
+			return shutdown(noMoreMessage)
+		case <-ctx.Done():
+			return shutdown(cancelledByUser)
+		case m, more := <-pc.Messages():
+			if !more {
+				close(lastMessages)
+				return nil
+			}
+
+			if c.idleTimeout > 0 {
+				lastMessages <- time.Now()
+			}
+
+			if mustStop(m) {
+				return shutdown(reachedStopCheckpoint)
+			}
+
+			c.events <- &Event{
+				Topic:     m.Topic,
+				Key:       m.Key,
+				Value:     m.Value,
+				Timestamp: m.Timestamp,
+				Partition: m.Partition,
+				Offset:    m.Offset,
+			}
+
+		case err, more := <-pc.Errors():
+			if !more {
+				return nil
+			}
+			c.printer.Errorf(internal.Forced, "Failed to consume message: %s.", err)
+		}
+	}
+}
+
+func (c *Consumer) monitorMessageArrival(lastMessages chan time.Time, forceClose chan interface{}) {
+	ticker := time.NewTicker(1 * time.Second)
+	lastMessage := time.Now()
+	defer func() {
+		ticker.Stop()
+	}()
+	for {
+		select {
+		case t, more := <-lastMessages:
+			fmt.Println(t)
+			if !more {
+				return
+			}
+			lastMessage = t
+		case now := <-ticker.C:
+			if now.Sub(lastMessage) > c.idleTimeout {
+				close(forceClose)
+				return
+			}
+		}
 	}
 }
 
@@ -263,138 +293,160 @@ func (c *Consumer) fetchTopicPartitions(topics map[string]*PartitionCheckpoints)
 
 	topicPartitionOffsets := make(TopicPartitionOffset)
 
-	localOffsetManager := NewLocalOffsetManager(c.printer.Level())
 	for topic, checkpoints := range topics {
 		if !c.enableAutoTopicCreation {
 			if _, ok := existing[topic]; !ok {
 				return nil, fmt.Errorf("failed to find the topic %s on the server. You must create the topic manually or enable automatic topic creation both on the server and in trubka", topic)
 			}
 		}
-		c.printer.Logf(internal.SuperVerbose, "Fetching partitions for topic %s.", topic)
-		offsets := make(PartitionOffset)
-		if checkpoints.mode == LocalOffsetMode {
-			localOffsets, err := localOffsetManager.ReadLocalTopicOffsets(topic, c.environment)
-			if err != nil {
-				return nil, err
-			}
-			offsets = localOffsets
-		}
-
-		partitions, err := c.internalConsumer.Partitions(topic)
+		offsets, err := c.calculateStartingOffsets(topic, checkpoints)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch the partition offsets for topic %s: %w", topic, err)
-		}
-
-		for _, partition := range partitions {
-			var (
-				offset int64
-				err    error
-			)
-			switch checkpoints.mode {
-			case ExplicitOffsetMode:
-				offset, err = c.getExplicitOffset(topic, partition, checkpoints)
-			case MillisecondsOffsetMode:
-				offset, err = c.getTimeBasedOffset(topic, partition, checkpoints)
-			case LocalOffsetMode:
-				offset, err = c.getLocalOffset(topic, partition, checkpoints, offsets)
-			default:
-				cp := checkpoints.GetDefault()
-				offset = cp.offset
-			}
-			if err != nil {
-				// It only happens in explicit mode.
-				// Not found means: it has not explicitly asked by the user, so we have to ignore the partition.
-				if errors.Is(err, errOffsetNotFound) {
-					continue
-				}
-				return nil, err
-			}
-			c.printer.Logf(internal.SuperVerbose,
-				"Consuming from offset %v of partition %d from topic %s.",
-				getOffsetString(offset),
-				partition,
-				topic)
-			offsets[partition] = Offset{Current: offset}
+			return nil, err
 		}
 		topicPartitionOffsets[topic] = offsets
 	}
 	return topicPartitionOffsets, nil
 }
 
-func (c *Consumer) getLocalOffset(topic string, partition int32, checkpoints *PartitionCheckpoints, offsets PartitionOffset) (int64, error) {
-	c.printer.Logf(internal.SuperVerbose,
-		"Checking the local offset store for partition %d of topic %s in %s environment",
-		partition,
+func (c *Consumer) calculateStartingOffsets(topic string, checkpoints *PartitionCheckpoints) (PartitionOffset, error) {
+	c.printer.Infof(internal.SuperVerbose, "Fetching partitions for topic %s.", topic)
+	partitions, err := c.client.Partitions(topic)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch the partition offsets for topic %s: %w", topic, err)
+	}
+
+	offsets := make(PartitionOffset)
+	for _, partition := range partitions {
+		var (
+			offset *Offset
+			err    error
+		)
+		cp := checkpoints.get(partition)
+		if cp == nil {
+			c.printer.Infof(internal.SuperVerbose, "Partition %d of topic %s has been excluded by the user", partition, topic)
+			continue
+		}
+		switch cp.from.mode {
+		case explicitMode:
+			offset, err = c.getExplicitOffset(topic, partition, cp.from)
+		case timestampMode:
+			offset, err = c.getTimeBasedOffset(topic, partition, cp.from)
+		case localMode:
+			offset, err = c.getLocalOffset(topic, partition, cp.from)
+		default:
+			offset = &Offset{Current: cp.from.offset}
+		}
+		if err != nil {
+			// It only occurs when the requested explicit start offset is greater than the latest available offset
+			// of the partition. If we start consuming from the partition by that offset, we will get an error from Kafka.
+			// Remember that the specified offset might be valid for other partitions. So we simply ignore the out of range ones.
+			if errors.Is(err, errOutOfRangeOffset) {
+				continue
+			}
+			return nil, err
+		}
+		offset.stopAt = cp.to
+		offsets[partition] = *offset
+	}
+	return offsets, nil
+}
+
+func (c *Consumer) getLocalOffset(topic string, partition int32, startFrom *checkpoint) (*Offset, error) {
+	localOffsets, ok := c.localOffsets[topic]
+	if !ok {
+		offsets, err := c.store.read(topic)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query the local offset store: %w", err)
+		}
+		c.localOffsets[topic] = offsets
+		localOffsets = offsets
+	}
+
+	latest, err := c.client.GetOffset(topic, partition, sarama.OffsetNewest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve the current offset value for partition %d of topic %s: %w", partition, topic, err)
+	}
+
+	c.printer.Infof(internal.SuperVerbose,
+		"Checking the local offset for Topic: %s, Partition: %d",
 		topic,
-		c.environment)
-	if storedOffset, ok := offsets[partition]; ok {
-		c.printer.Logf(internal.SuperVerbose,
-			"The local offset for partition %d of topic %s in %s environment is %v",
-			partition,
+		partition)
+
+	if storedOffset, ok := localOffsets[partition]; ok {
+		c.printer.Infof(internal.SuperVerbose,
+			"Topic: %s, Partition %d, Latest Offset: %v, Start From Local: %v",
 			topic,
-			c.environment,
+			partition,
+			getOffsetString(latest),
 			getOffsetString(storedOffset.Current))
-		return storedOffset.Current, nil
+
+		storedOffset.Latest = latest
+		return &storedOffset, nil
 	}
 
-	c.printer.Logf(internal.SuperVerbose,
-		"No local offset found for partition %d of topic %s",
+	c.printer.Infof(internal.SuperVerbose,
+		"No local offsets found for Topic: %s, Partition: %d. Latest: %v, Start From: %v",
+		topic,
 		partition,
-		topic)
+		getOffsetString(latest),
+		getOffsetString(startFrom.offset),
+	)
 
-	cp := checkpoints.GetDefault()
-	return cp.offset, nil
+	return &Offset{
+		Latest:  latest,
+		Current: startFrom.offset,
+	}, nil
 }
 
-func (c *Consumer) getTimeBasedOffset(topic string, partition int32, checkpoints *PartitionCheckpoints) (int64, error) {
-	cp := checkpoints.GetDefault()
-	c.printer.Logf(internal.SuperVerbose,
-		"Reading the most recent offset value for partition %d of topic %s at %s from the server",
-		partition,
-		topic,
-		cp.OffsetString())
-	offset, err := c.internalClient.GetOffset(topic, partition, cp.offset)
+func (c *Consumer) getTimeBasedOffset(topic string, partition int32, startFrom *checkpoint) (*Offset, error) {
+	offset, err := c.client.GetOffset(topic, partition, startFrom.offset)
 	if err != nil {
-		return unknownOffset, fmt.Errorf("failed to retrieve the time-based offset for partition %d of topic %s: %w", partition, topic, err)
+		return nil, fmt.Errorf("failed to retrieve the time-based offset for partition %d of topic %s: %w", partition, topic, err)
 	}
-	c.printer.Logf(internal.SuperVerbose,
-		"The most recent available offset of partition %d of topic %s at %v is %v",
-		partition,
+	c.printer.Infof(internal.SuperVerbose,
+		"Topic: %s, Partition %d, Requested: %s, Start From: %v",
 		topic,
-		internal.FormatTimeUTC(cp.at),
+		partition,
+		startFrom.String(),
 		getOffsetString(offset))
-	return offset, nil
+	return &Offset{
+		Current: offset,
+	}, nil
 }
 
-func (c *Consumer) getExplicitOffset(topic string, partition int32, checkpoints *PartitionCheckpoints) (int64, error) {
-	cp, found := checkpoints.Get(partition)
-	if !found {
-		// No need to start consuming the partition because it was not
-		// explicitly asked by the user
-		c.printer.Logf(internal.SuperVerbose, "Partition %d of topic %s has been ignored as per user request", partition, topic)
-		return offsetNotFound, errOffsetNotFound
-	}
-	c.printer.Logf(internal.SuperVerbose, "Reading the most recent offset of partition %d for topic %s from the server", partition, topic)
-	mostRecentOffset, err := c.internalClient.GetOffset(topic, partition, sarama.OffsetNewest)
+func (c *Consumer) getExplicitOffset(topic string, partition int32, startFrom *checkpoint) (*Offset, error) {
+	latest, err := c.client.GetOffset(topic, partition, sarama.OffsetNewest)
 	if err != nil {
-		return unknownOffset, fmt.Errorf("failed to retrieve the current offset value for partition %d of topic %s: %w", partition, topic, err)
+		return nil, fmt.Errorf("failed to retrieve the current offset value for partition %d of topic %s: %w", partition, topic, err)
 	}
-	c.printer.Logf(internal.SuperVerbose,
-		"The most recent offset for partition %d of topic %s is %v on the server. You asked for offset %v",
-		partition,
+	if startFrom.offset > latest {
+		c.printer.Infof(internal.SuperVerbose,
+			"Topic: %s, Partition %d, Requested: %s, Available: %v, Ignored",
+			topic,
+			partition,
+			startFrom.String(),
+			getOffsetString(latest))
+		return nil, errOutOfRangeOffset
+	}
+	c.printer.Infof(internal.SuperVerbose,
+		"Topic: %s, Partition %d, Latest: %v, Start From: %v",
 		topic,
-		getOffsetString(mostRecentOffset),
-		cp.OffsetString())
+		partition,
+		getOffsetString(latest),
+		startFrom.String())
 
-	return int64(math.Min(float64(cp.offset), float64(mostRecentOffset))), nil
+	return &Offset{
+		Current: startFrom.offset,
+		Latest:  latest,
+	}, nil
 }
 
 func getOffsetString(offset int64) interface{} {
 	switch offset {
 	case sarama.OffsetOldest:
-		return "'oldest'"
+		return "oldest"
 	case sarama.OffsetNewest:
-		return "'newest'"
+		return "newest"
 	default:
 		return offset
 	}

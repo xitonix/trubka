@@ -8,4 +8,6 @@ var (
 
 	// ErrEmptyTopic occurs when the provided topic is empty.
 	ErrEmptyTopic = errors.New("the topic cannot be empty")
+
+	errOutOfRangeOffset = errors.New("out of range offset")
 )

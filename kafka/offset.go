@@ -1,6 +1,8 @@
 package kafka
 
-import "strconv"
+import (
+	"strconv"
+)
 
 const unknownOffset int64 = -3
 const offsetNotFound int64 = -4
@@ -13,6 +15,7 @@ type Offset struct {
 	Latest int64
 	// Current the current value of the local or consumer group offset. This is where the consumer up to.
 	Current int64
+	stopAt  *checkpoint `json:"-"`
 }
 
 // Lag calculates the lag between the latest and the current offset values.

@@ -2,6 +2,7 @@ package list
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"sort"
 
@@ -41,7 +42,7 @@ func (l *listLocalTopics) run(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("invalid environment filter: %w", err)
 	}
 
-	offsetManager := kafka.NewLocalOffsetManager(l.globalParams.Verbosity)
+	offsetManager := kafka.NewLocalOffsetManager(internal.NewPrinter(l.globalParams.Verbosity, os.Stdout))
 	localStore, err := offsetManager.List(l.topicsFilter, l.envFilter)
 	if err != nil {
 		return err

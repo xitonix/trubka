@@ -14,25 +14,29 @@ import (
 
 // Marshaller protocol buffers output serializer.
 type Marshaller struct {
-	outputFormat     string
-	includeTimeStamp bool
-	includeTopicName bool
-	includeKey       bool
-	enableColor      bool
-	jsonMarshaller   *jsonpb.Marshaler
-	jsonProcessor    *internal.JsonMessageProcessor
+	outputFormat   string
+	inclusions     *internal.MessageMetadata
+	enableColor    bool
+	jsonMarshaller *jsonpb.Marshaler
+	jsonProcessor  *internal.JsonMessageProcessor
 }
 
 // NewMarshaller creates a new protocol buffer Marshaller.
-func NewMarshaller(outputFormat string, includeTimeStamp, includeTopicName, includeKey bool, enableColor bool, highlightStyle string) *Marshaller {
+func NewMarshaller(
+	outputFormat string,
+	inclusions *internal.MessageMetadata,
+	enableColor bool,
+	highlightStyle string) *Marshaller {
 	outputFormat = strings.TrimSpace(strings.ToLower(outputFormat))
 	m := &Marshaller{
-		outputFormat:     outputFormat,
-		includeTimeStamp: includeTimeStamp,
-		includeTopicName: includeTopicName,
-		includeKey:       includeKey,
-		enableColor:      enableColor,
-		jsonProcessor:    internal.NewJsonMessageProcessor(outputFormat, includeTimeStamp, includeTopicName, includeKey, enableColor, highlightStyle),
+		outputFormat: outputFormat,
+		inclusions:   inclusions,
+		enableColor:  enableColor,
+		jsonProcessor: internal.NewJsonMessageProcessor(
+			outputFormat,
+			inclusions,
+			enableColor,
+			highlightStyle),
 	}
 
 	var indentation string
@@ -44,7 +48,7 @@ func NewMarshaller(outputFormat string, includeTimeStamp, includeTopicName, incl
 }
 
 // Marshal serialises the proto message into bytes.
-func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, topic string, partition int32) ([]byte, error) {
+func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, topic string, partition int32, offset int64) ([]byte, error) {
 	var (
 		result []byte
 		err    error
@@ -60,23 +64,14 @@ func (m *Marshaller) Marshal(msg *dynamic.Message, key []byte, ts time.Time, top
 		if err != nil {
 			return nil, err
 		}
-		return m.jsonProcessor.Process(message, key, ts, topic, partition)
+		return m.jsonProcessor.Process(message, key, ts, topic, partition, offset)
 	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	if m.includeTimeStamp && !ts.IsZero() {
-		result = internal.PrependTimestamp(ts, result)
-	}
-	if m.includeKey {
-		result = internal.PrependKey(key, partition, result, m.outputFormat == internal.Base64Encoding)
-	}
-
-	if m.includeTopicName {
-		result = internal.PrependTopic(topic, result)
-	}
+	result = m.inclusions.Render(key, result, ts, topic, partition, offset, m.outputFormat == internal.Base64Encoding)
 
 	return result, nil
 }

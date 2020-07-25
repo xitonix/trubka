@@ -53,7 +53,8 @@ func initialiseProducer(kafkaParams *commands.KafkaParameters, verbosity interna
 	return producer, nil
 }
 
-func produce(kafkaParams *commands.KafkaParameters,
+func produce(ctx context.Context,
+	kafkaParams *commands.KafkaParameters,
 	globalParams *commands.GlobalParameters,
 	topic string,
 	key, value string,
@@ -86,12 +87,6 @@ func produce(kafkaParams *commands.KafkaParameters,
 		fmt.Printf("Publishing %d %s to Kafka\n", count, msg)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		internal.WaitForCancellationSignal()
-		cancel()
-	}()
 	randomPk := len(key) == 0
 	for i := uint32(1); i <= count; i++ {
 		select {

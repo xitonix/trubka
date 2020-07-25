@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"sync"
+	"time"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -35,12 +36,13 @@ type consumeProto struct {
 	interactive             bool
 	interactiveWithOffset   bool
 	reverse                 bool
-	includeTimestamp        bool
-	includeKey              bool
-	includeTopicName        bool
+	inclusions              *internal.MessageMetadata
 	enableAutoTopicCreation bool
 	count                   bool
-	from                    string
+	from                    []string
+	to                      []string
+	exclusive               bool
+	idleTimeout             time.Duration
 	highlightStyle          string
 }
 
@@ -48,6 +50,7 @@ func addConsumeProtoCommand(parent *kingpin.CmdClause, global *commands.GlobalPa
 	cmd := &consumeProto{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
+		inclusions:   &internal.MessageMetadata{},
 	}
 	c := parent.Command("proto", "Starts consuming protobuf encoded events from the given Kafka topic.").Action(cmd.run)
 	bindCommonConsumeFlags(c,
@@ -56,9 +59,10 @@ func addConsumeProtoCommand(parent *kingpin.CmdClause, global *commands.GlobalPa
 		&cmd.outputDir,
 		&cmd.logFile,
 		&cmd.from,
-		&cmd.includeTimestamp,
-		&cmd.includeKey,
-		&cmd.includeTopicName,
+		&cmd.to,
+		&cmd.exclusive,
+		&cmd.idleTimeout,
+		cmd.inclusions,
 		&cmd.enableAutoTopicCreation,
 		&cmd.reverse,
 		&cmd.interactive,
@@ -87,7 +91,6 @@ func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
 		Default(internal.JsonIndentEncoding).
 		Short('f').
 		EnumVar(&c.encodeTo,
-			internal.PlainTextEncoding,
 			internal.JsonEncoding,
 			internal.JsonIndentEncoding,
 			internal.Base64Encoding,
@@ -99,7 +102,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	var implicitContract bool
 	if !interactive {
 		if internal.IsEmpty(c.topic) {
-			return errors.New("which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i)")
+			return errors.New("which Kafka topic you would like to consume from? Make sure you provide the topic as the first argument or switch to interactive mode (-i/-I)")
 		}
 		if internal.IsEmpty(c.messageType) {
 			c.messageType = c.topic
@@ -114,7 +117,16 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 
 	prn := internal.NewPrinter(c.globalParams.Verbosity, logFile)
 
-	consumer, err := initialiseConsumer(c.kafkaParams, c.globalParams, c.environment, c.enableAutoTopicCreation, logFile, prn)
+	consumer, err := initialiseConsumer(
+		c.kafkaParams,
+		c.globalParams,
+		c.environment,
+		c.enableAutoTopicCreation,
+		c.exclusive,
+		c.idleTimeout,
+		logFile,
+		prn)
+
 	if err != nil {
 		return err
 	}
@@ -128,19 +140,19 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	go monitorCancellation(prn, cancel)
 
 	tm := make(map[string]string)
-	checkpoints, err := kafka.NewPartitionCheckpoints(c.from)
+	checkpoints, err := kafka.NewPartitionCheckpoints(c.from, c.to, c.exclusive)
 	if err != nil {
 		return err
 	}
 
-	loader, err := protobuf.NewFileLoader(c.protoRoot)
+	loader, err := protobuf.LoadFiles(ctx, c.globalParams.Verbosity, c.protoRoot)
 	if err != nil {
 		return err
 	}
 
 	var topics map[string]*kafka.PartitionCheckpoints
 	if interactive {
-		topics, tm, err = readUserData(consumer, loader, c.topicFilter, c.protoFilter, c.interactiveWithOffset, checkpoints)
+		topics, tm, err = readUserData(consumer, loader, c.topic, c.messageType, c.topicFilter, c.protoFilter, c.interactiveWithOffset, checkpoints, c.exclusive)
 		if err != nil {
 			return filterError(err)
 		}
@@ -150,7 +162,7 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 	}
 
 	for _, messageType := range tm {
-		err := loader.Load(messageType)
+		err := loader.Load(ctx, messageType)
 		if err != nil {
 			if implicitContract && !interactive {
 				msg := "Most likely the message type is not exactly the same as the topic name."
@@ -180,10 +192,10 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 		go func() {
 			defer wg.Done()
 
+			c.inclusions.Topic = c.inclusions.Topic && !writeEventsToFile
+			c.inclusions.SetIndentation()
 			marshaller := protobuf.NewMarshaller(c.encodeTo,
-				c.includeTimestamp,
-				c.includeTopicName && !writeEventsToFile,
-				c.includeKey,
+				c.inclusions,
 				c.globalParams.EnableColor && !writeEventsToFile,
 				c.highlightStyle)
 
@@ -197,12 +209,8 @@ func (c *consumeProto) run(_ *kingpin.ParseContext) error {
 					}
 				case event, more := <-consumer.Events():
 					if !more {
+						consumer.CloseOffsetStore()
 						return
-					}
-					if cancelled {
-						// We keep consuming and let the Events channel to drain
-						// Otherwise the consumer will deadlock
-						continue
 					}
 
 					output, err := c.process(tm[event.Topic], loader, event, marshaller, c.globalParams.EnableColor && !writeEventsToFile)
@@ -280,7 +288,7 @@ func (c *consumeProto) process(messageType string,
 		return nil, err
 	}
 
-	output, err := marshaller.Marshal(msg, event.Key, event.Timestamp, event.Topic, event.Partition)
+	output, err := marshaller.Marshal(msg, event.Key, event.Timestamp, event.Topic, event.Partition, event.Offset)
 	if err != nil {
 		return nil, err
 	}

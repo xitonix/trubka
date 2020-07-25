@@ -1,6 +1,7 @@
 package produce
 
 import (
+	"context"
 	"fmt"
 
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -41,7 +42,14 @@ func (c *plain) run(_ *kingpin.ParseContext) error {
 		return err
 	}
 
-	return produce(c.kafkaParams, c.globalParams, c.topic, c.key, value,
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		internal.WaitForCancellationSignal()
+		cancel()
+	}()
+
+	return produce(ctx, c.kafkaParams, c.globalParams, c.topic, c.key, value,
 		func(value string) ([]byte, error) {
 			if c.globalParams.Verbosity >= internal.Verbose {
 				fmt.Printf("%s\n", value)

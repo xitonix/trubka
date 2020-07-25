@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -20,7 +22,7 @@ var enabledColor bool
 
 func main() {
 	err := newApplication()
-	if err != nil {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		exit(err)
 	}
 }
