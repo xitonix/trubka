@@ -129,7 +129,7 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 		}).
 		DurationVar(idleTimeout)
 
-	command.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --encode-to=%s only. Set to 'none' to disable.", internal.JsonIndentEncoding)).
+	command.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --encode-to=%s only. Set to 'none' to disable.", internal.JSONIndentEncoding)).
 		Default(internal.DefaultHighlightStyle).
 		EnumVar(highlightStyle,
 			internal.HighlightStyles...)

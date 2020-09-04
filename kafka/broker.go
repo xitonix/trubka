@@ -15,8 +15,8 @@ const ControllerBrokerLabel = "*"
 type Broker struct {
 	// Address the raw address of the broker.
 	Address string `json:"-"`
-	// Id the broker id returned from the server.
-	Id int32 `json:"id"`
+	// ID the broker id returned from the server.
+	ID int32 `json:"id"`
 	// Host the printable broker address.
 	Host string `json:"host"`
 	// IsController is true if the broker is a controller node.
@@ -25,14 +25,14 @@ type Broker struct {
 }
 
 // NewBroker creates a new instance of Kafka broker.
-func NewBroker(broker *sarama.Broker, controllerId int32) *Broker {
+func NewBroker(broker *sarama.Broker, controllerID int32) *Broker {
 	address := broker.Addr()
 	id := broker.ID()
 	return &Broker{
 		Address:      address,
 		Host:         internal.RemovePort(address),
-		Id:           id,
-		IsController: controllerId == id,
+		ID:           id,
+		IsController: controllerID == id,
 		Broker:       broker,
 	}
 }
@@ -50,20 +50,20 @@ func (b *Broker) String() string {
 	if b == nil {
 		return ""
 	}
-	return fmt.Sprintf("%d/%s", b.Id, b.Host)
+	return fmt.Sprintf("%d/%s", b.ID, b.Host)
 }
 
-// BrokersById sorts the brokers by Id.
-type BrokersById []*Broker
+// BrokersByID sorts the brokers by ID.
+type BrokersByID []*Broker
 
-func (b BrokersById) Len() int {
+func (b BrokersByID) Len() int {
 	return len(b)
 }
 
-func (b BrokersById) Swap(i, j int) {
+func (b BrokersByID) Swap(i, j int) {
 	b[i], b[j] = b[j], b[i]
 }
 
-func (b BrokersById) Less(i, j int) bool {
-	return b[i].Id < b[j].Id
+func (b BrokersByID) Less(i, j int) bool {
+	return b[i].ID < b[j].ID
 }

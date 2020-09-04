@@ -15,7 +15,7 @@ type Offset struct {
 	Latest int64
 	// Current the current value of the local or consumer group offset. This is where the consumer up to.
 	Current int64
-	stopAt  *checkpoint `json:"-"`
+	stopAt  *checkpoint
 }
 
 // Lag calculates the lag between the latest and the current offset values.

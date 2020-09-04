@@ -2,8 +2,8 @@ package kafka
 
 // PartitionMeta represents partition metadata.
 type PartitionMeta struct {
-	// Id partition id.
-	Id int32 `json:"id"`
+	// ID partition id.
+	ID int32 `json:"id"`
 	// Offset partition offset.
 	Offset int64 `json:"offset"`
 	// Leader leader node.
@@ -16,17 +16,17 @@ type PartitionMeta struct {
 	OfflineReplicas []*Broker `json:"offline_replicas"`
 }
 
-// PartitionMetaById sorts partition metadata by partition Id.
-type PartitionMetaById []*PartitionMeta
+// PartitionMetaByID sorts partition metadata by partition ID.
+type PartitionMetaByID []*PartitionMeta
 
-func (b PartitionMetaById) Len() int {
+func (b PartitionMetaByID) Len() int {
 	return len(b)
 }
 
-func (b PartitionMetaById) Swap(i, j int) {
+func (b PartitionMetaByID) Swap(i, j int) {
 	b[i], b[j] = b[j], b[i]
 }
 
-func (b PartitionMetaById) Less(i, j int) bool {
-	return b[i].Id < b[j].Id
+func (b PartitionMetaByID) Less(i, j int) bool {
+	return b[i].ID < b[j].ID
 }

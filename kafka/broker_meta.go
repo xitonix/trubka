@@ -63,8 +63,8 @@ type BrokerMeta struct {
 	APIs []*API
 }
 
-// ToJson returns an object ready to be serialised into json string.
-func (b *BrokerMeta) ToJson(withLogs, withAPIs, includeZeros bool) interface{} {
+// ToJSON returns an object ready to be serialised into json string.
+func (b *BrokerMeta) ToJSON(withLogs, withAPIs, includeZeros bool) interface{} {
 	if b == nil {
 		return nil
 	}

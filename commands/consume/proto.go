@@ -88,11 +88,11 @@ func (c *consumeProto) bindCommandFlags(command *kingpin.CmdClause) {
 		RegexpVar(&c.protoFilter)
 
 	command.Flag("format", "The format in which the incoming Kafka messages will be written to the output.").
-		Default(internal.JsonIndentEncoding).
+		Default(internal.JSONIndentEncoding).
 		Short('f').
 		EnumVar(&c.encodeTo,
-			internal.JsonEncoding,
-			internal.JsonIndentEncoding,
+			internal.JSONEncoding,
+			internal.JSONIndentEncoding,
 			internal.Base64Encoding,
 			internal.HexEncoding)
 }

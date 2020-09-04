@@ -64,14 +64,14 @@ func (t *topic) run(_ *kingpin.ParseContext) error {
 		return fmt.Errorf("topic %s not found", t.topic)
 	}
 
-	sort.Sort(kafka.PartitionMetaById(meta.Partitions))
+	sort.Sort(kafka.PartitionMetaByID(meta.Partitions))
 	if t.loadConfigs {
 		sort.Sort(kafka.ConfigEntriesByName(meta.ConfigEntries))
 	}
 
 	switch t.format {
-	case commands.JsonFormat:
-		return output.PrintAsJson(meta, t.style, t.globalParams.EnableColor)
+	case commands.JSONFormat:
+		return output.PrintAsJSON(meta, t.style, t.globalParams.EnableColor)
 	case commands.TableFormat:
 		return t.printAsTable(meta)
 	case commands.TreeFormat:
@@ -89,7 +89,7 @@ func (t *topic) printAsList(meta *kafka.TopicMetadata, plain bool) error {
 	l.AddItem("Partitions")
 	l.Indent()
 	for _, pm := range meta.Partitions {
-		l.AddItemF("%d", pm.Id)
+		l.AddItemF("%d", pm.ID)
 		l.Indent()
 		if t.includeOffsets {
 			l.AddItemF("Offset: %s", humanize.Comma(pm.Offset))
@@ -130,7 +130,7 @@ func (t *topic) printAsTable(meta *kafka.TopicMetadata) error {
 			totalOffsets += pm.Offset
 		}
 		table.AddRow(
-			pm.Id,
+			pm.ID,
 			offset,
 			format.SpaceIfEmpty(pm.Leader.MarkedHostName()),
 			format.SpaceIfEmpty(t.brokersToList(pm.Replicas...)),

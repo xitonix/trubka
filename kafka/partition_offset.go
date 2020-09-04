@@ -11,8 +11,8 @@ import (
 // PartitionOffset represents a map of partition offset pairs.
 type PartitionOffset map[int32]Offset
 
-// ToJson returns an object ready to be serialised into json string.
-func (p PartitionOffset) ToJson() interface{} {
+// ToJSON returns an object ready to be serialised into json string.
+func (p PartitionOffset) ToJSON() interface{} {
 	if p == nil {
 		return nil
 	}

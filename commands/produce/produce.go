@@ -29,6 +29,24 @@ func AddCommands(app *kingpin.Application, global *commands.GlobalParameters, ka
 	addSchemaSubCommand(parent, global)
 }
 
+func addProducerFlags(cmd *kingpin.CmdClause, sleep *time.Duration, key *string, random *bool, count *uint64) {
+	cmd.Flag("key", "The partition key of the message. If not set, a random value will be selected.").
+		Short('k').
+		StringVar(key)
+	cmd.Flag("generate-random-data", "Replaces the random generator place holder functions in the content (if any) with random values.").
+		Short('g').
+		BoolVar(random)
+	cmd.Flag("count", "The number of messages to publish. Set to zero to produce indefinitely.").
+		Default("1").
+		Short('c').
+		Uint64Var(count)
+	cmd.Flag("sleep", "The amount of time to wait before publishing each message to Kafka. Examples 500ms, 1s, 1m or 1h5m.").
+		HintOptions("500ms", "1s", "1m").
+		Default("0").
+		Short('s').
+		DurationVar(sleep)
+}
+
 func initialiseProducer(kafkaParams *commands.KafkaParameters, verbosity internal.VerbosityLevel) (*kafka.Producer, error) {
 
 	saramaLogWriter := ioutil.Discard
@@ -59,7 +77,8 @@ func produce(ctx context.Context,
 	topic string,
 	key, value string,
 	serialize valueSerializer,
-	count uint32) error {
+	count uint64,
+	sleep time.Duration) error {
 	producer, err := initialiseProducer(kafkaParams, globalParams.Verbosity)
 	if err != nil {
 		return err
@@ -75,26 +94,30 @@ func produce(ctx context.Context,
 		}
 	}()
 
-	if count == 0 {
-		count = 1
-	}
-	msg := "message"
-	if count > 1 {
-		msg = "messages"
-	}
-
 	if globalParams.Verbosity >= internal.Verbose {
-		fmt.Printf("Publishing %d %s to Kafka\n", count, msg)
+		msg := "message"
+		switch {
+		case count == 0:
+			msg = "indefinite number of messages"
+		case count == 1:
+			msg = "a single message"
+		case count > 1:
+			msg = fmt.Sprintf("%d messages", count)
+		}
+		fmt.Printf("Publishing %s to Kafka\n", msg)
 	}
 
 	randomPk := len(key) == 0
-	for i := uint32(1); i <= count; i++ {
+	counter := uint64(1)
+	capped := count > 0
+	mustSleep := sleep > 0 && (count == 0 || count > 1)
+	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
 			if randomPk {
-				key = fmt.Sprintf("%d%d", time.Now().UnixNano(), i)
+				key = fmt.Sprintf("%d%d", time.Now().UnixNano(), counter)
 			}
 			vBytes, err := serialize(value)
 			if err != nil {
@@ -105,16 +128,23 @@ func produce(ctx context.Context,
 				return fmt.Errorf("failed to publish to kafka: %w", err)
 			}
 			if globalParams.Verbosity >= internal.VeryVerbose {
-				fmt.Printf("Message#%d has been published to the offset %d of partition %d (PK: %s)\n",
-					i,
+				fmt.Printf("Message has been published to the offset %d of partition %d (PK: %s).\n",
 					offset,
 					partition,
 					key)
 			}
+			if capped && counter >= count {
+				return nil
+			}
+			counter++
+			if mustSleep {
+				if globalParams.Verbosity >= internal.SuperVerbose {
+					fmt.Printf("Waiting for %s before producing the next message.\n", sleep)
+				}
+				time.Sleep(sleep)
+			}
 		}
-
 	}
-	return nil
 }
 
 func getValue(flagValue string) (string, error) {

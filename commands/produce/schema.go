@@ -73,7 +73,7 @@ func (c *schema) run(_ *kingpin.ParseContext) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
-		b, err := json.MarshalIndent(mp, "", internal.JsonIndentation)
+		b, err := json.MarshalIndent(mp, "", internal.JSONIndentation)
 		if err != nil {
 			return err
 		}

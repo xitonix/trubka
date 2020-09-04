@@ -67,12 +67,12 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 	sort.Sort(kafka.ConsumerGroupDetailsByName(groups))
 
 	switch c.format {
-	case commands.JsonFormat:
+	case commands.JSONFormat:
 		data := make([]interface{}, len(groups))
 		for i, g := range groups {
-			data[i] = g.ToJson(false)
+			data[i] = g.ToJSON(false)
 		}
-		return output.PrintAsJson(data, c.style, c.globalParams.EnableColor)
+		return output.PrintAsJSON(data, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(groups)
 	case commands.TreeFormat:

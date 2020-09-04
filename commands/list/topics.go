@@ -61,8 +61,8 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 	sort.Sort(kafka.TopicsByName(topics))
 
 	switch c.format {
-	case commands.JsonFormat:
-		return output.PrintAsJson(topics, c.style, c.globalParams.EnableColor)
+	case commands.JSONFormat:
+		return output.PrintAsJSON(topics, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(topics)
 	case commands.TreeFormat:

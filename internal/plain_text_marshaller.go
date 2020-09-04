@@ -11,10 +11,10 @@ import (
 )
 
 const (
-	// JsonEncoding un-indented Json output.
-	JsonEncoding = "json"
-	// JsonIndentEncoding indented Json output.
-	JsonIndentEncoding = "json-indent"
+	// JSONEncoding un-indented Json output.
+	JSONEncoding = "json"
+	// JSONIndentEncoding indented Json output.
+	JSONIndentEncoding = "json-indent"
 )
 
 const (
@@ -60,8 +60,8 @@ type PlainTextMarshaller struct {
 	enableColor    bool
 	inputEncoding  string
 	outputEncoding string
-	jsonProcessor  *JsonMessageProcessor
-	isJson         bool
+	jsonProcessor  *JSONMessageProcessor
+	isJSON         bool
 }
 
 // NewPlainTextMarshaller creates a new instance of a plain text marshaller.
@@ -77,12 +77,12 @@ func NewPlainTextMarshaller(
 		outputEncoding: outputEncoding,
 		inclusions:     inclusions,
 		enableColor:    enableColor,
-		jsonProcessor: NewJsonMessageProcessor(
+		jsonProcessor: NewJSONMessageProcessor(
 			outputEncoding,
 			inclusions,
 			enableColor,
 			highlightStyle),
-		isJson: outputEncoding == JsonEncoding || outputEncoding == JsonIndentEncoding,
+		isJSON: outputEncoding == JSONEncoding || outputEncoding == JSONIndentEncoding,
 	}
 }
 
@@ -98,7 +98,7 @@ func (m *PlainTextMarshaller) Marshal(msg, key []byte, ts time.Time, topic strin
 		if err != nil {
 			return nil, err
 		}
-		if m.isJson {
+		if m.isJSON {
 			return result, nil
 		}
 	}
@@ -141,8 +141,8 @@ func (m *PlainTextMarshaller) encode(decoded, key []byte, ts time.Time, topic st
 		return m.marshalHex(decoded)
 	case Base64Encoding:
 		return m.marshalBase64(decoded)
-	case JsonIndentEncoding, JsonEncoding:
-		result, err := m.marshalJson(decoded)
+	case JSONIndentEncoding, JSONEncoding:
+		result, err := m.marshalJSON(decoded)
 		if err != nil {
 			return nil, err
 		}
@@ -163,13 +163,13 @@ func (m *PlainTextMarshaller) marshalBase64(msg []byte) ([]byte, error) {
 	return buf, nil
 }
 
-func (m *PlainTextMarshaller) marshalJson(msg []byte) ([]byte, error) {
+func (m *PlainTextMarshaller) marshalJSON(msg []byte) ([]byte, error) {
 	var (
 		buf bytes.Buffer
 		err error
 	)
-	if m.outputEncoding == JsonIndentEncoding {
-		err = json.Indent(&buf, msg, "", JsonIndentation)
+	if m.outputEncoding == JSONIndentEncoding {
+		err = json.Indent(&buf, msg, "", JSONIndentation)
 	} else {
 		err = json.Compact(&buf, msg)
 	}

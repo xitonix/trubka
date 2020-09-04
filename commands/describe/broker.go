@@ -35,7 +35,7 @@ func addBrokerSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParam
 		globalParams: global,
 	}
 	c := parent.Command("broker", "Describes a Kafka broker.").Action(cmd.run)
-	c.Arg("broker", "The broker address or Id.").Required().StringVar(&cmd.identifier)
+	c.Arg("broker", "The broker address or ID.").Required().StringVar(&cmd.identifier)
 	c.Flag("include-logs", "Fetches information about the broker log for each topic.").
 		Short('l').
 		NoEnvar().
@@ -76,9 +76,9 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 	sort.Strings(meta.ConsumerGroups)
 
 	switch b.format {
-	case commands.JsonFormat:
-		data := meta.ToJson(b.includeLogs, b.includeAPIVersions, b.includeZeroLogs)
-		return output.PrintAsJson(data, b.style, b.globalParams.EnableColor)
+	case commands.JSONFormat:
+		data := meta.ToJSON(b.includeLogs, b.includeAPIVersions, b.includeZeroLogs)
+		return output.PrintAsJSON(data, b.style, b.globalParams.EnableColor)
 	case commands.TableFormat:
 		return b.printAsTable(meta)
 	case commands.TreeFormat:

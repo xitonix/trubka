@@ -61,11 +61,11 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 		return errors.New("no brokers found")
 	}
 
-	sort.Sort(kafka.BrokersById(meta.Brokers))
+	sort.Sort(kafka.BrokersByID(meta.Brokers))
 
 	switch c.format {
-	case commands.JsonFormat:
-		return output.PrintAsJson(meta, c.style, c.globalParams.EnableColor)
+	case commands.JSONFormat:
+		return output.PrintAsJSON(meta, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(meta)
 	case commands.TreeFormat:
@@ -89,10 +89,10 @@ func (c *cluster) printAsTable(meta *kafka.ClusterMetadata) error {
 				format.BoldGreen(broker.Host, c.globalParams.EnableColor),
 				format.GreenLabel(controlNodeFlag, c.globalParams.EnableColor),
 			)
-			table.AddRow(format.BoldGreen(broker.Id, c.globalParams.EnableColor), host)
+			table.AddRow(format.BoldGreen(broker.ID, c.globalParams.EnableColor), host)
 			continue
 		}
-		table.AddRow(broker.Id, broker.Host)
+		table.AddRow(broker.ID, broker.Host)
 	}
 	table.AddFooter("", fmt.Sprintf("Total: %d", len(meta.Brokers)))
 	output.NewLines(1)

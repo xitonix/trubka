@@ -6,37 +6,37 @@ import (
 	"time"
 )
 
-// JsonIndentation the indentation of JSON output.
-const JsonIndentation = "  "
+// JSONIndentation the indentation of JSON output.
+const JSONIndentation = "  "
 
-// JsonMessageProcessor prepares json output for printing.
-type JsonMessageProcessor struct {
+// JSONMessageProcessor prepares json output for printing.
+type JSONMessageProcessor struct {
 	outputEncoding string
 	enableColor    bool
-	highlighter    *JsonHighlighter
+	highlighter    *JSONHighlighter
 	indent         bool
 	inclusions     *MessageMetadata
 }
 
-// NewJsonMessageProcessor creates a new instance of JSON message processor.
-func NewJsonMessageProcessor(
+// NewJSONMessageProcessor creates a new instance of JSON message processor.
+func NewJSONMessageProcessor(
 	outputFormat string,
 	inclusions *MessageMetadata,
 	enableColor bool,
-	highlightStyle string) *JsonMessageProcessor {
-	return &JsonMessageProcessor{
+	highlightStyle string) *JSONMessageProcessor {
+	return &JSONMessageProcessor{
 		outputEncoding: outputFormat,
 		inclusions:     inclusions,
 		enableColor:    enableColor,
-		highlighter:    NewJsonHighlighter(highlightStyle, enableColor),
-		indent:         outputFormat == JsonIndentEncoding,
+		highlighter:    NewJSONHighlighter(highlightStyle, enableColor),
+		indent:         outputFormat == JSONIndentEncoding,
 	}
 }
 
 // Process prepares json output for printing.
 //
 // The method injects the metadata into the json object if required.
-func (j *JsonMessageProcessor) Process(message, key []byte, ts time.Time, topic string, partition int32, offset int64) ([]byte, error) {
+func (j *JSONMessageProcessor) Process(message, key []byte, ts time.Time, topic string, partition int32, offset int64) ([]byte, error) {
 	if !j.inclusions.IsRequested() {
 		return j.highlight(message), nil
 	}
@@ -74,7 +74,7 @@ func (j *JsonMessageProcessor) Process(message, key []byte, ts time.Time, topic 
 
 	var err error
 	if j.indent {
-		message, err = json.MarshalIndent(output, "", JsonIndentation)
+		message, err = json.MarshalIndent(output, "", JSONIndentation)
 	} else {
 		message, err = json.Marshal(output)
 	}
@@ -84,7 +84,7 @@ func (j *JsonMessageProcessor) Process(message, key []byte, ts time.Time, topic 
 	return j.highlight(message), nil
 }
 
-func (j *JsonMessageProcessor) highlight(input []byte) []byte {
+func (j *JSONMessageProcessor) highlight(input []byte) []byte {
 	if j.indent {
 		return j.highlighter.Highlight(input)
 	}

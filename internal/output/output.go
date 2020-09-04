@@ -14,13 +14,13 @@ func NewLines(count int) {
 	}
 }
 
-// PrintAsJson prints the input data into stdout as Json.
-func PrintAsJson(data interface{}, style string, enableColor bool) error {
+// PrintAsJSON prints the input data into stdout as Json.
+func PrintAsJSON(data interface{}, style string, enableColor bool) error {
 	result, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return err
 	}
-	h := internal.NewJsonHighlighter(style, enableColor)
+	h := internal.NewJSONHighlighter(style, enableColor)
 	fmt.Println(string(h.Highlight(result)))
 	return nil
 }

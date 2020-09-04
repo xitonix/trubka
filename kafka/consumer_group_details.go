@@ -25,8 +25,8 @@ type ConsumerGroupDetails struct {
 	Members GroupMembers `json:"members,omitempty"`
 }
 
-// ToJson returns an object ready to be serialised into json string.
-func (c *ConsumerGroupDetails) ToJson(includeMembers bool) interface{} {
+// ToJSON returns an object ready to be serialised into json string.
+func (c *ConsumerGroupDetails) ToJSON(includeMembers bool) interface{} {
 	if c == nil {
 		return nil
 	}
@@ -35,7 +35,7 @@ func (c *ConsumerGroupDetails) ToJson(includeMembers bool) interface{} {
 		Partitions []int32 `json:"partitions"`
 	}
 	type member struct {
-		Id          string        `json:"id"`
+		ID          string        `json:"id"`
 		Host        string        `json:"host"`
 		Assignments []*assignment `json:"assignments"`
 	}
@@ -69,7 +69,7 @@ func (c *ConsumerGroupDetails) ToJson(includeMembers bool) interface{} {
 	if includeMembers {
 		for id, gMember := range c.Members {
 			m := &member{
-				Id:          id,
+				ID:          id,
 				Host:        gMember.ClientHost,
 				Assignments: []*assignment{},
 			}

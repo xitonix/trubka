@@ -1,5 +1,13 @@
 ## Release Notes
 
+### v3.2.0
+
+**[New Features]**
+
+- `produce plain` command now supports data templates to push randomly generated messages to Kafka.
+- Added `--sleep=Duration` parameter to `produce` commands so that we can put a gap between publish operations.
+- `produce` commands now support `--count=0` to allow publishing to Kafka indefinitely. 
+
 ### v3.1.2
 
 **[New Features]**

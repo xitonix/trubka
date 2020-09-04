@@ -80,8 +80,8 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *commands.GlobalPa
 		Short('f').
 		EnumVar(&cmd.encodeTo,
 			internal.PlainTextEncoding,
-			internal.JsonEncoding,
-			internal.JsonIndentEncoding,
+			internal.JSONEncoding,
+			internal.JSONIndentEncoding,
 			internal.Base64Encoding,
 			internal.HexEncoding)
 }

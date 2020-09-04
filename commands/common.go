@@ -26,8 +26,8 @@ const (
 	TableFormat = "table"
 	// TreeFormat tree format.
 	TreeFormat = "tree"
-	// JsonFormat json format.
-	JsonFormat = "json"
+	// JSONFormat json format.
+	JSONFormat = "json"
 )
 
 // InitKafkaManager initialises the Kafka manager.
@@ -74,9 +74,9 @@ func AddFormatFlag(c *kingpin.CmdClause, format *string, style *string) {
 		Default(TableFormat).
 		NoEnvar().
 		Short('f').
-		EnumVar(format, PlainTextFormat, TableFormat, TreeFormat, JsonFormat)
+		EnumVar(format, PlainTextFormat, TableFormat, TreeFormat, JSONFormat)
 
-	c.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --format=%s only. Disabled (none) by default.", JsonFormat)).
+	c.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --format=%s only. Disabled (none) by default.", JSONFormat)).
 		Default("none").
 		EnumVar(style, internal.HighlightStyles...)
 }

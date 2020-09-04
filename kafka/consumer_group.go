@@ -9,9 +9,9 @@ import (
 
 // GroupMember represents a consumer group member.
 type GroupMember struct {
-	// Id the member identifier.
+	// ID the member identifier.
 	ID string
-	// ClientID client Id.
+	// ClientID client ID.
 	ClientID string
 	// Host the host name/IP of the client machine.
 	Host string
@@ -48,7 +48,7 @@ func (c *ConsumerGroup) addMembers(members map[string]*sarama.GroupMemberDescrip
 	}
 }
 
-// ConsumerGroups the map of consumer groups keyed by consumer group Id.
+// ConsumerGroups the map of consumer groups keyed by consumer group ID.
 type ConsumerGroups map[string]*ConsumerGroup
 
 // Names returns the names of the consumer groups

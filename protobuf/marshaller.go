@@ -18,7 +18,7 @@ type Marshaller struct {
 	inclusions     *internal.MessageMetadata
 	enableColor    bool
 	jsonMarshaller *jsonpb.Marshaler
-	jsonProcessor  *internal.JsonMessageProcessor
+	jsonProcessor  *internal.JSONMessageProcessor
 }
 
 // NewMarshaller creates a new protocol buffer Marshaller.
@@ -32,7 +32,7 @@ func NewMarshaller(
 		outputFormat: outputFormat,
 		inclusions:   inclusions,
 		enableColor:  enableColor,
-		jsonProcessor: internal.NewJsonMessageProcessor(
+		jsonProcessor: internal.NewJSONMessageProcessor(
 			outputFormat,
 			inclusions,
 			enableColor,
@@ -40,10 +40,10 @@ func NewMarshaller(
 	}
 
 	var indentation string
-	if m.outputFormat == internal.JsonIndentEncoding {
-		indentation = internal.JsonIndentation
+	if m.outputFormat == internal.JSONIndentEncoding {
+		indentation = internal.JSONIndentation
 	}
-	m.jsonMarshaller = newJsonMarshaller(indentation)
+	m.jsonMarshaller = newJSONMarshaller(indentation)
 	return m
 }
 
@@ -86,7 +86,7 @@ func (m *Marshaller) marshalBase64(msg *dynamic.Message) ([]byte, error) {
 	return buf, nil
 }
 
-func newJsonMarshaller(indent string) *jsonpb.Marshaler {
+func newJSONMarshaller(indent string) *jsonpb.Marshaler {
 	return &jsonpb.Marshaler{
 		EnumsAsInts:  false,
 		EmitDefaults: false,
