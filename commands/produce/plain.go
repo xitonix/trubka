@@ -53,15 +53,15 @@ func (c *plain) run(_ *kingpin.ParseContext) error {
 }
 
 func (c *plain) serialize(value string) ([]byte, error) {
-	if c.globalParams.Verbosity >= internal.Verbose {
-		fmt.Printf("%s\n", value)
-	}
 	if !c.random {
 		return []byte(value), nil
 	}
 	value, err := c.parser.Parse(value)
 	if err != nil {
 		return nil, err
+	}
+	if c.globalParams.Verbosity >= internal.Verbose {
+		fmt.Printf("%s\n", value)
 	}
 	return []byte(value), nil
 }
