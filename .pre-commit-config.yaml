@@ -1,3 +1,4 @@
+repos:
 - repo: git://github.com/xitonix/pre-commit-golang
   rev: master
   hooks:
