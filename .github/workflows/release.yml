@@ -1,0 +1,133 @@
+name: Release
+env:
+  BINARY: trubka
+  MAINTAINER: Alex Golshani
+  VENDOR: Alex Golshani
+  URL: https://github.com/xitonix/trubka
+  DESCRIPTION: A CLI tool for Kafka
+  LICENSE: Apache License 2.0
+on:
+  release:
+   types: [published]
+jobs:
+  mac:
+    name: Mac
+    runs-on: macOS-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v2.1.2
+        with:
+          go-version: 1.15
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: Download dependencies
+        run: go mod download -x
+        env:
+          GO111MODULE: on
+      - name: Package release
+        run: release/release_darwin.bash
+        env:
+          GO111MODULE: on
+        id: package
+      - name: Upload binary
+        uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./${{ steps.package.outputs.file }}
+          asset_name: ${{ steps.package.outputs.file }}
+          asset_content_type: application/gzip
+      - name: Create Brew PR
+        env:
+          HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.BREW_TOKEN }}
+        run: |
+          brew tap ${{ github.actor }}/${{ env.BINARY }}
+          brew bump-formula-pr -f --version=${{ steps.package.outputs.version }} --no-browse --no-audit \
+          --sha256=${{ steps.package.outputs.sha }} \
+          --url="https://github.com/${{ github.actor }}/${{ env.BINARY }}/releases/download/${{ steps.package.outputs.version }}/${{ steps.package.outputs.file }}" \
+          ${{ github.actor }}/${{ env.BINARY }}/${{ env.BINARY }}
+  linux:
+    name: Linux
+    runs-on: ubuntu-18.04
+    steps:
+    - name: Set up Go
+      uses: actions/setup-go@v2.1.2
+      with:
+        go-version: 1.15
+    - name: Check out code
+      uses: actions/checkout@v2
+    - name: Download dependencies
+      run: go mod download -x
+      env:
+        GO111MODULE: on
+    - name: Package release
+      run: release/release_linux.bash
+      env:
+        GO111MODULE: on
+      id: package
+    - name: Upload binary
+      uses: actions/upload-release-asset@v1.0.2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./${{ steps.package.outputs.file }}
+        asset_name: ${{ steps.package.outputs.file }}
+        asset_content_type: application/gzip
+    - name: Upload RPM
+      uses: actions/upload-release-asset@v1.0.2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./${{ steps.package.outputs.rpm }}
+        asset_name: ${{ steps.package.outputs.rpm }}
+        asset_content_type: application/octet-stream
+    - name: Upload DEB
+      uses: actions/upload-release-asset@v1.0.2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./${{ steps.package.outputs.deb }}
+        asset_name: ${{ steps.package.outputs.deb }}
+        asset_content_type: application/octet-stream
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v2.1.2
+        with:
+          go-version: 1.15
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: Download dependencies
+        run: go mod download -x
+        env:
+          GO111MODULE: on
+      - name: Package release
+        run: .\release.ps1 -version ($Env:GITHUB_REF).trimstart('refs/tags/v') -binary $Env:BINARY
+        working-directory: .\release\windows
+        id: package
+        env:
+          GO111MODULE: on
+      - name: Upload binary
+        uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: .\release\windows\${{ steps.package.outputs.file }}
+          asset_name: ${{ steps.package.outputs.file }}
+          asset_content_type: application/gzip
+      - name: Upload TAR Archive
+        uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: .\release\windows\${{ steps.package.outputs.archive }}
+          asset_name: ${{ steps.package.outputs.archive }}
+          asset_content_type: application/gzip
