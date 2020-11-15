@@ -1,5 +1,10 @@
 ## Release Notes
 ### v3.2.1
+
+**[New Features]**
+
+- Multi-platform packaging.
+
 **[Fixes]**
 - Print the parsed content instead of the raw template when publishing plain text with `-gv` flags.
 
