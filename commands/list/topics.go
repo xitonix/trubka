@@ -18,11 +18,13 @@ import (
 )
 
 type topics struct {
-	kafkaParams  *commands.KafkaParameters
-	globalParams *commands.GlobalParameters
-	topicFilter  *regexp.Regexp
-	format       string
-	style        string
+	kafkaParams    *commands.KafkaParameters
+	globalParams   *commands.GlobalParameters
+	topicFilter    *regexp.Regexp
+	loadConfigs    bool
+	includeOffsets bool
+	format         string
+	style          string
 }
 
 func addTopicsSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
@@ -34,6 +36,12 @@ func addTopicsSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParam
 	c.Flag("topic-filter", "An optional regular expression to filter the topics by.").
 		Short('t').
 		RegexpVar(&cmd.topicFilter)
+	c.Flag("load-config", "Loads the topic's configurations from the server.").
+		NoEnvar().
+		Short('c').BoolVar(&cmd.loadConfigs)
+	c.Flag("include-offsets", "Queries the server to read the latest available offset of each partition.").
+		NoEnvar().
+		Short('o').BoolVar(&cmd.includeOffsets)
 	commands.AddFormatFlag(c, &cmd.format, &cmd.style)
 }
 
@@ -49,7 +57,7 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 		cancel()
 	}()
 
-	topics, err := manager.GetTopics(ctx, c.topicFilter)
+	topics, err := manager.GetTopics(ctx, c.topicFilter, c.loadConfigs, c.includeOffsets)
 	if err != nil {
 		return err
 	}
