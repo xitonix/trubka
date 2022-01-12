@@ -362,7 +362,7 @@ func (t *Parser) replaceExtraGenerators(value string) string {
 			},
 		},
 		{
-			ex: regexp.MustCompile(`"\s*Bool\(\)\s*|BoolS\(\)`),
+			ex: regexp.MustCompile(`"\s*Bool\(\)\s*"|BoolS\(\)`),
 			replacer: func(match string) string {
 				return gofakeit.RandString([]string{"true", "false"})
 			},
