@@ -23,7 +23,7 @@ require (
 	github.com/peterbourgon/diskv v2.0.1+incompatible
 	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
-	go.mongodb.org/mongo-driver v1.3.5 // indirect
+	go.mongodb.org/mongo-driver v1.5.1 // indirect
 	golang.org/x/sys v0.0.0-20200724161237-0e2f3a69832c // indirect
 	google.golang.org/genproto v0.0.0-20200724131911-43cab4749ae7 // indirect
 	google.golang.org/protobuf v1.25.0 // indirect
