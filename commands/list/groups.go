@@ -72,7 +72,7 @@ func (c *groups) run(_ *kingpin.ParseContext) error {
 		for i, g := range groups {
 			data[i] = g.ToJSON(false)
 		}
-		return output.PrintAsJSON(data, c.style, c.globalParams.EnableColor, c.globalParams.Compact)
+		return output.PrintAsJSON(data, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(groups)
 	case commands.TreeFormat:

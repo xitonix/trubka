@@ -65,7 +65,7 @@ func (c *cluster) run(_ *kingpin.ParseContext) error {
 
 	switch c.format {
 	case commands.JSONFormat:
-		return output.PrintAsJSON(meta, c.style, c.globalParams.EnableColor, c.globalParams.Compact)
+		return output.PrintAsJSON(meta, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(meta)
 	case commands.TreeFormat:

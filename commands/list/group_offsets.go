@@ -62,7 +62,7 @@ func (g *groupOffset) run(_ *kingpin.ParseContext) error {
 
 	switch g.format {
 	case commands.JSONFormat:
-		return output.PrintAsJSON(topics.ToJSON(), g.style, g.globalParams.EnableColor, g.globalParams.Compact)
+		return output.PrintAsJSON(topics.ToJSON(), g.style, g.globalParams.EnableColor)
 	case commands.TableFormat:
 		return g.printAsTable(topics)
 	case commands.TreeFormat:

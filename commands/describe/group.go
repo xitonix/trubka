@@ -57,7 +57,7 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 	switch c.format {
 	case commands.JSONFormat:
 		data := cgd.ToJSON(c.includeMembers)
-		return output.PrintAsJSON(data, c.style, c.globalParams.EnableColor, c.globalParams.Compact)
+		return output.PrintAsJSON(data, c.style, c.globalParams.EnableColor)
 	case commands.TableFormat:
 		return c.printAsTable(cgd)
 	case commands.TreeFormat:

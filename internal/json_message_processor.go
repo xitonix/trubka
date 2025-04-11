@@ -1,8 +1,10 @@
 package internal
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"time"
 )
 
@@ -16,6 +18,7 @@ type JSONMessageProcessor struct {
 	highlighter    *JSONHighlighter
 	indent         bool
 	inclusions     *MessageMetadata
+	compact        bool
 }
 
 // NewJSONMessageProcessor creates a new instance of JSON message processor.
@@ -30,6 +33,7 @@ func NewJSONMessageProcessor(
 		enableColor:    enableColor,
 		highlighter:    NewJSONHighlighter(highlightStyle, enableColor),
 		indent:         outputFormat == JSONIndentEncoding,
+		compact:        outputFormat == JSONCompactEncoding,
 	}
 }
 
@@ -73,7 +77,10 @@ func (j *JSONMessageProcessor) Process(message, key []byte, ts time.Time, topic 
 	}
 
 	var err error
-	if j.indent {
+
+	if j.compact {
+		message, err = MarshalJson(output, true)
+	} else if j.indent {
 		message, err = json.MarshalIndent(output, "", JSONIndentation)
 	} else {
 		message, err = json.Marshal(output)
@@ -89,4 +96,25 @@ func (j *JSONMessageProcessor) highlight(input []byte) []byte {
 		return j.highlighter.Highlight(input)
 	}
 	return input
+}
+
+func MarshalJson(data interface{}, compact bool) ([]byte, error) {
+	if compact {
+		marshal, err := json.Marshal(data)
+		if err != nil {
+			return nil, err
+		}
+		dst := &bytes.Buffer{}
+		err = json.Compact(dst, marshal)
+		if err != nil {
+			return nil, err
+		}
+		compBytes, err := io.ReadAll(dst)
+		if err != nil {
+			return nil, err
+		}
+		return compBytes, nil
+	} else {
+		return json.MarshalIndent(data, "", "  ")
+	}
 }

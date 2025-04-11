@@ -61,11 +61,6 @@ func bindAppFlags(app *kingpin.Application, global *commands.GlobalParameters) {
 			return nil
 		}).
 		CounterVar(&verbosity)
-
-	app.Flag("compact", "Opt for compact output, with single line where possible.").
-		Short('c').
-		Default("false").
-		BoolVar(&global.Compact)
 }
 
 func bindKafkaFlags(app *kingpin.Application) *commands.KafkaParameters {

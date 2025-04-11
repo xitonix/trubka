@@ -14,7 +14,8 @@ const (
 	// JSONEncoding un-indented Json output.
 	JSONEncoding = "json"
 	// JSONIndentEncoding indented Json output.
-	JSONIndentEncoding = "json-indent"
+	JSONIndentEncoding  = "json-indent"
+	JSONCompactEncoding = "json-compact"
 )
 
 const (
