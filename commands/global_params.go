@@ -8,4 +8,6 @@ type GlobalParameters struct {
 	Verbosity internal.VerbosityLevel
 	// EnableColor enables colours across all the sub-commands.
 	EnableColor bool
+	// Prefer compact output
+	Compact bool
 }

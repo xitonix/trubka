@@ -54,7 +54,7 @@ func (l *listLocalTopics) run(_ *kingpin.ParseContext) error {
 
 	switch l.format {
 	case commands.JSONFormat:
-		return output.PrintAsJSON(localStore, l.style, l.globalParams.EnableColor)
+		return output.PrintAsJSON(localStore, l.style, l.globalParams.EnableColor, l.globalParams.Compact)
 	case commands.TableFormat:
 		return l.printAsTable(localStore)
 	case commands.TreeFormat:

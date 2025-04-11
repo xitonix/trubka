@@ -62,7 +62,7 @@ func (c *topics) run(_ *kingpin.ParseContext) error {
 
 	switch c.format {
 	case commands.JSONFormat:
-		return output.PrintAsJSON(topics, c.style, c.globalParams.EnableColor)
+		return output.PrintAsJSON(topics, c.style, c.globalParams.EnableColor, c.globalParams.Compact)
 	case commands.TableFormat:
 		return c.printAsTable(topics)
 	case commands.TreeFormat:

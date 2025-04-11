@@ -64,7 +64,7 @@ func (l *listLocalOffsets) run(_ *kingpin.ParseContext) error {
 
 	switch l.format {
 	case commands.JSONFormat:
-		return output.PrintAsJSON(offsets.ToJSON(), l.style, l.globalParams.EnableColor)
+		return output.PrintAsJSON(offsets.ToJSON(), l.style, l.globalParams.EnableColor, l.globalParams.Compact)
 	case commands.TableFormat:
 		return l.printAsTable(offsets)
 	case commands.TreeFormat:

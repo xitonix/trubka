@@ -78,7 +78,7 @@ func (b *broker) run(_ *kingpin.ParseContext) error {
 	switch b.format {
 	case commands.JSONFormat:
 		data := meta.ToJSON(b.includeLogs, b.includeAPIVersions, b.includeZeroLogs)
-		return output.PrintAsJSON(data, b.style, b.globalParams.EnableColor)
+		return output.PrintAsJSON(data, b.style, b.globalParams.EnableColor, b.globalParams.Compact)
 	case commands.TableFormat:
 		return b.printAsTable(meta)
 	case commands.TreeFormat:
