@@ -82,7 +82,6 @@ func addConsumePlainCommand(parent *kingpin.CmdClause, global *commands.GlobalPa
 			internal.PlainTextEncoding,
 			internal.JSONEncoding,
 			internal.JSONIndentEncoding,
-			internal.JSONCompactEncoding,
 			internal.Base64Encoding,
 			internal.HexEncoding)
 }

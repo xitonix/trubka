@@ -11,11 +11,10 @@ import (
 )
 
 const (
-	// JSONEncoding un-indented Json output.
+	// JSONEncoding compact Json output.
 	JSONEncoding = "json"
 	// JSONIndentEncoding indented Json output.
-	JSONIndentEncoding  = "json-indent"
-	JSONCompactEncoding = "json-compact"
+	JSONIndentEncoding = "json-indent"
 )
 
 const (
