@@ -16,11 +16,13 @@ type localOffsets struct {
 	globalParams *commands.GlobalParameters
 	topic        string
 	environment  string
+	logger       internal.Logger
 }
 
 func addDeleteLocalOffsetsSubCommand(parent *kingpin.CmdClause, params *commands.GlobalParameters) {
 	cmd := &localOffsets{
 		globalParams: params,
+		logger:       *internal.NewLogger(1),
 	}
 	c := parent.Command("local-offsets", "Deletes the local offsets from the given environment.").Action(cmd.run)
 	c.Arg("environment", "The case-sensitive environment of which the local offsets will be deleted.").
@@ -44,10 +46,10 @@ func (c *localOffsets) run(_ *kingpin.ParseContext) error {
 	} else {
 		msg = fmt.Sprintf("The local offsets of all the topics will be deleted from %s environment. Are you sure", c.environment)
 	}
-	return confirmAndDelete(msg, path, !topicMode)
+	return c.confirmAndDelete(msg, path, !topicMode)
 }
 
-func confirmAndDelete(message, path string, all bool) error {
+func (c *localOffsets) confirmAndDelete(message, path string, all bool) error {
 	if commands.AskForConfirmation(message) {
 		var err error
 		if all {
@@ -58,7 +60,7 @@ func confirmAndDelete(message, path string, all bool) error {
 		if err != nil {
 			return err
 		}
-		fmt.Println("The local offsets have been removed.")
+		c.logger.Log(1, "The local offsets have been removed.")
 	}
 	return nil
 }

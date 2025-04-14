@@ -2,7 +2,6 @@ package create
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -19,12 +18,14 @@ type topic struct {
 	replicationFactor  int16
 	retention          time.Duration
 	validateOnly       bool
+	logger             internal.Logger
 }
 
 func addCreateTopicSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	cmd := &topic{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
+		logger:       *internal.NewLogger(1),
 	}
 	c := parent.Command("topic", "Creates a new topic.").Action(cmd.run)
 	c.Arg("topic", "The topic name.").
@@ -72,9 +73,9 @@ func (c *topic) run(_ *kingpin.ParseContext) error {
 	err = manager.CreateTopic(c.topic, c.numberOfPartitions, c.replicationFactor, c.validateOnly, c.retention)
 	if err == nil {
 		if c.validateOnly {
-			fmt.Println("The server WILL ACCEPT the request.")
+			c.logger.Log(1, "The server WILL ACCEPT the request.")
 		} else {
-			fmt.Printf("Topic %s has been created successfully.", c.topic)
+			c.logger.Logf(1, "Topic %s has been created successfully.", c.topic)
 		}
 	}
 

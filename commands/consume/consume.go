@@ -245,11 +245,15 @@ func filterError(err error) error {
 func closeFile(file *os.File, highlight bool) {
 	err := file.Sync()
 	if err != nil {
-		msg := fmt.Sprintf("Failed to sync the file: %s", err)
-		fmt.Println(format.Red(msg, highlight))
+		logger := internal.NewLogger(1)
+		var msg = fmt.Sprintf("Failed to sync the file: %s", err)
+		msg = fmt.Sprint(format.Red(msg, highlight))
+		logger.Log(1, msg)
 	}
 	if err := file.Close(); err != nil {
-		msg := fmt.Sprintf("Failed to close the file: %s", err)
-		fmt.Println(format.Red(msg, highlight))
+		logger := internal.NewLogger(1)
+		var msg = fmt.Sprintf("Failed to close the file: %s", err)
+		msg = fmt.Sprint(format.Red(msg, highlight))
+		logger.Log(1, msg)
 	}
 }

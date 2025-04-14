@@ -23,11 +23,13 @@ type listLocalTopics struct {
 	envFilter    *regexp.Regexp
 	format       string
 	style        string
+	logger       internal.Logger
 }
 
 func addLocalTopicsSubCommand(parent *kingpin.CmdClause, params *commands.GlobalParameters) {
 	cmd := &listLocalTopics{
 		globalParams: params,
+		logger:       *internal.NewLogger(1),
 	}
 	c := parent.Command("local-topics", "Lists the locally stored topics and the environments.").Action(cmd.run)
 	c.Flag("topic-filter", "An optional regular expression to filter the topics by.").Short('t').RegexpVar(&cmd.topicsFilter)
@@ -49,7 +51,7 @@ func (l *listLocalTopics) run(_ *kingpin.ParseContext) error {
 	}
 
 	if len(localStore) == 0 {
-		fmt.Println("No topic offsets have been stored locally.")
+		l.logger.Log(1, "No topic offsets have been stored locally.")
 	}
 
 	switch l.format {

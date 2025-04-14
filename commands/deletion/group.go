@@ -15,12 +15,14 @@ type group struct {
 	kafkaParams  *commands.KafkaParameters
 	group        string
 	silent       bool
+	logger       internal.Logger
 }
 
 func addDeleteGroupSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	cmd := &group{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
+		logger:       *internal.NewLogger(1),
 	}
 	c := parent.Command("group", "Deletes a consumer group.").Action(cmd.run)
 	c.Arg("group", "The consumer group to delete.").
@@ -53,7 +55,7 @@ func (c *group) run(_ *kingpin.ParseContext) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("%s group has been deleted successfully.\n", c.group)
+		c.logger.Logf(1, "%s group has been deleted successfully.", c.group)
 	}
 
 	return nil
