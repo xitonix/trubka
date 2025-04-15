@@ -30,7 +30,7 @@ func main() {
 func exit(err error) {
 	msg := fmt.Sprintf("ERROR: %s", internal.Title(err))
 	msg = fmt.Sprint(format.Red(msg, enabledColor))
-	logger := internal.NewLogger(1)
-	logger.Log(1, msg)
+	logger := internal.NewLogger(internal.Forced)
+	logger.Log(internal.Chatty, msg)
 	os.Exit(1)
 }
