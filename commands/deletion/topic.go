@@ -15,14 +15,12 @@ type topic struct {
 	kafkaParams  *commands.KafkaParameters
 	topic        string
 	silent       bool
-	logger       internal.Logger
 }
 
 func addDeleteTopicSubCommand(parent *kingpin.CmdClause, global *commands.GlobalParameters, kafkaParams *commands.KafkaParameters) {
 	cmd := &topic{
 		globalParams: global,
 		kafkaParams:  kafkaParams,
-		logger:       *internal.NewLogger(1),
 	}
 	c := parent.Command("topic", "Deletes a topic.").Action(cmd.run)
 	c.Arg("topic", "The topic to delete.").
@@ -55,7 +53,7 @@ func (c *topic) run(_ *kingpin.ParseContext) error {
 		if err != nil {
 			return err
 		}
-		c.logger.Logf(1, "%s topic has been deleted successfully.\n", c.topic)
+		fmt.Printf("%s topic has been deleted successfully.\n", c.topic)
 	}
 
 	return nil
