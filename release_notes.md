@@ -1,4 +1,10 @@
 ## Release Notes
+
+### v3.2.2
+
+- Multi-platform build pipeline disabled
+- JSON compact is the default encoder
+
 ### v3.2.1
 
 **[New Features]**
