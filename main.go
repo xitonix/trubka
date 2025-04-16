@@ -29,8 +29,6 @@ func main() {
 
 func exit(err error) {
 	msg := fmt.Sprintf("ERROR: %s", internal.Title(err))
-	msg = fmt.Sprint(format.Red(msg, enabledColor))
-	logger := internal.NewLogger(internal.Forced)
-	logger.Log(internal.Chatty, msg)
+	fmt.Fprintln(os.Stderr, format.Red(msg, enabledColor))
 	os.Exit(1)
 }
