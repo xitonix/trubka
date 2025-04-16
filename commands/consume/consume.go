@@ -217,7 +217,7 @@ func getLogWriter(logFile string) (io.Writer, bool, error) {
 	case "none":
 		return ioutil.Discard, false, nil
 	case "":
-		return os.Stdout, false, nil
+		return os.Stderr, false, nil
 	default:
 		lf, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 		if err != nil {

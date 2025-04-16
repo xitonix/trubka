@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"os"
 	"time"
 )
 
@@ -20,7 +21,7 @@ func (l *Logger) Log(level VerbosityLevel, message string) {
 	if l.currentLevel < level {
 		return
 	}
-	fmt.Println(time.Now().Format(loggingTimestampLayout) + message)
+	fmt.Fprintf(os.Stderr, "%s%s\n", time.Now().Format(loggingTimestampLayout), message)
 }
 
 // Logf formats and logs the provided message to stdout if the level is higher than the current log level.

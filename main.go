@@ -29,6 +29,6 @@ func main() {
 
 func exit(err error) {
 	msg := fmt.Sprintf("ERROR: %s", internal.Title(err))
-	fmt.Println(format.Red(msg, enabledColor))
+	fmt.Fprintln(os.Stderr, format.Red(msg, enabledColor))
 	os.Exit(1)
 }

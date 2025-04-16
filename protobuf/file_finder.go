@@ -40,7 +40,7 @@ func newFileFinder(verbosity internal.VerbosityLevel, root string) (*fileFinder,
 
 func (f *fileFinder) ls(ctx context.Context) ([]string, error) {
 	var files []string
-	if f.verbosity >= internal.Verbose {
+	if f.verbosity >= internal.VeryVerbose {
 		fmt.Printf("Looking for proto contracts in %s\n", f.root)
 	}
 	err := filepath.Walk(f.root, func(path string, fileInfo os.FileInfo, err error) error {
