@@ -15,7 +15,6 @@ import (
 type fileFinder struct {
 	root      string
 	verbosity internal.VerbosityLevel
-	logger    internal.Logger
 }
 
 func newFileFinder(verbosity internal.VerbosityLevel, root string) (*fileFinder, error) {
@@ -36,13 +35,14 @@ func newFileFinder(verbosity internal.VerbosityLevel, root string) (*fileFinder,
 	return &fileFinder{
 		root:      root,
 		verbosity: verbosity,
-		logger:    *internal.NewLogger(verbosity),
 	}, nil
 }
 
 func (f *fileFinder) ls(ctx context.Context) ([]string, error) {
 	var files []string
-	f.logger.Logf(internal.Verbose, "Looking for proto contracts in %s\n", f.root)
+	if f.verbosity >= internal.Verbose {
+		fmt.Fprintf(os.Stderr, "Looking for proto contracts in %s\n", f.root)
+	}
 	err := filepath.Walk(f.root, func(path string, fileInfo os.FileInfo, err error) error {
 		select {
 		case <-ctx.Done():
@@ -52,11 +52,13 @@ func (f *fileFinder) ls(ctx context.Context) ([]string, error) {
 				return err
 			}
 			isDir := fileInfo.IsDir()
-			if isDir {
-				f.logger.Logf(internal.VeryVerbose, "Loading %s\n", path)
+			if f.verbosity >= internal.VeryVerbose && isDir {
+				fmt.Fprintf(os.Stderr, "Loading %s\n", path)
 			}
 			if !isDir && strings.HasSuffix(strings.ToLower(fileInfo.Name()), ".proto") {
-				f.logger.Logf(internal.Chatty, "Proto file loaded %s\n", path)
+				if f.verbosity >= internal.Chatty {
+					fmt.Fprintf(os.Stderr, "Proto file loaded %s\n", path)
+				}
 				files = append(files, path)
 			}
 			return nil
@@ -79,7 +81,9 @@ func (f *fileFinder) dirs(ctx context.Context) ([]string, error) {
 				return err
 			}
 			if fileInfo.IsDir() {
-				f.logger.Logf(internal.Chatty, "Import path detected %s\n", path)
+				if f.verbosity >= internal.Chatty {
+					fmt.Fprintf(os.Stderr, "Import path detected %s\n", path)
+				}
 				dirs = append(dirs, path)
 			}
 			return nil
