@@ -101,7 +101,7 @@ func (c *proto) serializeProto(value string) (result []byte, err error) {
 	case internal.Base64Encoding:
 		result, err = base64.StdEncoding.DecodeString(value)
 	case internal.HexEncoding:
-		value = strings.Replace(value, " ", "", -1)
+		value = strings.ReplaceAll(value, " ", "")
 		result, err = hex.DecodeString(value)
 	default:
 		isJSON = true

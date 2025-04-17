@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -49,7 +48,7 @@ func addProducerFlags(cmd *kingpin.CmdClause, sleep *time.Duration, key *string,
 
 func initialiseProducer(kafkaParams *commands.KafkaParameters, verbosity internal.VerbosityLevel) (*kafka.Producer, error) {
 
-	saramaLogWriter := ioutil.Discard
+	saramaLogWriter := io.Discard
 	if verbosity >= internal.Chatty {
 		saramaLogWriter = os.Stdout
 	}

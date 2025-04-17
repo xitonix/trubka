@@ -363,7 +363,9 @@ func readCheckpoint(topic string, mode checkpointMode, defaultValue string) ([]s
 		if askedToExit(trimmed) {
 			return nil, errExitInteractiveMode
 		}
-		return strings.Split(trimmed, ","), nil
+		if trimmed != "" {
+			return strings.Split(trimmed, ","), nil
+		}
 	}
 	return nil, errExitInteractiveMode
 }

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"regexp"
@@ -80,7 +80,7 @@ type Manager struct {
 // NewManager creates a new instance of Kafka manager
 func NewManager(brokers []string, verbosity internal.VerbosityLevel, options ...Option) (*Manager, error) {
 
-	logWriter := ioutil.Discard
+	logWriter := io.Discard
 	if verbosity >= internal.Chatty {
 		logWriter = os.Stdout
 	}
@@ -489,9 +489,7 @@ func (m *Manager) GetGroupOffsets(ctx context.Context, group string, topicFilter
 					if _, ok := topicPartitions[topic]; !ok {
 						topicPartitions[topic] = make([]int32, 0)
 					}
-					for _, partition := range partitions {
-						topicPartitions[topic] = append(topicPartitions[topic], partition)
-					}
+					topicPartitions[topic] = append(topicPartitions[topic], partitions...)
 				}
 
 				for topic, partitions := range topicPartitions {

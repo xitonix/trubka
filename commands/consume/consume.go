@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -129,7 +128,7 @@ func bindCommonConsumeFlags(command *kingpin.CmdClause,
 		}).
 		DurationVar(idleTimeout)
 
-	command.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --encode-to=%s only. Set to 'none' to disable.", internal.JSONIndentEncoding)).
+	command.Flag("style", fmt.Sprintf("The highlighting style of the Json output. Applicable to --format=%s only. Set to 'none' to disable.", internal.JSONIndentEncoding)).
 		Default(internal.DefaultHighlightStyle).
 		EnumVar(highlightStyle,
 			internal.HighlightStyles...)
@@ -149,7 +148,7 @@ func initialiseConsumer(kafkaParams *commands.KafkaParameters,
 	idleTimeout time.Duration,
 	logFile io.Writer,
 	printer internal.Printer) (*kafka.Consumer, error) {
-	saramaLogWriter := ioutil.Discard
+	saramaLogWriter := io.Discard
 	if globalParams.Verbosity >= internal.Chatty {
 		saramaLogWriter = logFile
 	}
@@ -215,7 +214,7 @@ func getOutputWriters(outputDir string, topics map[string]*kafka.PartitionCheckp
 func getLogWriter(logFile string) (io.Writer, bool, error) {
 	switch strings.TrimSpace(strings.ToLower(logFile)) {
 	case "none":
-		return ioutil.Discard, false, nil
+		return io.Discard, false, nil
 	case "":
 		return os.Stderr, false, nil
 	default:

@@ -8,14 +8,13 @@ import (
 )
 
 type partitionConsumerMock struct {
-	mux                  sync.Mutex
-	closed               bool
-	messages             chan *sarama.ConsumerMessage
-	errors               chan *sarama.ConsumerError
-	offset               int64
-	partition            int32
-	topic                string
-	fistMessageTimestamp time.Time
+	mux       sync.Mutex
+	closed    bool
+	messages  chan *sarama.ConsumerMessage
+	errors    chan *sarama.ConsumerError
+	offset    int64
+	partition int32
+	topic     string
 }
 
 func newPartitionConsumerMock(topic string, partition int32, offset int64) *partitionConsumerMock {

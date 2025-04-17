@@ -1,0 +1,56 @@
+version: "2"
+
+run:
+  allow-parallel-runners: true
+
+linters:
+  enable:
+    - gosec
+    - importas
+    - govet
+  settings:
+    gosec:
+      excludes:
+        - G101
+        - G115
+        - G201
+        - G402
+    govet:
+      enable:
+        - nilness
+      disable:
+        - composites
+    staticcheck:
+      checks:
+        - all
+        - -S1001 # should use copy(to, from) instead of a loop, loop can be easier to read
+        - -ST1003 # initialisms
+        - -ST1005 # error strings should not be capitalized is fine
+        - -QF1003 # could use tagged switch on if is fine
+        - -QF1007 # could merge conditional assignment into variable declaration (if is easier to read)
+        - -QF1008 # could remove embedded field "Address" from selector (its easier to read)
+        - -ST1016 # methods on the same type should have the same receiver name (its nice, but not important to change)
+        - -S1002 # should omit comparison to bool constant, can be simplified (== false is easier to read)
+        - -S1008 # should use 'return len(s) > 4' instead of 'if len(s) > 4 { return true }; return false' (if can be easier to read)
+        - -SA5011 # disable related information rule
+
+  exclusions:
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - path: (.+)\.go$
+        text: 'nilness: range of nil slice'
+    paths:
+      - .github
+      - bin
+
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    paths:
+      - .github
+      - bin

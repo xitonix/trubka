@@ -3,7 +3,6 @@ package kafka
 import (
 	"crypto/tls"
 	"io"
-	"io/ioutil"
 
 	"github.com/Shopify/sarama"
 
@@ -32,7 +31,7 @@ func NewOptions() *Options {
 	return &Options{
 		DisableErrorReporting: false,
 		ClusterVersion:        DefaultClusterVersion,
-		logWriter:             ioutil.Discard,
+		logWriter:             io.Discard,
 	}
 }
 

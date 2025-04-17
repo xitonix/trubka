@@ -1,5 +1,11 @@
 ## Release Notes
 
+### v3.2.3
+
+**[Fixes]**
+
+- Build pipeline
+
 ### v3.2.2
 
 - Multi-platform build pipeline disabled

@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/araddon/dateparse"
 )
@@ -480,6 +479,6 @@ func modeToString(mode checkpointMode) string {
 }
 
 func randomInt32(min, max int32) int32 {
-	rand.Seed(time.Now().UnixNano())
+	//nolint:gosec
 	return rand.Int31n(max-min+1) + min
 }

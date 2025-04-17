@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	//nolint:staticcheck
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/jhump/protoreflect/dynamic"
 

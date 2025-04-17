@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -141,7 +140,7 @@ func configureTLS(params *commands.TLSParameters) (*tls.Config, error) {
 		return &tlsConf, nil
 	}
 	certPool := x509.NewCertPool()
-	ca, err := ioutil.ReadFile(params.CACert)
+	ca, err := os.ReadFile(params.CACert)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the CA certificate: %w", err)
 	}

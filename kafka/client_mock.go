@@ -18,20 +18,18 @@ const (
 )
 
 type clientMock struct {
-	mux                                sync.Mutex
-	counter                            int
-	partitionConsumers                 map[string]map[int32]*partitionConsumerMock
-	topics                             []string
-	partitions                         []int32
-	topicNotFound                      bool
-	forceTopicsQueryFailure            bool
-	forcePartitionsQueryFailure        bool
-	forceOffsetQueryFailure            bool
-	forcePartitionConsumerCloseFailure bool
-	publishStartTime                   time.Time
-	ready                              chan interface{}
-	availableOffsets                   map[int32]map[int64]int64
-	numberOfActivePartitions           int
+	mux                         sync.Mutex
+	counter                     int
+	partitionConsumers          map[string]map[int32]*partitionConsumerMock
+	topics                      []string
+	partitions                  []int32
+	topicNotFound               bool
+	forceTopicsQueryFailure     bool
+	forcePartitionsQueryFailure bool
+	forceOffsetQueryFailure     bool
+	ready                       chan interface{}
+	availableOffsets            map[int32]map[int64]int64
+	numberOfActivePartitions    int
 }
 
 func newClientMock(

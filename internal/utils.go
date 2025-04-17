@@ -35,7 +35,7 @@ func NotFoundError(entity, filterName string, ex *regexp.Regexp) error {
 // WaitForCancellationSignal waits for the user to press Ctrl+C.
 func WaitForCancellationSignal() {
 	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 	<-signals
 }
 

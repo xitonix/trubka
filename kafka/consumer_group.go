@@ -2,9 +2,6 @@ package kafka
 
 import (
 	"fmt"
-	"regexp"
-
-	"github.com/Shopify/sarama"
 )
 
 // GroupMember represents a consumer group member.
@@ -29,23 +26,6 @@ type ConsumerGroup struct {
 	TopicOffsets TopicPartitionOffset
 	// Coordinator the coordinator of the consumer group
 	Coordinator Broker
-}
-
-func (c *ConsumerGroup) addMembers(members map[string]*sarama.GroupMemberDescription, memberFilter *regexp.Regexp) {
-	c.Members = make([]GroupMember, 0)
-	for id, m := range members {
-		if memberFilter != nil && !(memberFilter.Match([]byte(id)) ||
-			memberFilter.Match([]byte(m.ClientHost)) ||
-			memberFilter.Match([]byte(m.ClientId))) {
-			continue
-		}
-		member := GroupMember{
-			ID:       id,
-			ClientID: m.ClientId,
-			Host:     m.ClientHost,
-		}
-		c.Members = append(c.Members, member)
-	}
 }
 
 // ConsumerGroups the map of consumer groups keyed by consumer group ID.

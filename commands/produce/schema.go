@@ -95,9 +95,11 @@ func (c *schema) readSchema(ctx context.Context, mp map[string]interface{}, oneO
 			}
 			t := field.GetType()
 			name := field.GetName()
-			oneOff := field.GetOneOf()
-			oneOffChoice = chooseOneOff(oneOff)
-			if oneOffChoice != "" && name != oneOffChoice && oneOff != nil {
+			choice := oneOffChoice
+			if oneOff := field.GetOneOf(); choice == "" && oneOff != nil {
+				choice = chooseOneOff(oneOff)
+			}
+			if choice != "" && name != choice {
 				continue
 			}
 
@@ -121,9 +123,6 @@ func (c *schema) readSchema(ctx context.Context, mp map[string]interface{}, oneO
 }
 
 func chooseOneOff(oneOff *desc.OneOfDescriptor) string {
-	if oneOff == nil {
-		return ""
-	}
 	choices := oneOff.GetChoices()
 	for _, choice := range choices {
 		options := choice.GetFieldOptions()

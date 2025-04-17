@@ -51,7 +51,7 @@ func InitKafkaManager(globalParams *GlobalParameters, kafkaParams *KafkaParamete
 
 	go func() {
 		signals := make(chan os.Signal, 1)
-		signal.Notify(signals, os.Kill, os.Interrupt, syscall.SIGTERM)
+		signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 		<-signals
 		cancel()
 	}()

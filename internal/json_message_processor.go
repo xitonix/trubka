@@ -76,6 +76,9 @@ func (j *JSONMessageProcessor) Process(message, key []byte, ts time.Time, topic 
 	var err error
 	if j.indent {
 		message, err = json.MarshalIndent(output, "", JSONIndentation)
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		marshal, err := json.Marshal(output)
 		if err != nil {
@@ -86,11 +89,11 @@ func (j *JSONMessageProcessor) Process(message, key []byte, ts time.Time, topic 
 			return nil, err
 		}
 		message, err = io.ReadAll(&compact)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	if err != nil {
-		return nil, err
-	}
 	return j.highlight(message), nil
 }
 
