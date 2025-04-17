@@ -2,9 +2,9 @@
 
 ### v3.2.3
 
-**[Fixes]**
 
-- Build pipeline
+- Fixed build pipeline
+- Upgraded runtime to Go 1.24
 
 ### v3.2.2
 
