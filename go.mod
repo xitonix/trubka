@@ -1,6 +1,6 @@
 module github.com/xitonix/trubka
 
-go 1.15
+go 1.24.2
 
 require (
 	github.com/Shopify/sarama v1.27.2
