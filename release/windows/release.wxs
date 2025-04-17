@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product Name="$(var.AppName) v$(var.AppVersion)"
+             Manufacturer="https://xitonix.io"
+             Id="*"
+             UpgradeCode="092cdb38-5c04-4d65-9b64-f9270de40816"
+             Language="1033"
+             Codepage="1252"
+             Version="$(var.WixVersion)">
+        <Package Id="*"
+                 Keywords="Installer"
+                 Description="$(var.AppName) v$(var.AppVersion) Installer"
+                 Languages="1033"
+                 InstallerVersion="200"
+                 InstallScope="perMachine"
+                 Compressed="yes"
+                 SummaryCodepage="1252" />
+        <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
+        <Media Id="1" Cabinet="$(var.AppName).cab" EmbedCab="yes" CompressionLevel="high" />
+        <Upgrade Id="092cdb38-5c04-4d65-9b64-f9270de40816">
+            <UpgradeVersion OnlyDetect='no' Property='PREVIOUSFOUND'
+                            Minimum='0.0.0' IncludeMinimum='yes'
+                            Maximum='$(var.WixVersion)' IncludeMaximum='no' />
+        </Upgrade>
+        <InstallExecuteSequence>
+            <RemoveExistingProducts Before="InstallInitialize" />
+        </InstallExecuteSequence>
+        <Condition Message="Windows 7 (with Service Pack 1) or greater required.">
+            ((VersionNT > 601) OR (VersionNT = 601 AND ServicePackLevel >= 1))
+        </Condition>
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFiles64Folder">
+                <Directory Id="INSTALLDIR" Name="$(var.AppName)">
+                    <Component Id="MainExecutable" Guid="daa6428b-5bc0-4fa7-900c-a27cb40b420b">
+                        <File Id="AppExe" Name="$(var.AppName).exe" DiskId="1" Source="$(var.AppName).exe" KeyPath="yes" />
+                    </Component>
+                </Directory>
+            </Directory>
+            <Directory Id="EnvironmentEntries">
+                <Directory Id="AppEnvironmentEntries">
+                    <Component Id="AppEnvironment" Guid="8f2aa3ac-1de5-4920-9f2d-4426c6634a37">
+                        <Environment
+                                Id="PathEntry"
+                                Action="set"
+                                Part="last"
+                                Name="PATH"
+                                Permanent="no"
+                                System="yes"
+                                Value="[INSTALLDIR]" />
+                        <RemoveFolder
+                                Id="AppEnvironmentEntries"
+                                On="uninstall" />
+                    </Component>
+                </Directory>
+            </Directory>
+        </Directory>
+        <Feature Id="Complete" Level="1">
+            <ComponentRef Id="MainExecutable" />
+            <ComponentRef Id="AppEnvironment" />
+        </Feature>
+        <CustomActionRef Id="WixBroadcastEnvironmentChange" />
+        <UIRef Id="WixUI_InstallDir" />
+        <UIRef Id="WixUI_ErrorProgressText" />
+    </Product>
+</Wix>
