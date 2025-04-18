@@ -1,14 +1,10 @@
 ## Release Notes
 
-### v3.2.3
+### v3.2.2
 
 - Fixed build pipeline
 - Upgraded runtime to Go 1.24
-
-### v3.2.2
-
-- Multi-platform build pipeline disabled
-- JSON compact is the default encoder
+- JSON compact is set as the default encoder
 
 ### v3.2.1
 
