@@ -1,6 +1,6 @@
 ## Release Notes
 
-### v3.2.2
+### v3.3.0
 
 - Fixed build pipeline
 - Upgraded runtime to Go 1.24
