@@ -12,7 +12,7 @@ on:
 jobs:
   mac:
     name: Mac
-    runs-on: macOS-latest
+    runs-on: macos-13
     steps:
       - name: Set up Go
         uses: actions/setup-go@v2
@@ -45,7 +45,7 @@ jobs:
           brew tap ${{ github.actor }}/${{ env.BINARY }}
           brew bump-formula-pr -f --version=${{ steps.package.outputs.version }} --no-browse --no-audit \
           --sha256=${{ steps.package.outputs.sha }} \
-          --url="https://github.com/${{ github.actor }}/${{ env.BINARY }}/releases/download/${{ steps.package.outputs.version }}/${{ steps.package.outputs.file }}" \
+          --url="https://github.com/${{ github.actor }}/${{ env.BINARY }}/releases/download/${{steps.package.outputs.version}}/${{ steps.package.outputs.file }}" \
           ${{ github.actor }}/${{ env.BINARY }}/${{ env.BINARY }}
   linux:
     name: Linux

@@ -2,7 +2,6 @@
 
 ### v3.2.3
 
-
 - Fixed build pipeline
 - Upgraded runtime to Go 1.24
 

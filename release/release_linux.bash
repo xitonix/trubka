@@ -38,6 +38,6 @@ docker run --rm -v $(pwd):/root xitonix/fpm-debian -C /root/output \
       -v ${RELEASE_VERSION} \
       --deb-use-file-permissions
 
-echo "::set-output name=file::${RELEASE_NAME}.tar.gz"
-echo "::set-output name=rpm::${BINARY}-${RELEASE_VERSION}-${RPM_ITERATION}.x86_64.rpm"
-echo "::set-output name=deb::${BINARY}_${RELEASE_VERSION}_${RELEASE_ARCH}.deb"
+echo "file=${RELEASE_NAME}.tar.gz" >> $GITHUB_OUTPUT
+echo "rpm=${BINARY}-${RELEASE_VERSION}-${RPM_ITERATION}.x86_64.rpm" >> $GITHUB_OUTPUT
+echo "deb=${BINARY}_${RELEASE_VERSION}_${RELEASE_ARCH}.deb" >> $GITHUB_OUTPUT

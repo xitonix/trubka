@@ -11,6 +11,7 @@ mkdir -p $BIN_DIR
 echo "Creating ${RELEASE_NAME}.tar.gz..." 1>&2
 "$SRC/release/build.bash" "$BIN_DIR/$BINARY" "$RELEASE_VERSION"
 tar -C "${BIN_DIR}" -cvzf "${RELEASE_NAME}.tar.gz" "${BINARY}"
-echo "::set-output name=file::${RELEASE_NAME}.tar.gz"
-echo "::set-output name=sha::$(shasum -a 256 ${RELEASE_NAME}.tar.gz | awk '{printf $1}')"
-echo "::set-output name=version::v${RELEASE_VERSION}"
+
+echo "file=${RELEASE_NAME}.tar.gz" >> $GITHUB_OUTPUT
+echo "sha=$(shasum -a 256 ${RELEASE_NAME}.tar.gz | awk '{printf $1}')" >> $GITHUB_OUTPUT
+echo "version=v${RELEASE_VERSION}" >> $GITHUB_OUTPUT

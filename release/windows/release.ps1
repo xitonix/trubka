@@ -44,5 +44,6 @@ If ( $LastExitCode -ne 0 ) {
 If ( $LastExitCode -ne 0 ) {
     exit $LastExitCode
 }
-Write-Output "::set-output name=file::${filename}"
-Write-Output "::set-output name=archive::${tarfilename}"
+
+echo file=$filename >> $env:GITHUB_OUTPUT
+echo archive=$tarfilename >> $env:GITHUB_OUTPUT
