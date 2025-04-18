@@ -1,5 +1,9 @@
 ## Release Notes
 
+### v3.3.1 (WIP)
+
+- Fixed missing quote in boolean parsing logic ([PR](https://github.com/xitonix/trubka/pull/22))
+
 ### v3.3.0
 
 - Fixed build pipeline
